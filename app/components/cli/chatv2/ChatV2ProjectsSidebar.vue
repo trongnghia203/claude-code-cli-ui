@@ -49,6 +49,26 @@ const {
   fetchSessions
 } = useClaudeCodeHistory()
 
+const { isPinned, isHidden, togglePin, toggleHide, hiddenCount, sortBy, sortProjects, viewMode: folderViewMode, toggleViewMode } = useProjectPreferences()
+const showHidden = ref(false)
+
+const pinnedProjects = computed(() =>
+  sortProjects(projects.value.filter(p => isPinned(p.name)))
+)
+const unpinnedProjects = computed(() =>
+  sortProjects(projects.value.filter(p => !isPinned(p.name) && (!isHidden(p.name) || showHidden.value)))
+)
+const hiddenCountVisible = computed(() =>
+  projects.value.filter(p => !isPinned(p.name) && isHidden(p.name)).length
+)
+
+const SORT_OPTIONS = [
+  { value: 'recent',    label: 'Recent' },
+  { value: 'name',      label: 'Name A-Z' },
+  { value: 'name-desc', label: 'Name Z-A' },
+  { value: 'sessions',  label: 'Sessions' },
+] as const
+
 // Output style selector
 const { styles: outputStyles, fetchStyles: fetchOutputStyles } = useOutputStyles()
 const selectedOutputStyleId = useState('chat-active-output-style-id', () => 'default')
@@ -451,6 +471,26 @@ function confirmDelete() {
             <UIcon name="i-lucide-plus" class="size-3.5" />
             New Chat
           </button>
+          <!-- Compact/default view toggle -->
+          <button
+            v-if="viewMode === 'projects'"
+            class="p-2 rounded-lg transition-all hover-bg flex items-center justify-center shrink-0"
+            style="background: var(--surface-raised); color: var(--text-secondary);"
+            :title="folderViewMode === 'compact' ? 'Default view' : 'Compact view'"
+            @click="toggleViewMode"
+          >
+            <UIcon :name="folderViewMode === 'compact' ? 'i-lucide-layout-list' : 'i-lucide-list'" class="size-4" />
+          </button>
+          <!-- Sort dropdown (only in projects view) -->
+          <select
+            v-if="viewMode === 'projects'"
+            v-model="sortBy"
+            class="h-8 px-1.5 rounded-lg text-[11px] outline-none cursor-pointer transition-all"
+            style="background: var(--surface-raised); color: var(--text-secondary); border: 1px solid var(--border-subtle);"
+            title="Sort folders"
+          >
+            <option v-for="opt in SORT_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+          </select>
           <button
             class="p-2 rounded-lg transition-all hover-bg flex items-center justify-center"
             style="background: var(--surface-raised); color: var(--text-secondary);"
@@ -458,9 +498,9 @@ function confirmDelete() {
             :disabled="isRefreshing"
             @click="handleManualRefresh"
           >
-            <UIcon 
-              name="i-lucide-refresh-cw" 
-              class="size-4" 
+            <UIcon
+              name="i-lucide-refresh-cw"
+              class="size-4"
               :class="{ 'animate-spin': isRefreshing }"
             />
           </button>
@@ -499,96 +539,124 @@ function confirmDelete() {
       </div>
 
       <!-- Projects List -->
-      <div v-if="viewMode === 'projects'" class="flex-1 overflow-y-auto p-2 space-y-1">
+      <div v-if="viewMode === 'projects'" class="flex-1 overflow-y-auto p-2 space-y-0">
         <!-- Loading state -->
         <div v-if="isLoadingProjects" class="flex items-center justify-center py-8">
           <UIcon name="i-lucide-loader-2" class="size-5 animate-spin" style="color: var(--text-secondary);" />
         </div>
 
-        <!-- Projects -->
+        <!-- Pinned section -->
+        <template v-if="pinnedProjects.length > 0">
+          <div class="flex items-center gap-1.5 px-1 pt-1 pb-0.5">
+            <UIcon name="i-lucide-pin" class="size-3" style="color: var(--accent);" />
+            <span class="text-[10px] font-semibold uppercase tracking-wider" style="color: var(--text-tertiary);">Pinned</span>
+          </div>
+          <div
+            v-for="(project, index) in pinnedProjects"
+            :key="'pinned-' + project.name"
+            class="stagger-item px-3 rounded-lg cursor-pointer transition-all hover-bg group min-w-0"
+            :class="folderViewMode === 'compact' ? 'py-0' : 'py-1.5'"
+            style="background: var(--accent-light); border-left: 2px solid var(--accent);"
+            :style="{ animationDelay: `${index * 40}ms` }"
+            @click="handleProjectClick(project)"
+          >
+            <div class="flex items-center gap-2 min-w-0" :class="folderViewMode !== 'compact' ? 'mb-0.5' : ''">
+              <UIcon name="i-lucide-folder" class="size-3.5 shrink-0" style="color: var(--accent);" />
+              <template v-if="editingProjectName === project.name">
+                <div class="flex items-center gap-1 flex-1 min-w-0" @click.stop>
+                  <input ref="projectEditInputRef" v-model="projectEditInput" class="flex-1 min-w-0 px-1.5 py-0.5 rounded text-[12px] font-medium outline-none" style="background: var(--surface-raised); border: 1px solid var(--accent); color: var(--text-primary);" @keyup.enter="saveProjectEdit" @keyup.escape="cancelProjectEdit" />
+                  <button class="p-1 rounded hover:bg-green-500/20 transition-colors shrink-0" title="Save" @click.stop="saveProjectEdit"><UIcon name="i-lucide-check" class="size-3.5" style="color: #22c55e;" /></button>
+                  <button class="p-1 rounded hover:bg-red-500/10 transition-colors shrink-0" title="Cancel" @click.stop="cancelProjectEdit"><UIcon name="i-lucide-x" class="size-3.5" style="color: var(--text-tertiary);" /></button>
+                </div>
+              </template>
+              <template v-else>
+                <span class="font-medium truncate" :class="folderViewMode === 'compact' ? 'text-[14px] flex-1 min-w-0' : 'text-[13px] break-words flex-1 min-w-0'" style="color: var(--text-primary);">
+                  {{ project.displayName }}<span v-if="folderViewMode === 'compact'" class="ml-1 text-[12px] font-normal" style="color: var(--text-tertiary);">[{{ project.sessionCount }}]</span>
+                </span>
+                <div class="flex items-center gap-0.5 max-w-0 overflow-hidden group-hover:max-w-[120px] transition-[max-width] duration-200 shrink-0">
+                  <button class="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors" title="Unpin" @click.stop="togglePin(project.name)">
+                    <UIcon name="i-lucide-pin-off" class="size-3" style="color: var(--accent);" />
+                  </button>
+                  <button class="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors" title="Rename folder" @click.stop="startEditingProject(project, $event)">
+                    <UIcon name="i-lucide-pencil" class="size-3" style="color: var(--text-tertiary);" />
+                  </button>
+                  <button class="p-1 rounded hover:bg-red-500/10 transition-colors" title="Delete folder history" @click.stop="openProjectDeleteModal(project, $event)">
+                    <UIcon name="i-lucide-trash-2" class="size-3" style="color: var(--error, #ef4444);" />
+                  </button>
+                  <UIcon name="i-lucide-chevron-right" class="size-3.5 shrink-0" style="color: var(--text-tertiary);" />
+                </div>
+              </template>
+            </div>
+            <template v-if="folderViewMode !== 'compact'">
+              <div v-if="project.path" class="text-[10px] font-mono truncate mb-1 pl-5.5" style="color: var(--text-tertiary);" :title="project.path">{{ project.path }}</div>
+              <div class="flex items-center gap-2 text-[10px] pl-5.5" style="color: var(--text-tertiary);">
+                <span>{{ project.sessionCount }} sessions</span>
+                <span v-if="project.lastActivity">{{ formatRelativeTime(project.lastActivity) }}</span>
+              </div>
+            </template>
+          </div>
+          <div class="border-b my-1" style="border-color: var(--border-subtle);" />
+        </template>
+
+        <!-- Unpinned projects -->
         <div
-          v-for="(project, index) in projects"
+          v-for="(project, index) in unpinnedProjects"
           :key="project.name"
-          class="stagger-item px-3 py-2.5 rounded-lg cursor-pointer transition-all hover-bg group min-w-0"
+          class="stagger-item px-3 rounded-lg cursor-pointer transition-all hover-bg group min-w-0"
+          :class="folderViewMode === 'compact' ? 'py-0' : 'py-1.5'"
           style="background: var(--surface-raised);"
-          :style="{ animationDelay: `${index * 40}ms` }"
+          :style="{ animationDelay: `${(index + pinnedProjects.length) * 40}ms` }"
           @click="handleProjectClick(project)"
         >
-          <div class="flex items-center gap-2 mb-0.5 min-w-0">
+          <div class="flex items-center gap-2 min-w-0" :class="folderViewMode !== 'compact' ? 'mb-0.5' : ''">
             <UIcon name="i-lucide-folder" class="size-3.5 shrink-0" style="color: var(--accent);" />
-            
-            <!-- Inline project edit mode -->
             <template v-if="editingProjectName === project.name">
               <div class="flex items-center gap-1 flex-1 min-w-0" @click.stop>
-                <input
-                  ref="projectEditInputRef"
-                  v-model="projectEditInput"
-                  class="flex-1 min-w-0 px-1.5 py-0.5 rounded text-[12px] font-medium outline-none"
-                  style="background: var(--surface-raised); border: 1px solid var(--accent); color: var(--text-primary);"
-                  @keyup.enter="saveProjectEdit"
-                  @keyup.escape="cancelProjectEdit"
-                />
-                <button
-                  class="p-1 rounded hover:bg-green-500/20 transition-colors shrink-0"
-                  title="Save"
-                  @click.stop="saveProjectEdit"
-                >
-                  <UIcon name="i-lucide-check" class="size-3.5" style="color: #22c55e;" />
-                </button>
-                <button
-                  class="p-1 rounded hover:bg-red-500/10 transition-colors shrink-0"
-                  title="Cancel"
-                  @click.stop="cancelProjectEdit"
-                >
-                  <UIcon name="i-lucide-x" class="size-3.5" style="color: var(--text-tertiary);" />
-                </button>
+                <input ref="projectEditInputRef" v-model="projectEditInput" class="flex-1 min-w-0 px-1.5 py-0.5 rounded text-[12px] font-medium outline-none" style="background: var(--surface-raised); border: 1px solid var(--accent); color: var(--text-primary);" @keyup.enter="saveProjectEdit" @keyup.escape="cancelProjectEdit" />
+                <button class="p-1 rounded hover:bg-green-500/20 transition-colors shrink-0" title="Save" @click.stop="saveProjectEdit"><UIcon name="i-lucide-check" class="size-3.5" style="color: #22c55e;" /></button>
+                <button class="p-1 rounded hover:bg-red-500/10 transition-colors shrink-0" title="Cancel" @click.stop="cancelProjectEdit"><UIcon name="i-lucide-x" class="size-3.5" style="color: var(--text-tertiary);" /></button>
               </div>
             </template>
-
-            <!-- Normal project title -->
             <template v-else>
-              <span class="text-[12px] font-medium break-words flex-1 min-w-0" style="color: var(--text-primary);">
-                {{ project.displayName }}
+              <span class="font-medium truncate flex-1 min-w-0" :class="folderViewMode === 'compact' ? 'text-[14px]' : 'text-[13px]'" style="color: var(--text-primary);">
+                {{ project.displayName }}<span v-if="folderViewMode === 'compact'" class="ml-1 text-[12px] font-normal" style="color: var(--text-tertiary);">[{{ project.sessionCount }}]</span>
               </span>
-              
-              <!-- Project Action icons -->
-              <div class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                <button
-                  class="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
-                  title="Rename folder"
-                  @click.stop="startEditingProject(project, $event)"
-                >
+              <div class="flex items-center gap-0.5 max-w-0 overflow-hidden group-hover:max-w-[140px] transition-[max-width] duration-200 shrink-0">
+                <button class="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors" :title="isHidden(project.name) ? 'Unhide' : 'Hide folder'" @click.stop="toggleHide(project.name)">
+                  <UIcon :name="isHidden(project.name) ? 'i-lucide-eye' : 'i-lucide-eye-off'" class="size-3" style="color: var(--text-tertiary);" />
+                </button>
+                <button class="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors" title="Pin to top" @click.stop="togglePin(project.name)">
+                  <UIcon name="i-lucide-pin" class="size-3" style="color: var(--text-tertiary);" />
+                </button>
+                <button class="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors" title="Rename folder" @click.stop="startEditingProject(project, $event)">
                   <UIcon name="i-lucide-pencil" class="size-3" style="color: var(--text-tertiary);" />
                 </button>
-                <button
-                  class="p-1 rounded hover:bg-red-500/10 transition-colors"
-                  title="Delete folder history"
-                  @click.stop="openProjectDeleteModal(project, $event)"
-                >
+                <button class="p-1 rounded hover:bg-red-500/10 transition-colors" title="Delete folder history" @click.stop="openProjectDeleteModal(project, $event)">
                   <UIcon name="i-lucide-trash-2" class="size-3" style="color: var(--error, #ef4444);" />
                 </button>
-                <UIcon
-                  name="i-lucide-chevron-right"
-                  class="size-3.5 shrink-0"
-                  style="color: var(--text-tertiary);"
-                />
+                <UIcon name="i-lucide-chevron-right" class="size-3.5 shrink-0" style="color: var(--text-tertiary);" />
               </div>
             </template>
           </div>
-          <!-- Directory path -->
-          <div
-            v-if="project.path"
-            class="text-[10px] font-mono truncate mb-1 pl-5.5"
-            style="color: var(--text-tertiary);"
-            :title="project.path"
-          >
-            {{ project.path }}
-          </div>
-          <div class="flex items-center gap-2 text-[10px] pl-5.5" style="color: var(--text-tertiary);">
-            <span>{{ project.sessionCount }} sessions</span>
-            <span v-if="project.lastActivity">{{ formatRelativeTime(project.lastActivity) }}</span>
-          </div>
+          <template v-if="folderViewMode !== 'compact'">
+            <div v-if="project.path" class="text-[10px] font-mono truncate mb-1 pl-5.5" style="color: var(--text-tertiary);" :title="project.path">{{ project.path }}</div>
+            <div class="flex items-center gap-2 text-[10px] pl-5.5" style="color: var(--text-tertiary);">
+              <span>{{ project.sessionCount }} sessions</span>
+              <span v-if="project.lastActivity">{{ formatRelativeTime(project.lastActivity) }}</span>
+            </div>
+          </template>
         </div>
+
+        <!-- Show/hide hidden projects toggle -->
+        <button
+          v-if="hiddenCountVisible > 0"
+          class="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] transition-all hover-bg mt-1"
+          style="color: var(--text-tertiary);"
+          @click="showHidden = !showHidden"
+        >
+          <UIcon :name="showHidden ? 'i-lucide-eye-off' : 'i-lucide-eye'" class="size-3.5" />
+          {{ showHidden ? `Hide ${hiddenCountVisible} folder${hiddenCountVisible > 1 ? 's' : ''}` : `Show ${hiddenCountVisible} hidden folder${hiddenCountVisible > 1 ? 's' : ''}` }}
+        </button>
 
         <!-- Empty state -->
         <div v-if="projects.length === 0 && !isLoadingProjects" class="text-center py-8">
