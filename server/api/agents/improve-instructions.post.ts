@@ -51,6 +51,8 @@ export default defineEventHandler(async (event): Promise<ImproveResponse> => {
         // Plain prompt: this is a text rewrite, so skip the large Claude Code tool preset
         systemPrompt: 'You are an expert editor of instructions for AI coding assistants. Be concise and precise.',
         pathToClaudeCodeExecutable: getInstalledClaudePath(),
+        // One-off text rewrite: do not leave a chat session behind in the user's history
+        persistSession: false,
       },
     })) {
       if ('result' in message) {
