@@ -22,6 +22,13 @@ const dirSuggestions = ref<{ name: string; path: string; hasChildren: boolean }[
 const selectedSuggestionIdx = ref(-1)
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
+const parentDirPath = computed(() => {
+  const p = workingDirInput.value.replace(/\/+$/, '')
+  if (!p || p === '/') return null
+  const idx = p.lastIndexOf('/')
+  return idx <= 0 ? '/' : p.slice(0, idx)
+})
+
 function openWorkingDirPopover() {
   workingDirInput.value = workingDir.value
   dirSuggestions.value = []
@@ -391,7 +398,19 @@ function badgeFor(to: string) {
             </button>
             <template #content>
               <div class="p-3 space-y-3">
-                <div class="text-[13px] font-semibold" style="color: var(--text-primary); font-family: var(--font-sans);">Working Directory</div>
+                <div class="flex items-center justify-between gap-2">
+                  <div class="text-[13px] font-semibold" style="color: var(--text-primary); font-family: var(--font-sans);">Working Directory</div>
+                  <button
+                    type="button"
+                    class="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] hover-bg transition-colors shrink-0"
+                    style="color: var(--text-tertiary); border: 1px solid var(--border-subtle);"
+                    title="Go to home directory"
+                    @click="workingDirInput = '~'; fetchDirSuggestions('~')"
+                  >
+                    <UIcon name="i-lucide-home" class="size-3" />
+                    Home
+                  </button>
+                </div>
                 <p class="text-[11px] leading-relaxed" style="color: var(--text-secondary);">
                   Set the project directory for all chat conversations. Claude will operate in this directory.
                 </p>
@@ -406,10 +425,20 @@ function badgeFor(to: string) {
                   />
                   <!-- Directory suggestions -->
                   <div
-                    v-if="dirSuggestions.length"
-                    class="mt-1 rounded-lg overflow-hidden max-h-[200px] overflow-y-auto"
+                    v-if="dirSuggestions.length || parentDirPath"
+                    class="mt-1 rounded-lg overflow-hidden max-h-[420px] overflow-y-auto"
                     style="border: 1px solid var(--border-subtle); background: var(--surface-raised);"
                   >
+                    <!-- Parent (..) entry -->
+                    <button
+                      v-if="parentDirPath"
+                      type="button"
+                      class="w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors duration-75 border-b"
+                      style="border-color: var(--border-subtle); color: var(--text-tertiary);"
+                      @click="workingDirInput = parentDirPath; fetchDirSuggestions(parentDirPath)"
+                    >
+                      <span class="text-[11px] font-mono truncate">..</span>
+                    </button>
                     <button
                       v-for="(suggestion, idx) in dirSuggestions"
                       :key="suggestion.path"

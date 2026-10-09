@@ -26,7 +26,8 @@ export default defineEventHandler((event) => {
     const dirs = entries
       .filter(e => e.isDirectory() && !e.name.startsWith('.'))
       .filter(e => !prefix || e.name.toLowerCase().startsWith(prefix))
-      .slice(0, 15)
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+      .slice(0, 20)
       .map(e => {
         const full = resolve(dirToList, e.name)
         // Check if this directory has subdirectories (for showing expandability)
