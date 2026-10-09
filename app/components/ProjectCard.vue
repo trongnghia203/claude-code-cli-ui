@@ -11,6 +11,11 @@ interface ClaudeCodeProject {
 
 defineProps<{
   project: ClaudeCodeProject
+  hidden?: boolean
+}>()
+
+defineEmits<{
+  (e: 'toggleHide'): void
 }>()
 </script>
 
@@ -18,6 +23,7 @@ defineProps<{
   <NuxtLink
     :to="`/project-artifacts/${encodeURIComponent(project.name)}`"
     class="block rounded-xl p-4 transition-all duration-200 focus-ring group relative overflow-hidden"
+    :class="hidden ? 'opacity-50' : ''"
     style="background: var(--surface-raised); border: 1px solid var(--border-subtle);"
     @mouseenter="($event.currentTarget as HTMLElement).style.borderColor = 'var(--border-default)'; ($event.currentTarget as HTMLElement).style.transform = 'translateY(-2px)'; ($event.currentTarget as HTMLElement).style.boxShadow = '0 4px 20px var(--card-shadow)'"
     @mouseleave="($event.currentTarget as HTMLElement).style.borderColor = 'var(--border-subtle)'; ($event.currentTarget as HTMLElement).style.transform = ''; ($event.currentTarget as HTMLElement).style.boxShadow = ''"
@@ -33,6 +39,17 @@ defineProps<{
       class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
       style="background: radial-gradient(ellipse at top, var(--accent) 08 0%, transparent 60%)"
     />
+
+    <!-- Hide / unhide -->
+    <button
+      type="button"
+      class="absolute top-3 right-3 z-10 p-1.5 rounded-lg flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 hover-bg"
+      style="color: var(--text-tertiary); background: var(--surface-raised);"
+      :title="hidden ? 'Unhide project' : 'Hide project'"
+      @click.prevent.stop="$emit('toggleHide')"
+    >
+      <UIcon :name="hidden ? 'i-lucide-eye' : 'i-lucide-eye-off'" class="size-3.5" />
+    </button>
 
     <div class="flex items-start gap-3 relative">
       <div

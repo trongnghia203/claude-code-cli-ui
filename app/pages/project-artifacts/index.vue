@@ -17,6 +17,12 @@ const filteredProjects = computed(() => {
   )
 })
 
+// Shared with the chat sidebar (same localStorage prefs), so hiding in one place hides in both
+const { isHidden, toggleHide } = useProjectPreferences()
+const showHidden = ref(false)
+const hiddenTotal = computed(() => projects.value.filter(p => isHidden(p.name)).length)
+const visibleProjects = computed(() => filteredProjects.value.filter(p => showHidden.value || !isHidden(p.name)))
+
 const showAddModal = ref(false)
 const newPath = ref('')
 const newDisplayName = ref('')
@@ -73,7 +79,7 @@ useHead({
     <PageHeader title="Project Artifacts">
       <template #trailing>
         <span class="text-[12px] text-meta">
-          {{ projects.length }} projects detected
+          {{ visibleProjects.length }} projects detected
         </span>
       </template>
       <template #right>
@@ -95,6 +101,15 @@ useHead({
               class="size-4"
               :class="{ 'animate-spin': isLoadingProjects }"
             />
+          </button>
+          <button
+            v-if="hiddenTotal > 0"
+            class="px-3 py-2 rounded-xl text-[12px] font-medium transition-all flex items-center gap-1.5 hover-bg"
+            style="background: var(--surface-raised); border: 1px solid var(--border-subtle); color: var(--text-secondary);"
+            @click="showHidden = !showHidden"
+          >
+            <UIcon :name="showHidden ? 'i-lucide-eye-off' : 'i-lucide-eye'" class="size-3.5" />
+            {{ showHidden ? 'Hide hidden' : `Show ${hiddenTotal} hidden` }}
           </button>
           <button
             class="px-4 py-2 rounded-xl text-[13px] font-semibold transition-all flex items-center gap-2"
@@ -121,11 +136,13 @@ useHead({
         <div v-for="i in 8" :key="i" class="h-[140px] rounded-xl animate-pulse" style="background: var(--surface-raised);" />
       </div>
 
-      <div v-else-if="filteredProjects.length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      <div v-else-if="visibleProjects.length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         <ProjectCard
-          v-for="project in filteredProjects"
+          v-for="project in visibleProjects"
           :key="project.name"
           :project="project"
+          :hidden="isHidden(project.name)"
+          @toggle-hide="toggleHide(project.name)"
         />
       </div>
 
