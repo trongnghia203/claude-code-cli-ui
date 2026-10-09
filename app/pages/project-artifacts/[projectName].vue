@@ -10,7 +10,7 @@ interface ProjectArtifactsResponse {
   skills: Skill[]
 }
 
-const { data, pending, error } = useFetch<ProjectArtifactsResponse>(`/api/project-artifacts/${encodeURIComponent(projectName)}/local`)
+const { data, pending, error, refresh } = useFetch<ProjectArtifactsResponse>(`/api/project-artifacts/${encodeURIComponent(projectName)}/local`)
 
 useHead({
   title: computed(() => data.value ? `${data.value.project.displayName} Artifacts | Agent Manager` : 'Project Artifacts')
@@ -25,6 +25,19 @@ useHead({
       </template>
       <template #right>
         <div class="flex items-center gap-3">
+          <button
+            class="p-2 rounded-lg transition-all hover-bg flex items-center justify-center shrink-0"
+            style="background: var(--surface-raised); color: var(--text-secondary);"
+            title="Refresh"
+            :disabled="pending"
+            @click="refresh()"
+          >
+            <UIcon
+              name="i-lucide-refresh-cw"
+              class="size-4"
+              :class="{ 'animate-spin': pending }"
+            />
+          </button>
           <NuxtLink
             :to="`/cli/project/${encodeURIComponent(projectName)}`"
             class="px-4 py-2 rounded-xl text-[13px] font-semibold transition-all flex items-center gap-2"
