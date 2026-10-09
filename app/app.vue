@@ -205,6 +205,14 @@ function linkTarget(link: { key?: string; to: string }): string {
   return link.to
 }
 
+// Switching project while on a CLI page: follow it, otherwise the session list keeps showing the old project
+watch(workingDir, (dir, prev) => {
+  if (!mounted.value || dir === prev) return
+  if (route.path === '/cli' || route.path.startsWith('/cli/')) {
+    navigateTo(linkTarget({ key: 'cli', to: '/cli' }))
+  }
+})
+
 function isActive(to: string) {
   if (to === '/') return route.path === '/'
   // Exact match or sub-route
