@@ -1,4 +1,5 @@
 import { query } from '@anthropic-ai/claude-agent-sdk'
+import { getInstalledClaudePath } from '../../utils/claudeBinary'
 
 interface ImproveRequest {
   name: string
@@ -18,6 +19,12 @@ interface ImproveResponse {
   improvedInstructions: string
 }
 
+/** Models sometimes wrap the whole answer in a ``` fence; unwrap it. */
+function stripCodeFence(text: string): string {
+  const m = text.trim().match(/^```[a-zA-Z]*\n([\s\S]*?)\n```$/)
+  return (m ? m[1]! : text).trim()
+}
+
 export default defineEventHandler(async (event): Promise<ImproveResponse> => {
   const body = await readBody<ImproveRequest>(event)
 
@@ -27,9 +34,11 @@ export default defineEventHandler(async (event): Promise<ImproveResponse> => {
 
   const isGeneration = !body.currentInstructions?.trim()
 
+  // The editor only uses the full rewritten text, so ask for just that (plain text, no JSON).
+  // Asking for per-suggestion JSON too doubled the output and made the call slow and fragile.
   const prompt = isGeneration
-    ? `Generate instructions for an AI agent named "${body.name}" described as: "${body.description}". Write clear, specific instructions that tell the agent what to do, how to behave, and what constraints to follow. Return ONLY the instructions text, no JSON or metadata.`
-    : `Review and improve these instructions for an AI agent named "${body.name}" (${body.description}):\n\n${body.currentInstructions}\n\nReturn a JSON object with this exact shape:\n{"suggestions": [{"type": "specificity|clarity|completeness|tone", "description": "what to improve", "original": "original text", "suggested": "improved text"}], "improvedInstructions": "full improved instructions"}\n\nReturn ONLY valid JSON, nothing else.`
+    ? `Write the contents of the file "${body.name}"${body.description ? ` (${body.description})` : ''}: clear, specific instructions for an AI coding assistant. Return ONLY the file text, with no commentary and no code fence around it.`
+    : `Improve the following file "${body.name}"${body.description ? ` (${body.description})` : ''}, which gives instructions or memory to an AI coding assistant. Make it clearer, more specific and better organized while keeping its meaning, structure, language and any examples. Do not invent new facts. Return ONLY the full improved file text, with no commentary and no code fence around it.\n\n${body.currentInstructions}`
 
   let resultText = ''
 
@@ -39,11 +48,9 @@ export default defineEventHandler(async (event): Promise<ImproveResponse> => {
       options: {
         maxTurns: 1,
         allowedTools: [],
-        systemPrompt: {
-          type: 'preset',
-          preset: 'claude_code',
-          append: 'You are helping improve agent instructions. Be concise and actionable.',
-        },
+        // Plain prompt: this is a text rewrite, so skip the large Claude Code tool preset
+        systemPrompt: 'You are an expert editor of instructions for AI coding assistants. Be concise and precise.',
+        pathToClaudeCodeExecutable: getInstalledClaudePath(),
       },
     })) {
       if ('result' in message) {
@@ -59,20 +66,5 @@ export default defineEventHandler(async (event): Promise<ImproveResponse> => {
     throw createError({ statusCode: 500, message: 'No response from Claude' })
   }
 
-  // For generation mode, return raw text
-  if (isGeneration) {
-    return { suggestions: [], improvedInstructions: resultText.trim() }
-  }
-
-  // For improvement mode, try to parse JSON
-  try {
-    const parsed = JSON.parse(resultText) as ImproveResponse
-    if (parsed.improvedInstructions && Array.isArray(parsed.suggestions)) {
-      return parsed
-    }
-  } catch {
-    // Malformed JSON fallback: return raw text
-  }
-
-  return { suggestions: [], improvedInstructions: resultText.trim() }
+  return { suggestions: [], improvedInstructions: stripCodeFence(resultText) }
 })
