@@ -408,7 +408,7 @@ function confirmDelete() {
         <!-- Back button when viewing sessions -->
         <button
           v-if="viewMode === 'sessions'"
-          class="p-1.5 rounded-lg hover-bg transition-all shrink-0"
+          class="p-1.5 rounded-lg hover-bg transition-all shrink-0 flex items-center justify-center"
           style="background: var(--surface-raised);"
           @click="goBackToProjects"
           title="Back to projects"
@@ -433,7 +433,7 @@ function confirmDelete() {
         <!-- Settings Toggle (only in sessions view, hidden for .claude default dir) -->
         <button
           v-if="viewMode === 'sessions' && selectedProject && !selectedProject.path?.endsWith('/.claude')"
-          class="p-1.5 rounded-lg hover-bg transition-all shrink-0"
+          class="p-1.5 rounded-lg hover-bg transition-all shrink-0 flex items-center justify-center"
           style="background: var(--surface-raised);"
           :title="sessionsSubView === 'sessions' ? 'Directory Settings' : 'Back to Sessions'"
           @click="toggleSessionsSubView"
@@ -444,7 +444,7 @@ function confirmDelete() {
 
       <!-- Toggle button (always visible) -->
       <button
-        class="p-1.5 rounded-lg hover-bg transition-all shrink-0"
+        class="p-1.5 rounded-lg hover-bg transition-all shrink-0 flex items-center justify-center"
         :class="{ 'ml-auto': !collapsed }"
         style="background: var(--surface-raised);"
         @click="emit('toggleCollapse')"

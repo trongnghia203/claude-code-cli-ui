@@ -1660,7 +1660,7 @@ function handleClosePreview() {
           <div v-if="(urlProjectName || currentSessionId || urlSessionId) && !isLoadingHistoryWithDelay && !isCreatingSession" class="flex items-center gap-1 px-1 py-1 rounded-lg" style="background: var(--surface-raised); border: 1px solid var(--border-subtle);">
             <UTooltip text="Context Details" :popper="{ placement: 'top' }">
               <button 
-                class="p-1.5 rounded-md transition-all hover-bg" 
+                class="p-1.5 rounded-md transition-all hover-bg flex items-center justify-center" 
                 :style="{ color: showRightSidebar && activeRightTab === 'context' ? 'var(--accent)' : 'var(--text-tertiary)' }"
                 @click="openRightTab('context')"
               >
@@ -1669,7 +1669,7 @@ function handleClosePreview() {
             </UTooltip>
             <UTooltip text="File Browser" :popper="{ placement: 'top' }">
               <button 
-                class="p-1.5 rounded-md transition-all hover-bg" 
+                class="p-1.5 rounded-md transition-all hover-bg flex items-center justify-center" 
                 :style="{ color: showRightSidebar && activeRightTab === 'explorer' ? 'var(--accent)' : 'var(--text-tertiary)' }"
                 @click="openRightTab('explorer')"
               >
@@ -1678,7 +1678,7 @@ function handleClosePreview() {
             </UTooltip>
             <UTooltip text="Git Control" :popper="{ placement: 'top' }">
               <button 
-                class="p-1.5 rounded-md transition-all hover-bg" 
+                class="p-1.5 rounded-md transition-all hover-bg flex items-center justify-center" 
                 :style="{ color: showRightSidebar && activeRightTab === 'git' ? 'var(--accent)' : 'var(--text-tertiary)' }"
                 @click="openRightTab('git')"
               >
