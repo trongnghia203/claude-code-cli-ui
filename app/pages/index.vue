@@ -9,6 +9,8 @@ const { plugins, fetchAll: fetchPlugins } = usePlugins();
 const { skills, fetchAll: fetchSkills } = useSkills();
 const { imports: githubImports, fetchImports } = useGithubImports();
 const { settings, load: loadSettings } = useSettings();
+const { info: projectInfo } = useProjectInfo();
+const { workingDir, displayPath } = useWorkingDir();
 
 const dirInput = ref("");
 const settingDir = ref(false);
@@ -254,6 +256,41 @@ const statItems = computed(() => [
               count
             }}</span>
           </div>
+        </div>
+      </div>
+
+      <!-- Project info card (shown when working dir is set and project has config) -->
+      <div
+        v-if="workingDir && projectInfo && (projectInfo.claudeMd || projectInfo.agentsMd || projectInfo.settings)"
+        class="rounded-xl border bg-card p-4 space-y-3"
+        style="border-color: var(--border-subtle);"
+      >
+        <div class="flex items-center gap-2">
+          <UIcon name="i-lucide-folder-open" class="size-4 shrink-0" style="color: var(--accent);" />
+          <span class="text-[13px] font-semibold" style="color: var(--text-primary);">Project</span>
+          <span class="font-mono text-[11px] truncate" style="color: var(--text-tertiary);">{{ displayPath }}</span>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <span
+            v-if="projectInfo.claudeMd"
+            class="text-[11px] font-mono px-2 py-0.5 rounded-full"
+            style="background: rgba(229,169,62,0.1); color: var(--accent); border: 1px solid rgba(229,169,62,0.2);"
+          >CLAUDE.md</span>
+          <span
+            v-if="projectInfo.agentsMd"
+            class="text-[11px] font-mono px-2 py-0.5 rounded-full"
+            style="background: rgba(99,102,241,0.1); color: #818cf8; border: 1px solid rgba(99,102,241,0.2);"
+          >AGENTS.md</span>
+          <span
+            v-if="projectInfo.settings"
+            class="text-[11px] font-mono px-2 py-0.5 rounded-full"
+            style="background: rgba(34,197,94,0.1); color: #4ade80; border: 1px solid rgba(34,197,94,0.2);"
+          >.claude/settings.json</span>
+          <span
+            v-if="projectInfo.settingsLocal"
+            class="text-[11px] font-mono px-2 py-0.5 rounded-full"
+            style="background: rgba(34,197,94,0.07); color: #4ade80; border: 1px solid rgba(34,197,94,0.15);"
+          >.claude/settings.local.json</span>
         </div>
       </div>
 

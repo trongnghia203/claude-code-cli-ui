@@ -102,7 +102,7 @@ export interface Skill {
   frontmatter: SkillFrontmatter
   body: string
   filePath: string
-  source?: 'local' | 'github' | 'plugin'
+  source?: 'local' | 'github' | 'plugin' | 'project'
   githubRepo?: string
   pluginName?: string
   mcpServer?: { name: string; scope: string }

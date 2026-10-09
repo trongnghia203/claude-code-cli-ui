@@ -271,5 +271,31 @@ export default defineEventHandler(async (event) => {
     }
   }
 
+  // 4. Project-local skills from <workingDir>/.claude/skills/
+  if (workingDir) {
+    const projectSkillsDir = join(workingDir, '.claude', 'skills')
+    if (existsSync(projectSkillsDir)) {
+      const entries = await readdir(projectSkillsDir, { withFileTypes: true })
+      for (const dir of entries) {
+        if (!dir.isDirectory()) continue
+        const skillPath = join(projectSkillsDir, dir.name, 'SKILL.md')
+        if (!existsSync(skillPath)) continue
+        const raw = await readFile(skillPath, 'utf-8')
+        const { frontmatter, body } = parseFrontmatter<SkillFrontmatter>(raw)
+        const slug = `project:${dir.name}`
+        if (skills.some(s => s.slug === slug)) continue
+        const skill: Skill = {
+          slug,
+          frontmatter: { name: dir.name, ...frontmatter },
+          body,
+          filePath: skillPath,
+          source: 'project',
+        }
+        await attachMetadata(skill)
+        skills.push(skill)
+      }
+    }
+  }
+
   return skills.sort((a, b) => a.slug.localeCompare(b.slug))
 })
