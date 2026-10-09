@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add macOS launcher (`scripts/`) - Swift+WKWebView app, `claude-ui` CLI, `install.sh` [`744f1a0`](https://github.com/trongnghia203/claude-code-cli-ui/commit/744f1a0)
+
 ## 2026-10-09
 
 **Project awareness**

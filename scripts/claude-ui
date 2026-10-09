@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# claude-ui - start/stop/open claude-code-agents-ui dev server in background.
+# Usage: claude-ui [start|stop|restart|status|logs|open] [--no-open]
+set -u
+
+# Resolve real path of this script (works when called via symlink from ~/.local/bin)
+SELF="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || realpath "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")"
+PROJECT_DIR="${CLAUDE_UI_DIR:-$(cd "$(dirname "$SELF")/.." && pwd)}"
+PORT="${CLAUDE_UI_PORT:-3030}"
+URL="http://localhost:${PORT}"
+LOG="${CLAUDE_UI_LOG:-/tmp/claude-code-agents-ui.log}"
+WAIT_SECS=60
+
+listener_pids() { lsof -nP -tiTCP:"$PORT" -sTCP:LISTEN 2>/dev/null; }
+is_up() { [ -n "$(listener_pids)" ]; }
+
+open_browser() {
+  if [ "${CLAUDE_UI_APP:-0}" = "1" ] && [ -d "/Applications/Google Chrome.app" ]; then
+    open -na "Google Chrome" --args --app="$URL" --user-data-dir="$HOME/.cache/claude-ui-chrome" \
+      --window-size=1440,900
+  elif command -v open >/dev/null 2>&1; then open "$URL"
+  elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$URL" >/dev/null 2>&1
+  fi
+}
+
+cmd_start() {
+  local open_after=1
+  [ "${1:-}" = "--no-open" ] && open_after=0
+
+  if is_up; then
+    echo "already running: $URL (pids: $(listener_pids | tr '\n' ' '))"
+  else
+    [ -d "$PROJECT_DIR" ] || { echo "project dir missing: $PROJECT_DIR" >&2; return 1; }
+    [ -d "$PROJECT_DIR/node_modules" ] || (cd "$PROJECT_DIR" && bun install) || return 1
+
+    echo "starting dev server, log: $LOG"
+    : >"$LOG"
+    (cd "$PROJECT_DIR" && nohup bun run dev >>"$LOG" 2>&1 </dev/null &)
+
+    local i=0
+    until curl -fs -o /dev/null "$URL"; do
+      i=$((i + 1))
+      if [ "$i" -ge "$WAIT_SECS" ]; then
+        echo "not ready after ${WAIT_SECS}s. last log lines:" >&2
+        tail -n 15 "$LOG" >&2
+        return 1
+      fi
+      sleep 1
+    done
+    echo "ready in ~${i}s"
+  fi
+
+  echo "$URL"
+  [ "$open_after" -eq 1 ] && open_browser
+  return 0
+}
+
+cmd_stop() {
+  local pids
+  pids="$(listener_pids)"
+  if [ -z "$pids" ]; then echo "not running"; return 0; fi
+  # shellcheck disable=SC2086
+  kill $pids 2>/dev/null
+  local i=0
+  while is_up && [ "$i" -lt 10 ]; do sleep 0.5; i=$((i + 1)); done
+  # shellcheck disable=SC2046
+  is_up && kill -9 $(listener_pids) 2>/dev/null
+  echo "stopped"
+}
+
+cmd_status() {
+  if is_up; then echo "running: $URL (pids: $(listener_pids | tr '\n' ' '))"; echo "log: $LOG"
+  else echo "not running"; return 1
+  fi
+}
+
+case "${1:-start}" in
+  start)           cmd_start "${2:-}" ;;
+  --no-open)       cmd_start "--no-open" ;;
+  stop)            cmd_stop ;;
+  restart)         cmd_stop; cmd_start "${2:-}" ;;
+  status)          cmd_status ;;
+  logs|log)        exec tail -n 100 -f "$LOG" ;;
+  open)            is_up || { cmd_start; exit $?; }; open_browser ;;
+  -h|--help|help)  sed -n '2,3p' "$0" ;;
+  *)               echo "unknown: $1 (start|stop|restart|status|logs|open)" >&2; exit 2 ;;
+esac

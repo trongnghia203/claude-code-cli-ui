@@ -23,3 +23,7 @@ logs
 .env
 .claude
 claudecodeui-logic-reference
+
+# Override global gitignore (docs/ is ignored globally)
+!docs/
+!docs/**
