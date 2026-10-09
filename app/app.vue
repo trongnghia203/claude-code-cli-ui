@@ -188,11 +188,6 @@ const navBottom = [
   { label: 'Logs', icon: 'i-lucide-scroll-text', to: '/logs' },
 ]
 
-// Claude Code stores a project's sessions under its path with every non-alphanumeric character as "-"
-function projectSlug(path: string): string {
-  return path.replace(/[^a-zA-Z0-9]/g, '-')
-}
-
 // The saved project only exists in the browser; waiting for mount keeps the server-rendered href in sync with hydration
 const mounted = ref(false)
 onMounted(() => { mounted.value = true })

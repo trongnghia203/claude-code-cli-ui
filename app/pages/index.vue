@@ -1,16 +1,77 @@
 <script setup lang="ts">
 import { getAgentColor } from "~/utils/colors";
 import { MODEL_IDS, getModelLabel, getModelColor, getModelBadgeClasses } from "~/utils/models";
+import { formatRelativeTime } from "~/utils/messageFormatting";
 
 const { claudeDir, set: setDir } = useClaudeDir();
 const { agents, fetchAll: fetchAgents } = useAgents();
 const { commands, fetchAll: fetchCommands } = useCommands();
 const { plugins, fetchAll: fetchPlugins } = usePlugins();
 const { skills, fetchAll: fetchSkills } = useSkills();
+
+// Suggestions card collapses; remembered across visits
+const SUGGESTIONS_KEY = 'agents-ui:dashboard-suggestions-open'
+const suggestionsOpen = ref(true)
+onMounted(() => {
+  try { suggestionsOpen.value = localStorage.getItem(SUGGESTIONS_KEY) !== '0' } catch {}
+})
+function toggleSuggestions() {
+  suggestionsOpen.value = !suggestionsOpen.value
+  try { localStorage.setItem(SUGGESTIONS_KEY, suggestionsOpen.value ? '1' : '0') } catch {}
+}
+
 const { imports: githubImports, fetchImports } = useGithubImports();
 const { settings, load: loadSettings } = useSettings();
 const { info: projectInfo } = useProjectInfo();
 const { workingDir, displayPath } = useWorkingDir();
+
+// Recent chats: newest sessions across projects, or only the current project's
+interface RecentChat {
+  id: string
+  summary: string
+  messageCount: number
+  lastActivity: string
+  isActiveSession?: boolean
+  projectName: string
+  projectDisplayName: string
+}
+const recentChats = ref<RecentChat[]>([])
+const recentScope = ref<'project' | 'all'>('project')
+const recentScopes = [
+  { value: 'project' as const, label: 'This project' },
+  { value: 'all' as const, label: 'All' },
+]
+const RECENT_KEY = 'agents-ui:dashboard-recent-open'
+const recentOpen = ref(true)
+
+async function loadRecentChats() {
+  const onlyProject = recentScope.value === 'project' && workingDir.value
+    ? projectSlug(workingDir.value.replace(/\/+$/, ''))
+    : undefined
+  try {
+    const res = await $fetch<{ sessions: RecentChat[] }>('/api/v2/claude-code/recent-sessions', {
+      query: { limit: 8, project: onlyProject },
+    })
+    recentChats.value = res.sessions
+  } catch {
+    recentChats.value = []
+  }
+}
+onMounted(() => {
+  try { recentOpen.value = localStorage.getItem(RECENT_KEY) !== '0' } catch {}
+  // With no project set there is no "this project": show everything
+  if (!workingDir.value) recentScope.value = 'all'
+  loadRecentChats()
+})
+watch([recentScope, workingDir], loadRecentChats)
+function toggleRecent() {
+  recentOpen.value = !recentOpen.value
+  try { localStorage.setItem(RECENT_KEY, recentOpen.value ? '1' : '0') } catch {}
+}
+/** Session summaries can be long or multi-line: show the first line only */
+function recentTitle(summary: string): string {
+  return (summary || 'Untitled chat').split('\n')[0]!.trim() || 'Untitled chat'
+}
 
 const dirInput = ref("");
 const settingDir = ref(false);
@@ -29,7 +90,23 @@ const animatedCounts = reactive({
   commands: 0,
   skills: 0,
   plugins: 0,
+  chats: 0,
 });
+
+// Total chats across all projects (sum of each project's session count)
+const chatStats = ref({ chats: 0, projects: 0 });
+async function loadChatCount() {
+  try {
+    const projects = await $fetch<{ sessionCount: number }[]>("/api/projects");
+    chatStats.value = {
+      chats: projects.reduce((n, p) => n + (p.sessionCount || 0), 0),
+      projects: projects.filter((p) => p.sessionCount > 0).length,
+    };
+  } catch {
+    // Non-critical: the card just shows 0
+  }
+  animateCounter(chatStats.value.chats, "chats");
+}
 
 function animateCounter(target: number, key: keyof typeof animatedCounts) {
   if (target === 0) {
@@ -57,6 +134,8 @@ onMounted(async () => {
     fetchImports('skills'),
     fetchImports('agents')
   ]);
+
+  loadChatCount();
 
   // Animate counters after data loads
   nextTick(() => {
@@ -142,6 +221,14 @@ const hasContent = computed(
 
 const statItems = computed(() => [
   {
+    key: "chats" as const,
+    to: "/cli",
+    count: animatedCounts.chats,
+    label: "Chats",
+    icon: "i-lucide-message-square",
+    hint: `${chatStats.value.chats} chats across ${chatStats.value.projects} projects`,
+  },
+  {
     key: "agents" as const,
     to: "/agents",
     count: animatedCounts.agents,
@@ -173,16 +260,17 @@ const statItems = computed(() => [
 </script>
 
 <template>
-  <div>
+  <div class="min-h-full flex flex-col">
     <PageHeader title="Dashboard" />
 
-    <div class="px-6 py-5 stagger-section space-y-5">
+    <div class="flex-1 flex flex-col px-6 py-5 stagger-section space-y-5">
       <!-- Hero stat bar -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
         <NuxtLink
           v-for="item in statItems"
           :key="item.to"
           :to="item.to"
+          :title="'hint' in item ? item.hint : undefined"
           class="relative rounded-xl p-5 focus-ring hover-stat overflow-hidden group bg-card"
         >
           <!-- Subtle accent gradient on hover -->
@@ -297,11 +385,13 @@ const statItems = computed(() => [
       <!-- Bento grid: Agents + Commands + Quick Actions -->
       <div
         v-if="hasContent"
-        class="grid grid-cols-1 md:grid-cols-3 gap-4"
+        class="grid grid-cols-1 md:grid-cols-3 gap-4 items-start"
       >
-        <!-- Agents list (takes 2 cols) -->
+        <!-- Left column (takes 2 cols): Agents + Recent chats -->
+        <div class="md:col-span-2 space-y-4 min-w-0">
+        <!-- Agents list -->
         <div
-          class="md:col-span-2 rounded-xl overflow-hidden"
+          class="rounded-xl overflow-hidden"
           style="border: 1px solid var(--border-subtle)"
         >
           <div
@@ -326,9 +416,17 @@ const statItems = computed(() => [
               >View all</NuxtLink
             >
           </div>
+          <div v-if="!agents.length" class="flex items-center justify-between gap-3 px-4 py-4">
+            <span class="text-[12px] text-label">No agents yet. Agents are specialised assistants you can hand tasks to.</span>
+            <NuxtLink
+              to="/agents"
+              class="shrink-0 text-[12px] font-medium focus-ring rounded px-2 py-1 hover-bg transition-colors"
+              style="color: var(--accent)"
+            >Create agent</NuxtLink>
+          </div>
           <div
-            class="divide-y"
-            style="divide-color: var(--border-subtle)"
+            v-else
+            class="divide-y divide-[var(--border-subtle)]"
           >
             <NuxtLink
               v-for="agent in agents.slice(0, 6)"
@@ -380,6 +478,72 @@ const statItems = computed(() => [
           </div>
         </div>
 
+          <!-- Recent chats -->
+        <div
+          v-if="recentChats.length"
+          class="rounded-xl overflow-hidden"
+          style="border: 1px solid var(--border-subtle)"
+        >
+          <div
+            class="flex items-center justify-between gap-3 px-4 py-3 hover-bg cursor-pointer"
+            :class="{ 'border-b border-[var(--border-subtle)]': recentOpen }"
+            style="background: var(--surface-raised)"
+            role="button"
+            tabindex="0"
+            :aria-expanded="recentOpen"
+            @click="toggleRecent"
+            @keydown.enter.prevent="toggleRecent"
+          >
+            <h3 class="text-section-title flex items-center gap-2">
+              <UIcon name="i-lucide-message-square" class="size-4" style="color: var(--accent)" />
+              Recent chats
+            </h3>
+            <div class="flex items-center gap-2" @click.stop>
+              <div
+                v-if="workingDir"
+                class="flex items-center gap-0.5 p-0.5 rounded-lg"
+                style="background: var(--surface-base); border: 1px solid var(--border-subtle)"
+              >
+                <button
+                  v-for="opt in recentScopes"
+                  :key="opt.value"
+                  class="px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors"
+                  :style="recentScope === opt.value ? 'background: var(--accent-muted); color: var(--text-primary)' : 'color: var(--text-secondary)'"
+                  @click="recentScope = opt.value"
+                >{{ opt.label }}</button>
+              </div>
+              <NuxtLink
+                :to="recentScope === 'project' && workingDir ? `/cli/project/${encodeURIComponent(projectSlug(workingDir.replace(/\/+$/, '')))}` : '/cli'"
+                class="text-[12px] focus-ring rounded px-1.5 py-0.5 hover-bg transition-colors"
+                style="color: var(--accent)"
+              >View all</NuxtLink>
+            </div>
+          </div>
+          <div
+            v-if="recentOpen"
+            class="divide-y divide-[var(--border-subtle)]"
+          >
+            <NuxtLink
+              v-for="s in recentChats"
+              :key="s.id"
+              :to="`/cli/project/${encodeURIComponent(s.projectName)}/session/${encodeURIComponent(s.id)}`"
+              class="flex items-center gap-3 px-4 py-2.5 hover-bg group min-w-0"
+            >
+              <span
+                class="size-1.5 rounded-full shrink-0"
+                :style="{ background: s.isActiveSession ? '#22c55e' : 'var(--border-default)' }"
+                :title="s.isActiveSession ? 'Active now' : undefined"
+              />
+              <div class="flex-1 min-w-0 flex items-baseline gap-2">
+                <span class="text-[13px] font-medium truncate min-w-0" :title="s.summary">{{ recentTitle(s.summary) }}</span>
+                <span v-if="recentScope === 'all' || !workingDir" class="text-[11px] text-label shrink-0 max-w-[40%] truncate">[{{ s.projectDisplayName }}]</span>
+              </div>
+              <span class="text-[11px] shrink-0 text-meta">{{ formatRelativeTime(s.lastActivity) }}</span>
+            </NuxtLink>
+          </div>
+        </div>
+        </div>
+
         <!-- Right column: Commands + Quick Actions stacked -->
         <div class="space-y-4">
           <!-- Commands -->
@@ -410,8 +574,7 @@ const statItems = computed(() => [
               >
             </div>
             <div
-              class="divide-y"
-              style="divide-color: var(--border-subtle)"
+              class="divide-y divide-[var(--border-subtle)]"
             >
               <NuxtLink
                 v-for="cmd in commands.slice(0, 4)"
@@ -553,18 +716,22 @@ const statItems = computed(() => [
         @created="(agent) => navigateTo(`/agents/${agent.slug}`)"
       />
 
+      <!-- Pushes Suggestions and the footer items below to the bottom when the page is short -->
+      <div class="flex-1" aria-hidden="true" />
+
       <!-- Suggestions -->
       <div
         v-if="suggestions.length && hasContent"
         class="rounded-xl overflow-hidden"
         style="border: 1px solid var(--border-subtle)"
       >
-        <div
-          class="flex items-center justify-between px-4 py-3"
-          style="
-            background: var(--surface-raised);
-            border-bottom: 1px solid var(--border-subtle);
-          "
+        <button
+          type="button"
+          class="w-full flex items-center justify-between px-4 py-3 text-left hover-bg"
+          :class="{ 'border-b border-[var(--border-subtle)]': suggestionsOpen }"
+          style="background: var(--surface-raised)"
+          :aria-expanded="suggestionsOpen"
+          @click="toggleSuggestions"
         >
           <h3 class="text-section-title flex items-center gap-2">
             <UIcon
@@ -577,10 +744,10 @@ const statItems = computed(() => [
           <span class="font-mono text-[10px] text-meta">{{
             suggestions.length
           }}</span>
-        </div>
+        </button>
         <div
-          class="divide-y"
-          style="divide-color: var(--border-subtle)"
+          v-if="suggestionsOpen"
+          class="divide-y divide-[var(--border-subtle)]"
         >
           <NuxtLink
             v-for="(s, idx) in suggestions.slice(0, 5)"
