@@ -4,6 +4,40 @@
 
 - Add macOS launcher (`scripts/`) - Swift+WKWebView app, `claude-ui` CLI, `install.sh` [`b929e24`](https://github.com/trongnghia203/claude-code-cli-ui/commit/b929e24)
 
+**Memory page (`/memory`)**
+- Add Memory page to preview and edit `CLAUDE.md`, `AGENTS.md`, `.claude/rules/*.md`, auto-memory files; Global and Project scopes, opens on Project [`7cc88cb`](https://github.com/trongnghia203/claude-code-cli-ui/commit/7cc88cb)
+- Add Preview / Edit / Diff tabs - line diff with word-level highlight, removed line before added [`7cc88cb`](https://github.com/trongnghia203/claude-code-cli-ui/commit/7cc88cb)
+- Add Source Control panel under the file list - staged and changed memory files, stage / unstage / discard, commit, commit and push, push [`7cc88cb`](https://github.com/trongnghia203/claude-code-cli-ui/commit/7cc88cb)
+- Limit git actions to listed memory files, never force push, confirm before pushing `main` / `master` [`7cc88cb`](https://github.com/trongnghia203/claude-code-cli-ui/commit/7cc88cb)
+- Fix Improve with Claude - 22s to ~6s, plain text result, no raw JSON in the file [`d270f9b`](https://github.com/trongnghia203/claude-code-cli-ui/commit/d270f9b)
+
+**MCP**
+- Add per-project switch to launch Claude with `--strict-mcp-config --mcp-config .mcp.json`, applied to chat and terminal [`fea2b14`](https://github.com/trongnghia203/claude-code-cli-ui/commit/fea2b14)
+- Group MCP Servers page into Project MCPs and Global MCPs, add read-only plugin and local groups, add `Add project server` [`fea2b14`](https://github.com/trongnghia203/claude-code-cli-ui/commit/fea2b14)
+- Add `GET /api/mcp/sources` listing servers per source [`fea2b14`](https://github.com/trongnghia203/claude-code-cli-ui/commit/fea2b14)
+- Fix terminal not finding the `claude` binary - fall back to `which claude` [`fea2b14`](https://github.com/trongnghia203/claude-code-cli-ui/commit/fea2b14)
+- Fix local slash commands like `/mcp` showing no output in chat and history [`914d01b`](https://github.com/trongnghia203/claude-code-cli-ui/commit/914d01b)
+
+**Chat interface**
+- Add live model list from the installed Claude CLI, grouped selector with older models collapsed [`ebf894d`](https://github.com/trongnghia203/claude-code-cli-ui/commit/ebf894d)
+- Add permission modes `auto` and `dontAsk` [`ebf894d`](https://github.com/trongnghia203/claude-code-cli-ui/commit/ebf894d)
+- Fix context ring - use last API call usage and the SDK context window, recalc on model switch [`ebf894d`](https://github.com/trongnghia203/claude-code-cli-ui/commit/ebf894d)
+- Render shell commands, system messages and `[Image: source: ...]` in chat [`1247aa8`](https://github.com/trongnghia203/claude-code-cli-ui/commit/1247aa8)
+- Fix uneven padding in user message bubbles, copy button floats beside the bubble [`628a862`](https://github.com/trongnghia203/claude-code-cli-ui/commit/628a862)
+
+**Sidebar and navigation**
+- Move project switcher to the sidebar top with a collapsible Recent list [`3c30fa8`](https://github.com/trongnghia203/claude-code-cli-ui/commit/3c30fa8)
+- Fix project chip showing the no-project style after load, wrap long folder names to 2 lines [`73587ae`](https://github.com/trongnghia203/claude-code-cli-ui/commit/73587ae)
+- Fix Working Directory `..` listing the wrong folder, fix `..` and Home path filtering [`73587ae`](https://github.com/trongnghia203/claude-code-cli-ui/commit/73587ae)
+- Move Settings before Explore [`69be6f7`](https://github.com/trongnghia203/claude-code-cli-ui/commit/69be6f7)
+- Fix icon alignment in chat and sidebar header buttons [`ce7d3ef`](https://github.com/trongnghia203/claude-code-cli-ui/commit/ce7d3ef)
+
+**Settings, skills, artifacts**
+- Add Global / Project / Local tabs to Settings, editing `settings.json` and `settings.local.json` per project [`436f082`](https://github.com/trongnghia203/claude-code-cli-ui/commit/436f082)
+- Add source filter chips to Skills - Global, Plugin, Project, GitHub, MCP [`a695a97`](https://github.com/trongnghia203/claude-code-cli-ui/commit/a695a97)
+- Add hide / unhide for projects on Project Artifacts, shared with the chat sidebar [`5a82637`](https://github.com/trongnghia203/claude-code-cli-ui/commit/5a82637)
+- Soften unpinned folders, drop the per-row orange border on pinned folders [`4714382`](https://github.com/trongnghia203/claude-code-cli-ui/commit/4714382)
+
 ## 2026-10-09
 
 **Project awareness**
