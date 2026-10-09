@@ -37,6 +37,14 @@
 - Move Settings before Explore [`69be6f7`](https://github.com/trongnghia203/claude-code-cli-ui/commit/69be6f7)
 - Fix icon alignment in chat and sidebar header buttons [`ce7d3ef`](https://github.com/trongnghia203/claude-code-cli-ui/commit/ce7d3ef)
 
+**Dashboard**
+- Add Recent chats card under Agents - this project or all, one line per chat with `[project]` tag, click opens the session [`21b8ebc`](https://github.com/trongnghia203/claude-code-cli-ui/commit/21b8ebc)
+- Add `GET /api/v2/claude-code/recent-sessions` merging the newest sessions across projects [`21b8ebc`](https://github.com/trongnghia203/claude-code-cli-ui/commit/21b8ebc)
+- Add Chats count card as the first stat [`21b8ebc`](https://github.com/trongnghia203/claude-code-cli-ui/commit/21b8ebc)
+- Make the Suggestions header collapse, remembered across visits [`21b8ebc`](https://github.com/trongnghia203/claude-code-cli-ui/commit/21b8ebc)
+- Shrink the Agents card to its content with an empty state, pin Suggestions and footer hints to the bottom, fix black row dividers [`21b8ebc`](https://github.com/trongnghia203/claude-code-cli-ui/commit/21b8ebc)
+- Fix Improve with Claude saving a chat session into history [`4a4e16a`](https://github.com/trongnghia203/claude-code-cli-ui/commit/4a4e16a)
+
 **Settings, skills, artifacts**
 - Add Global / Project / Local tabs to Settings, editing `settings.json` and `settings.local.json` per project [`436f082`](https://github.com/trongnghia203/claude-code-cli-ui/commit/436f082)
 - Add source filter chips to Skills - Global, Plugin, Project, GitHub, MCP [`a695a97`](https://github.com/trongnghia203/claude-code-cli-ui/commit/a695a97)
