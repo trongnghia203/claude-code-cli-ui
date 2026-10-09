@@ -8,7 +8,18 @@
  * Source: https://www.anthropic.com/pricing
  */
 
-export const MODEL_IDS = ['claude-opus-4', 'claude-sonnet-4', 'claude-haiku-4'] as const
+export const MODEL_IDS = [
+  'claude-opus-4',
+  'claude-sonnet-4',
+  'claude-haiku-4',
+  'claude-opus-4-5',
+  'claude-sonnet-4-5',
+  'claude-haiku-4-5',
+  'claude-opus-5-5',
+  'claude-sonnet-5-5',
+  'claude-sonnet-5',
+  'claude-haiku-5-5',
+] as const
 export type ModelId = (typeof MODEL_IDS)[number]
 
 /** Map from the short "tier" alias (used in agent frontmatter) to the full API model id */
@@ -58,21 +69,16 @@ export interface ServerModelMeta {
 }
 
 export const SERVER_MODEL_META: Record<ModelId, ServerModelMeta> = {
-  'claude-opus-4': {
-    id: 'claude-opus-4',
-    contextWindow: 200_000,
-    pricing: { input: 15.0, output: 75.0, cached: 1.5 },
-  },
-  'claude-sonnet-4': {
-    id: 'claude-sonnet-4',
-    contextWindow: 200_000,
-    pricing: { input: 3.0, output: 15.0, cached: 0.3 },
-  },
-  'claude-haiku-4': {
-    id: 'claude-haiku-4',
-    contextWindow: 200_000,
-    pricing: { input: 0.8, output: 4.0, cached: 0.08 },
-  },
+  'claude-opus-4':    { id: 'claude-opus-4',    contextWindow: 200_000, pricing: { input: 15.0, output: 75.0, cached: 1.5 } },
+  'claude-opus-4-5':  { id: 'claude-opus-4-5',  contextWindow: 200_000, pricing: { input: 15.0, output: 75.0, cached: 1.5 } },
+  'claude-opus-5-5':  { id: 'claude-opus-5-5',  contextWindow: 200_000, pricing: { input: 15.0, output: 75.0, cached: 1.5 } },
+  'claude-sonnet-4':  { id: 'claude-sonnet-4',  contextWindow: 200_000, pricing: { input: 3.0,  output: 15.0, cached: 0.3 } },
+  'claude-sonnet-4-5':{ id: 'claude-sonnet-4-5',contextWindow: 200_000, pricing: { input: 3.0,  output: 15.0, cached: 0.3 } },
+  'claude-sonnet-5':  { id: 'claude-sonnet-5',  contextWindow: 200_000, pricing: { input: 3.0,  output: 15.0, cached: 0.3 } },
+  'claude-sonnet-5-5':{ id: 'claude-sonnet-5-5',contextWindow: 200_000, pricing: { input: 3.0,  output: 15.0, cached: 0.3 } },
+  'claude-haiku-4':   { id: 'claude-haiku-4',   contextWindow: 200_000, pricing: { input: 0.8,  output: 4.0,  cached: 0.08 } },
+  'claude-haiku-4-5': { id: 'claude-haiku-4-5', contextWindow: 200_000, pricing: { input: 0.8,  output: 4.0,  cached: 0.08 } },
+  'claude-haiku-5-5': { id: 'claude-haiku-5-5', contextWindow: 200_000, pricing: { input: 0.8,  output: 4.0,  cached: 0.08 } },
 }
 
 /** Fallback pricing when model is unknown */
@@ -93,6 +99,44 @@ export function resolveModelMeta(model: string | undefined): ServerModelMeta | u
   const aliased = MODEL_ALIAS[model]
   if (aliased) return SERVER_MODEL_META[aliased]
   return undefined
+}
+
+/**
+ * Fuzzy-resolve a raw model string from JSONL (e.g. "claude-sonnet-5") to pricing.
+ * Falls back to DEFAULT_PRICING for unknown models.
+ */
+export function resolveModelPricingFuzzy(model: string | undefined): ModelPricing {
+  if (!model) return DEFAULT_PRICING
+  // Exact match first
+  const exact = resolveModelMeta(model)
+  if (exact) return exact.pricing
+  // Prefix/family match
+  const lower = model.toLowerCase()
+  if (lower.includes('opus'))   return SERVER_MODEL_META['claude-opus-4'].pricing
+  if (lower.includes('sonnet')) return SERVER_MODEL_META['claude-sonnet-4'].pricing
+  if (lower.includes('haiku'))  return SERVER_MODEL_META['claude-haiku-4'].pricing
+  return DEFAULT_PRICING
+}
+
+/**
+ * Compute cost in USD from raw usage fields (from JSONL message.usage).
+ * Cache creation billed at 25% of input rate; cache read at 10%.
+ */
+export function computeUsageCost(
+  usage: {
+    input_tokens?: number
+    output_tokens?: number
+    cache_creation_input_tokens?: number
+    cache_read_input_tokens?: number
+  },
+  model: string | undefined
+): number {
+  const p = resolveModelPricingFuzzy(model)
+  const input    = (usage.input_tokens ?? 0) / 1_000_000 * p.input
+  const output   = (usage.output_tokens ?? 0) / 1_000_000 * p.output
+  const creation = (usage.cache_creation_input_tokens ?? 0) / 1_000_000 * p.input * 0.25
+  const read     = (usage.cache_read_input_tokens ?? 0) / 1_000_000 * p.input * 0.10
+  return input + output + creation + read
 }
 
 /**
