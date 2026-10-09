@@ -188,6 +188,23 @@ const navBottom = [
   { label: 'Logs', icon: 'i-lucide-scroll-text', to: '/logs' },
 ]
 
+// Claude Code stores a project's sessions under its path with every non-alphanumeric character as "-"
+function projectSlug(path: string): string {
+  return path.replace(/[^a-zA-Z0-9]/g, '-')
+}
+
+// The saved project only exists in the browser; waiting for mount keeps the server-rendered href in sync with hydration
+const mounted = ref(false)
+onMounted(() => { mounted.value = true })
+
+/** Where a nav link goes: "CLI" opens the current project's sessions when one is set, else the project list */
+function linkTarget(link: { key?: string; to: string }): string {
+  if (link.key === 'cli' && mounted.value && workingDir.value) {
+    return `/cli/project/${encodeURIComponent(projectSlug(workingDir.value.replace(/\/+$/, '')))}`
+  }
+  return link.to
+}
+
 function isActive(to: string) {
   if (to === '/') return route.path === '/'
   // Exact match or sub-route
@@ -455,7 +472,7 @@ function badgeFor(to: string) {
           <NuxtLink
             v-for="link in navMid"
             :key="link.key"
-            :to="link.to"
+            :to="linkTarget(link)"
             class="nav-item group flex items-center rounded-lg text-[14px] transition-all duration-150 relative focus-ring"
             :class="[
               sidebarCollapsed ? 'justify-center px-0 py-1.5' : 'gap-2.5 px-3 py-[5px]',
