@@ -33,6 +33,7 @@
 - Fix Working Directory `..` listing the wrong folder, fix `..` and Home path filtering [`73587ae`](https://github.com/trongnghia203/claude-code-cli-ui/commit/73587ae)
 - Fix stale directory responses overwriting the Working Directory list, add hover tint on `..` [`62d73c3`](https://github.com/trongnghia203/claude-code-cli-ui/commit/62d73c3)
 - Open the current project when clicking CLI in the sidebar, project list when none is set [`55b46b9`](https://github.com/trongnghia203/claude-code-cli-ui/commit/55b46b9)
+- Fix CLI session list not following a project switch from the sidebar [`b550dd0`](https://github.com/trongnghia203/claude-code-cli-ui/commit/b550dd0)
 - Move Settings before Explore [`69be6f7`](https://github.com/trongnghia203/claude-code-cli-ui/commit/69be6f7)
 - Fix icon alignment in chat and sidebar header buttons [`ce7d3ef`](https://github.com/trongnghia203/claude-code-cli-ui/commit/ce7d3ef)
 
