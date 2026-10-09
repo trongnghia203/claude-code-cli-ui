@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 
+const props = defineProps<{ defaultScope?: 'global' | 'project' }>()
 const emit = defineEmits<{ (e: 'close'): void, (e: 'add', payload: any): void }>()
 
 const name = ref('')
@@ -8,7 +9,7 @@ const transport = ref<'stdio' | 'sse' | 'http'>('stdio')
 const command = ref('')
 const argsString = ref('')
 const url = ref('')
-const scope = ref<'global' | 'project'>('global')
+const scope = ref<'global' | 'project'>(props.defaultScope ?? 'global')
 const enabled = ref(true)
 
 const envPairs = ref<{ key: string; value: string }[]>([])

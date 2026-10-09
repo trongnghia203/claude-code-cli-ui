@@ -16,6 +16,7 @@ import { useSessionStore } from './useSessionStore'
 import { useContextMonitor } from './useContextMonitor'
 
 export function useChatV2Handler() {
+  const { isStrict } = useStrictMcp()
   const ws = ref<WebSocket | null>(null)
   const isConnected = ref(false)
   const error = ref<string | null>(null)
@@ -407,6 +408,7 @@ export function useChatV2Handler() {
       permissionMode: options.permissionMode || permissions.permissionMode.value,
       model: options.model,
       effort: options.effort,
+      strictMcp: isStrict(options.workingDir) || undefined,
       outputStyleId: options.outputStyleId,
       images: options.images,
     }

@@ -79,6 +79,8 @@ export interface ProviderQueryOptions {
   permissionMode?: PermissionMode
   images?: string[]
   effort?: 'low' | 'medium' | 'high' | 'max'
+  /** Only use the project's .mcp.json (--strict-mcp-config --mcp-config) */
+  strictMcp?: boolean
   /** User message to save with correct sessionId (passed from WS handler) */
   userMessage?: NormalizedMessage
 }

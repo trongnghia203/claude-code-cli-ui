@@ -5,6 +5,8 @@ import path from 'node:path'
 import os from 'node:os'
 import type { FSWatcher } from 'chokidar'
 import { getClaudeDir } from './claudeDir'
+import { loadProjectMcpFile } from './mcpSources'
+import { getInstalledClaudePath } from './claudeBinary'
 
 export interface CliSessionMetadata {
   id: string
@@ -42,6 +44,8 @@ const IDLE_TIMEOUT = 30 * 60 * 1000
 export async function createCliSession(options: {
   agentSlug?: string
   workingDir?: string
+  /** Only use the project's .mcp.json (--strict-mcp-config --mcp-config) */
+  strictMcp?: boolean
   shell?: string
   cols?: number
   rows?: number
@@ -64,6 +68,12 @@ export async function createCliSession(options: {
   // If agent is specified, add agent flag
   if (options.agentSlug) {
     args.push('--agent', options.agentSlug)
+  }
+
+  if (options.strictMcp) {
+    const mcpFile = await loadProjectMcpFile(workingDir)
+    if (mcpFile) args.push('--strict-mcp-config', '--mcp-config', mcpFile.path)
+    else console.warn('[CLI Session] Strict MCP requested but no readable .mcp.json in', workingDir)
   }
 
   console.log('[CLI Session] Creating Claude Code session:', {
@@ -356,6 +366,13 @@ function getClaudePath(): string | null {
       console.log('[CLI Session] Found Claude CLI via process.env.CLAUDE_CLI_PATH:', process.env.CLAUDE_CLI_PATH)
       return process.env.CLAUDE_CLI_PATH
     }
+  }
+
+  // The installed CLI as resolved by `which` (covers ~/.local/bin and other user installs)
+  const installed = getInstalledClaudePath()
+  if (installed) {
+    console.log('[CLI Session] Found Claude CLI via which:', installed)
+    return installed
   }
 
   // Check common installation paths

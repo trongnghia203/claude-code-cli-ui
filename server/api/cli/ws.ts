@@ -47,6 +47,7 @@ export default defineWebSocketHandler({
           const session = await createCliSession({
             agentSlug: msg.agentSlug,
             workingDir: msg.workingDir,
+            strictMcp: msg.strictMcp,
             cols: msg.cols,
             rows: msg.rows,
           })

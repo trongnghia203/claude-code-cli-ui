@@ -389,7 +389,7 @@ export interface CliSettings {
 
 // WebSocket message types
 export type CliWebSocketMessage =
-  | { type: 'execute'; sessionId?: string; agentSlug?: string; workingDir?: string; cols?: number; rows?: number }
+  | { type: 'execute'; sessionId?: string; agentSlug?: string; workingDir?: string; strictMcp?: boolean; cols?: number; rows?: number }
   | { type: 'input'; sessionId: string; data: string }
   | { type: 'resize'; sessionId: string; cols: number; rows: number }
   | { type: 'kill'; sessionId: string }
@@ -562,6 +562,8 @@ export type ChatV2WebSocketMessage =
       model?: string
       effort?: EffortLevel
       outputStyleId?: string
+      /** Launch with --strict-mcp-config --mcp-config <project>/.mcp.json */
+      strictMcp?: boolean
       images?: string[]
     }
   | { type: 'abort'; sessionId: string }

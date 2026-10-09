@@ -10,6 +10,7 @@ import { parseFrontmatter } from '../frontmatter'
 import { detectSdkSession, loadSdkSessionMessages } from '../sdkSessionStorage'
 import { MODEL_ALIAS_KEY } from '../models'
 import { getInstalledClaudePath } from '../claudeBinary'
+import { loadProjectMcpFile } from '../mcpSources'
 import { DEFAULT_OUTPUT_STYLES } from '../defaultOutputStyles'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -192,6 +193,17 @@ export const claudeProvider: ProviderAdapter = {
       // Prefer the user's installed CLI over the SDK's older bundled one
       const claudePath = getInstalledClaudePath()
       if (claudePath) sdkOptions.pathToClaudeCodeExecutable = claudePath
+
+      // Optional: ignore every other MCP source and use only the project's .mcp.json
+      if (options.strictMcp && options.workingDir) {
+        const mcpFile = await loadProjectMcpFile(options.workingDir)
+        if (mcpFile) {
+          sdkOptions.extraArgs = { ...sdkOptions.extraArgs, 'strict-mcp-config': null, 'mcp-config': mcpFile.path }
+          console.log('[ClaudeProvider] Strict MCP: only', mcpFile.path)
+        } else {
+          console.warn('[ClaudeProvider] Strict MCP requested but no readable .mcp.json in', options.workingDir)
+        }
+      }
 
       // Add model if specified
       if (options.model) {

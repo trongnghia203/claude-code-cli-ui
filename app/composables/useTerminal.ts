@@ -5,6 +5,7 @@ import { SearchAddon } from '@xterm/addon-search'
 import type { CliWebSocketMessage, CliWebSocketEvent } from '~/types'
 
 export function useTerminal() {
+  const { isStrict } = useStrictMcp()
   const terminal = ref<Terminal | null>(null)
   const fitAddon = ref<FitAddon | null>(null)
   const webLinksAddon = ref<WebLinksAddon | null>(null)
@@ -130,6 +131,7 @@ export function useTerminal() {
           type: 'execute',
           agentSlug: options?.agentSlug,
           workingDir: options?.workingDir,
+          strictMcp: isStrict(options?.workingDir) || undefined,
           cols: terminal.value.cols,
           rows: terminal.value.rows,
         }

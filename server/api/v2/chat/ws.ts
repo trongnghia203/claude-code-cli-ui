@@ -77,6 +77,7 @@ export default defineWebSocketHandler({
               permissionMode: msg.permissionMode,
               model: msg.model,
               effort: msg.effort,
+              strictMcp: msg.strictMcp,
               outputStyleId: msg.outputStyleId,
               images: msg.images,
               // Pass user message for provider to save with correct sessionId
