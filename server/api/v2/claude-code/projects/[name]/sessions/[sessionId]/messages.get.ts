@@ -1,4 +1,5 @@
 import { getClaudeCodeSessionMessages } from '../../../../../../../utils/claudeCodeHistory'
+import { resolveModelMeta } from '../../../../../../../utils/models'
 
 export default defineEventHandler(async (event) => {
   const projectName = getRouterParam(event, 'name')
@@ -31,6 +32,7 @@ export default defineEventHandler(async (event) => {
       hasMore: result.hasMore,
       tokenUsage: result.tokenUsage,
       model: result.model,
+      contextWindow: resolveModelMeta(result.model)?.contextWindow,
       projectName,
       sessionId
     }

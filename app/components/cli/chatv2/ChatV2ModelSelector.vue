@@ -19,6 +19,15 @@ const selectedOption = computed(() => {
   return props.options.find((o) => o.value === props.modelValue)
 })
 
+// Aliases (default/opus/sonnet/...) are current; pinned full ids (claude-*) are older versions
+const isOlder = (value: string) => value.startsWith('claude-')
+const currentOptions = computed(() => props.options.filter((o) => !isOlder(o.value)))
+const olderOptions = computed(() => props.options.filter((o) => isOlder(o.value)))
+const showOlder = ref(false)
+watch(isOpen, (open) => {
+  if (open) showOlder.value = isOlder(props.modelValue)
+})
+
 function selectOption(value: string) {
   emit('update:modelValue', value)
   isOpen.value = false
@@ -59,12 +68,12 @@ onUnmounted(() => {
     <Transition name="dropdown">
       <div
         v-if="isOpen"
-        class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 max-w-[calc(100vw-2rem)] rounded-xl overflow-hidden z-50"
+        class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 max-w-[calc(100vw-2rem)] rounded-xl overflow-hidden z-50"
         style="background: var(--surface-overlay); border: 1px solid var(--border-default); box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15), 0 0 0 1px var(--border-subtle);"
       >
-        <div class="py-1">
+        <div class="py-1 overflow-y-auto" style="max-height: min(70vh, 560px);">
           <button
-            v-for="option in options"
+            v-for="option in currentOptions"
             :key="option.value"
             class="w-full px-3 py-2.5 text-left transition-all"
             :style="{
@@ -92,6 +101,47 @@ onUnmounted(() => {
               {{ option.description }}
             </div>
           </button>
+          <template v-if="olderOptions.length">
+            <button
+              class="w-full px-3 py-2 flex items-center justify-between text-[10px] font-medium uppercase tracking-wide hover:bg-[var(--surface-hover)]"
+              style="color: var(--text-secondary); border-top: 1px solid var(--border-subtle);"
+              @click="showOlder = !showOlder"
+            >
+              <span>Older models ({{ olderOptions.length }})</span>
+              <UIcon :name="showOlder ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'" class="size-3" />
+            </button>
+            <template v-if="showOlder">
+            <button
+              v-for="option in olderOptions"
+              :key="option.value"
+              class="w-full px-3 py-2.5 text-left transition-all"
+              :style="{
+                background: option.value === modelValue ? 'var(--accent-muted)' : 'transparent',
+              }"
+              :class="option.value !== modelValue ? 'hover:bg-[var(--surface-hover)]' : ''"
+              @click="selectOption(option.value)"
+            >
+              <div class="flex items-center gap-2">
+                <UIcon
+                  v-if="option.value === modelValue"
+                  name="i-lucide-check"
+                  class="size-3.5"
+                  style="color: var(--accent);"
+                />
+                <span
+                  v-else
+                  class="size-3.5"
+                />
+                <span class="text-[12px] font-medium" style="color: var(--text-primary);">
+                  {{ option.label }}
+                </span>
+              </div>
+              <div class="text-[10px] mt-0.5 ml-5.5" style="color: var(--text-secondary);">
+                {{ option.description }}
+              </div>
+            </button>
+            </template>
+          </template>
         </div>
       </div>
     </Transition>

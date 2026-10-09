@@ -236,6 +236,7 @@ export function useClaudeCodeHistory() {
         projectName: string
         sessionId: string
         model?: string
+        contextWindow?: number
         tokenUsage?: {
           input: number
           output: number
@@ -264,7 +265,8 @@ export function useClaudeCodeHistory() {
       return {
         messages: response.messages,
         tokenUsage: response.tokenUsage,
-        model: response.model
+        model: response.model,
+        contextWindow: response.contextWindow
       }
     } catch (error) {
       console.error('Failed to fetch messages:', error)

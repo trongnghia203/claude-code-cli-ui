@@ -24,9 +24,9 @@ export type ModelId = (typeof MODEL_IDS)[number]
 
 /** Map from the short "tier" alias (used in agent frontmatter) to the full API model id */
 export const MODEL_ALIAS: Record<string, ModelId> = {
-  opus: 'claude-opus-4',
-  sonnet: 'claude-sonnet-4',
-  haiku: 'claude-haiku-4',
+  opus: 'claude-opus-5-5',
+  sonnet: 'claude-sonnet-5-5',
+  haiku: 'claude-haiku-5-5',
 }
 
 /**
@@ -71,14 +71,14 @@ export interface ServerModelMeta {
 export const SERVER_MODEL_META: Record<ModelId, ServerModelMeta> = {
   'claude-opus-4':    { id: 'claude-opus-4',    contextWindow: 200_000, pricing: { input: 15.0, output: 75.0, cached: 1.5 } },
   'claude-opus-4-5':  { id: 'claude-opus-4-5',  contextWindow: 200_000, pricing: { input: 15.0, output: 75.0, cached: 1.5 } },
-  'claude-opus-5-5':  { id: 'claude-opus-5-5',  contextWindow: 200_000, pricing: { input: 15.0, output: 75.0, cached: 1.5 } },
+  'claude-opus-5-5':  { id: 'claude-opus-5-5',  contextWindow: 1_000_000, pricing: { input: 15.0, output: 75.0, cached: 1.5 } },
   'claude-sonnet-4':  { id: 'claude-sonnet-4',  contextWindow: 200_000, pricing: { input: 3.0,  output: 15.0, cached: 0.3 } },
   'claude-sonnet-4-5':{ id: 'claude-sonnet-4-5',contextWindow: 200_000, pricing: { input: 3.0,  output: 15.0, cached: 0.3 } },
   'claude-sonnet-5':  { id: 'claude-sonnet-5',  contextWindow: 200_000, pricing: { input: 3.0,  output: 15.0, cached: 0.3 } },
-  'claude-sonnet-5-5':{ id: 'claude-sonnet-5-5',contextWindow: 200_000, pricing: { input: 3.0,  output: 15.0, cached: 0.3 } },
+  'claude-sonnet-5-5':{ id: 'claude-sonnet-5-5',contextWindow: 1_000_000, pricing: { input: 3.0,  output: 15.0, cached: 0.3 } },
   'claude-haiku-4':   { id: 'claude-haiku-4',   contextWindow: 200_000, pricing: { input: 0.8,  output: 4.0,  cached: 0.08 } },
   'claude-haiku-4-5': { id: 'claude-haiku-4-5', contextWindow: 200_000, pricing: { input: 0.8,  output: 4.0,  cached: 0.08 } },
-  'claude-haiku-5-5': { id: 'claude-haiku-5-5', contextWindow: 200_000, pricing: { input: 0.8,  output: 4.0,  cached: 0.08 } },
+  'claude-haiku-5-5': { id: 'claude-haiku-5-5', contextWindow: 1_000_000, pricing: { input: 0.8,  output: 4.0,  cached: 0.08 } },
 }
 
 /** Fallback pricing when model is unknown */

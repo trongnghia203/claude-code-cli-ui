@@ -9,6 +9,7 @@ import { getClaudeDir, resolveClaudePath } from '../claudeDir'
 import { parseFrontmatter } from '../frontmatter'
 import { detectSdkSession, loadSdkSessionMessages } from '../sdkSessionStorage'
 import { MODEL_ALIAS_KEY } from '../models'
+import { getInstalledClaudePath } from '../claudeBinary'
 import { DEFAULT_OUTPUT_STYLES } from '../defaultOutputStyles'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -111,6 +112,10 @@ function mapPermissionMode(mode?: string): string {
       return 'acceptEdits'
     case 'bypassPermissions':
       return 'bypassPermissions'
+    case 'auto':
+      return 'auto'
+    case 'dontAsk':
+      return 'dontAsk'
     case 'plan':
       return 'plan'
     default:
@@ -132,6 +137,7 @@ export const claudeProvider: ProviderAdapter = {
     let capturedSessionId: string | null = null
     let sessionCreatedSent = false
     let accumulatedText = ''
+    let lastCallUsage: any = null
     let hasTextMessageFromResult = false
 
     try {
@@ -182,6 +188,10 @@ export const claudeProvider: ProviderAdapter = {
       } else {
         console.log('[ClaudeProvider] Starting new SDK session')
       }
+
+      // Prefer the user's installed CLI over the SDK's older bundled one
+      const claudePath = getInstalledClaudePath()
+      if (claudePath) sdkOptions.pathToClaudeCodeExecutable = claudePath
 
       // Add model if specified
       if (options.model) {
@@ -284,12 +294,25 @@ export const claudeProvider: ProviderAdapter = {
           activeQueries.set(capturedSessionId, extendedInstance)
         }
 
+        // Track the last main-thread API call's usage: its input + cache tokens
+        // are the exact current context size (result.modelUsage sums every call in the turn).
+        if (message.type === 'assistant' && !message.parent_tool_use_id && message.message?.usage) {
+          lastCallUsage = message.message.usage
+        }
+
         const normalized = normalizeSDKMessage(message, capturedSessionId || 'unknown')
 
         for (const msg of normalized) {
           const msgWithProvider: NormalizedMessage = {
             ...msg,
             provider: 'claude',
+          }
+          const agg = msgWithProvider.metadata?.aggregatedUsage
+          if (msg.kind === 'complete' && agg && lastCallUsage) {
+            agg.input = lastCallUsage.input_tokens || 0
+            agg.output = lastCallUsage.output_tokens || 0
+            agg.cacheRead = lastCallUsage.cache_read_input_tokens || 0
+            agg.cacheCreation = lastCallUsage.cache_creation_input_tokens || 0
           }
           sendMessage(ws, msgWithProvider)
 

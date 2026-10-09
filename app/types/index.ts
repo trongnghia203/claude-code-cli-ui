@@ -452,7 +452,7 @@ export interface NormalizedMessage {
 
 // ── Chat v2 Types ──────────────────────────────────────
 
-export type PermissionMode = 'default' | 'skip' | 'acceptEdits' | 'plan' | 'bypassPermissions'
+export type PermissionMode = 'default' | 'skip' | 'acceptEdits' | 'auto' | 'plan' | 'dontAsk' | 'bypassPermissions'
 
 export interface PendingPermission {
   id: string

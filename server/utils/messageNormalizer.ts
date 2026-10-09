@@ -163,7 +163,7 @@ export function normalizeSDKMessage(
           totalOutput += modelUsage.outputTokens || 0
           totalCacheRead += modelUsage.cacheReadInputTokens || 0
           totalCacheCreation += modelUsage.cacheCreationInputTokens || 0
-          if (modelUsage.contextWindow) {
+          if (modelUsage.contextWindow && modelUsage.contextWindow > contextWindow) {
             contextWindow = modelUsage.contextWindow
           }
         }

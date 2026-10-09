@@ -304,7 +304,9 @@ const permissionModeOptions: { value: PermissionMode; label: string; description
   { value: 'default', label: 'Ask', description: 'Ask for permission on each action' },
   { value: 'skip', label: 'Skip', description: 'Allow all actions for this session' },
   { value: 'acceptEdits', label: 'Accept Edits', description: 'Auto-approve file edits' },
+  { value: 'auto', label: 'Auto', description: 'Classifier approves safe actions, blocks risky ones' },
   { value: 'plan', label: 'Plan Mode', description: 'Plan only, no execution' },
+  { value: 'dontAsk', label: "Don't Ask", description: 'Deny anything not pre-approved, never prompt' },
   { value: 'bypassPermissions', label: 'Dangerous', description: 'Full bypass - dangerous mode' },
 ]
 
@@ -312,6 +314,49 @@ const selectedPermissionMode = ref<PermissionMode>('default')
 
 // Model selector — options and default come from the shared model registry
 const selectedModel = ref<string>(DEFAULT_MODEL)
+
+// Live list of models the account can use (via SDK); static registry is the fallback
+const liveModelOptions = ref<{ value: string; label: string; description: string; contextWindow?: number }[]>([])
+onMounted(async () => {
+  try {
+    const res = await $fetch<{ models: { value: string; label: string; description: string; contextWindow?: number }[] }>('/api/claude/models')
+    liveModelOptions.value = res.models
+    // Static default alias may not exist in live list; pick the SDK's own default
+    const list = res.models
+    if (list.length && selectedModel.value === DEFAULT_MODEL && !list.some((o) => o.value === DEFAULT_MODEL)) {
+      selectedModel.value = (list.find((o) => o.value === 'default') ?? list[0]).value
+    }
+  } catch {
+    // keep static fallback
+  }
+})
+// Session history stores full ids (claude-sonnet-5-5); map to the option with the same label ("Sonnet 5.5")
+function matchOptionForModelId(id: string): string | undefined {
+  const m = id.match(/^claude-([a-z]+)-(\d+)(?:-(\d{1,2}))?(?:-\d{8})?$/)
+  if (!m) return undefined
+  const label = `${m[1]} ${m[2]}${m[3] ? '.' + m[3] : ''}`.toLowerCase()
+  return liveModelOptions.value.find((o) => o.label.toLowerCase() === label)?.value
+}
+watch([liveModelOptions, selectedModel], () => {
+  const mapped = matchOptionForModelId(selectedModel.value)
+  if (mapped && mapped !== selectedModel.value) selectedModel.value = mapped
+})
+// Switching model changes the window: recompute the ring against the new total
+watch([selectedModel, liveModelOptions], () => {
+  const window = liveModelOptions.value.find((o) => o.value === selectedModel.value)?.contextWindow
+  const cw = contextMonitor.metrics.value.contextWindow
+  if (!window || cw.total === window) return
+  cw.total = window
+  cw.percentage = Math.min(100, Math.round((cw.used / window) * 10000) / 100)
+})
+const modelOptions = computed(() => {
+  const base = liveModelOptions.value.length ? liveModelOptions.value : MODEL_OPTIONS_CHAT
+  // Keep a session's historical model visible even if not in the list
+  if (selectedModel.value && !base.some((o) => o.value === selectedModel.value)) {
+    return [...base, { value: selectedModel.value, label: selectedModel.value, description: 'Model used by this session' }]
+  }
+  return base
+})
 
 // Output style selector
 const selectedOutputStyleId = ref<string>('')
@@ -693,6 +738,10 @@ async function handleClaudeCodeSessionSelected(payload: { projectName: string; s
   ])
 
   if (historyResult?.tokenUsage) {
+    // Window must be set first: updateTokenUsage computes percentage against it
+    if (historyResult.contextWindow) {
+      contextMonitor.metrics.value.contextWindow.total = historyResult.contextWindow
+    }
     contextMonitor.updateTokenUsage(historyResult.tokenUsage)
   } else {
     contextMonitor.resetMetrics()
@@ -1767,7 +1816,7 @@ function handleClosePreview() {
           <ChatV2ModelSelector
             v-if="(viewMode === 'history' && urlSessionId) || (viewMode === 'live' && isLiveChat)"
             v-model="selectedModel"
-            :options="MODEL_OPTIONS_CHAT"
+            :options="modelOptions"
             class="shadow-lg border rounded-full bg-overlay backdrop-blur-md"
             style="border-color: var(--border-subtle);"
           />

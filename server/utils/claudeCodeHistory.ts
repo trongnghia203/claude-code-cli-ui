@@ -670,8 +670,9 @@ export async function getClaudeCodeSessionMessages(
       const msg = sortedMessages[i]
       
       // Extract model if present anywhere in session
-      if ((msg as any).model && !model) {
-        model = (msg as any).model
+      const msgModel = (msg as any).model || (msg.message as any)?.model
+      if (msgModel && !model && !String(msgModel).startsWith('<')) {
+        model = msgModel
       }
 
       // Use msg.message.role or entry.role/type depending on JSONL format
