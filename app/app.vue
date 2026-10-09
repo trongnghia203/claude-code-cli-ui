@@ -176,6 +176,7 @@ const navTop = [
 ]
 
 const navMid = [
+  { key: 'schedules', label: 'Schedules', icon: 'i-lucide-clock', to: '/schedules' },
   { key: 'artifacts', label: 'Artifacts', icon: 'i-lucide-folder-root', to: '/project-artifacts' },
   { key: 'cli', label: 'CLI', icon: 'i-lucide-terminal-square', to: '/cli' },
 ]
