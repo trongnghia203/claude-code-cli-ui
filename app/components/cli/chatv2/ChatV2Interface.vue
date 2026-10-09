@@ -1846,6 +1846,7 @@ function handleClosePreview() {
               <UIcon
                 :name="currentEffort.icon"
                 class="size-4"
+                :class="{ 'translate-y-px': currentEffort.value === 'medium' }"
               />
             </button>
 
