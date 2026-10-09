@@ -108,7 +108,7 @@ function onPluginInstalled() {
             <div
               v-for="plugin in group"
               :key="plugin.id"
-              class="flex items-center gap-3 px-3 py-2.5 rounded-lg group hover-row"
+              class="flex items-center gap-3 px-3 py-1.5 rounded-lg group hover-row"
             >
               <!-- Toggle -->
               <label class="field-toggle shrink-0" @click.stop>
@@ -128,7 +128,7 @@ function onPluginInstalled() {
                 class="flex items-center gap-3 flex-1 min-w-0 focus-ring rounded"
               >
                 <!-- Name -->
-                <span class="text-[13px] font-medium w-44 shrink-0 truncate">
+                <span class="text-[14px] font-medium w-44 shrink-0 truncate">
                   {{ plugin.name }}
                 </span>
 
@@ -140,7 +140,7 @@ function onPluginInstalled() {
                 </span>
 
                 <!-- Description -->
-                <span class="flex-1 text-[12px] truncate text-label">
+                <span class="flex-1 text-[13px] truncate text-label">
                   {{ plugin.description }}
                 </span>
 

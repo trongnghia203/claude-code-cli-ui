@@ -100,7 +100,7 @@ const filteredCount = computed(() =>
               <span class="font-mono text-[10px] font-medium shrink-0 text-meta">&gt;_</span>
 
               <!-- Name -->
-              <span class="text-[13px] font-medium w-44 shrink-0 truncate">
+              <span class="text-[14px] font-medium w-44 shrink-0 truncate">
                 /{{ cmd.frontmatter.name }}
               </span>
 
@@ -113,7 +113,7 @@ const filteredCount = computed(() =>
               </span>
 
               <!-- Description -->
-              <span class="flex-1 text-[12px] truncate text-label">
+              <span class="flex-1 text-[13px] truncate text-label">
                 {{ cmd.frontmatter.description }}
               </span>
 

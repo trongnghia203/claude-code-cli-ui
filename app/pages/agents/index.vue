@@ -148,7 +148,7 @@ async function useTemplate(templateId: string) {
                 >
                   <UIcon name="i-lucide-cpu" class="size-3.5" :style="{ color: getAgentColor(agent.frontmatter.color) }" />
                 </div>
-                <span class="text-[13px] font-medium truncate flex-1">
+                <span class="text-[14px] font-medium truncate flex-1">
                   {{ agent.frontmatter.name }}
                 </span>
                 <span
@@ -161,7 +161,7 @@ async function useTemplate(templateId: string) {
               </div>
 
               <!-- Description -->
-              <p v-if="agent.frontmatter.description" class="text-[12px] leading-relaxed line-clamp-2 text-label relative">
+              <p v-if="agent.frontmatter.description" class="text-[13px] leading-relaxed line-clamp-2 text-label relative">
                 {{ agent.frontmatter.description }}
               </p>
 

@@ -2,7 +2,7 @@
 @import "@nuxt/ui";
 
 @theme static {
-  --font-display: "Clash Display", "Geist Sans", system-ui, sans-serif;
+  --font-display: "Geist Sans", "Geist", system-ui, sans-serif;
   --font-sans: "Geist Sans", "Geist", system-ui, sans-serif;
   --font-mono: "Geist Mono", "SF Mono", ui-monospace, monospace;
 }

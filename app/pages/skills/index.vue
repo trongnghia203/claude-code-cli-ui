@@ -67,13 +67,13 @@ onMounted(() => {
           v-for="skill in filteredSkills"
           :key="skill.slug"
           :to="`/skills/${skill.slug}`"
-          class="flex items-center gap-3 px-3 py-2.5 rounded-lg group focus-ring hover-row"
+          class="flex items-center gap-3 px-3 py-1.5 rounded-lg group focus-ring hover-row"
         >
           <!-- Icon -->
           <UIcon name="i-lucide-sparkles" class="size-3.5 shrink-0" style="color: var(--accent);" />
 
           <!-- Name -->
-          <span class="text-[13px] font-medium w-44 shrink-0 truncate">
+          <span class="text-[14px] font-medium w-44 shrink-0 truncate">
             {{ skill.frontmatter.name }}
           </span>
 
@@ -131,7 +131,7 @@ onMounted(() => {
           />
 
           <!-- Description -->
-          <span class="flex-1 text-[12px] truncate text-label">
+          <span class="flex-1 text-[13px] truncate text-label">
             {{ skill.frontmatter.description }}
           </span>
 

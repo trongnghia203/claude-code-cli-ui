@@ -176,10 +176,10 @@ function badgeFor(to: string) {
               <UIcon name="i-lucide-bot" class="size-3.5" style="color: var(--accent);" />
             </div>
             <div class="flex-1 flex flex-col min-w-0">
-              <span class="text-[12px] font-semibold tracking-tight group-hover/brand:text-accent transition-colors" style="color: var(--text-primary); font-family: var(--font-display);">
+              <span class="text-[12px] font-semibold tracking-tight group-hover/brand:text-accent transition-colors" style="color: var(--text-primary);">
                 Agent Manager
               </span>
-              <span class="text-[9px] font-mono tracking-wider uppercase" style="color: var(--text-disabled);">
+              <span class="text-[9px] tracking-wider uppercase" style="color: var(--text-disabled);">
                 Claude Code
               </span>
             </div>
@@ -209,9 +209,9 @@ function badgeFor(to: string) {
             v-for="link in navTop"
             :key="link.to"
             :to="link.to"
-            class="nav-item group flex items-center rounded-lg text-[13px] transition-all duration-150 relative focus-ring"
+            class="nav-item group flex items-center rounded-lg text-[14px] transition-all duration-150 relative focus-ring"
             :class="[
-              sidebarCollapsed ? 'justify-center px-0 py-2' : 'gap-2.5 px-3 py-[7px]',
+              sidebarCollapsed ? 'justify-center px-0 py-1.5' : 'gap-2.5 px-3 py-[5px]',
               { 'nav-item--active': isActive(link.to) }
             ]"
             :style="{
@@ -248,9 +248,9 @@ function badgeFor(to: string) {
             v-for="link in navMid"
             :key="link.key"
             :to="link.to"
-            class="nav-item group flex items-center rounded-lg text-[13px] transition-all duration-150 relative focus-ring"
+            class="nav-item group flex items-center rounded-lg text-[14px] transition-all duration-150 relative focus-ring"
             :class="[
-              sidebarCollapsed ? 'justify-center px-0 py-2' : 'gap-2.5 px-3 py-[7px]',
+              sidebarCollapsed ? 'justify-center px-0 py-1.5' : 'gap-2.5 px-3 py-[5px]',
               { 'nav-item--active': isActive(link.to) }
             ]"
             :style="{
@@ -279,9 +279,9 @@ function badgeFor(to: string) {
             v-for="link in navBottom"
             :key="link.to"
             :to="link.to"
-            class="nav-item group flex items-center rounded-lg text-[13px] transition-all duration-150 relative focus-ring"
+            class="nav-item group flex items-center rounded-lg text-[14px] transition-all duration-150 relative focus-ring"
             :class="[
-              sidebarCollapsed ? 'justify-center px-0 py-2' : 'gap-2.5 px-3 py-[7px]',
+              sidebarCollapsed ? 'justify-center px-0 py-1.5' : 'gap-2.5 px-3 py-[5px]',
               { 'nav-item--active': isActive(link.to) }
             ]"
             :style="{

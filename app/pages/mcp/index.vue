@@ -67,7 +67,7 @@ function testServer(name: string) {
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-2 mb-1">
-                <h3 class="text-[14px] font-semibold text-primary font-display truncate" :class="{ 'opacity-50': server.disabled }">{{ server.name }}</h3>
+                <h3 class="text-[14px] font-semibold text-primary truncate" :class="{ 'opacity-50': server.disabled }">{{ server.name }}</h3>
                 <span
                   class="text-[10px] px-1.5 py-0.5 rounded font-medium tracking-wide uppercase"
                   :class="server.scope === 'global' ? 'bg-accent-subtle text-accent border border-accent-subtle' : 'bg-surface-raised text-secondary border border-subtle'"
