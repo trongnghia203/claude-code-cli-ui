@@ -43,6 +43,8 @@
 - Run a prompt or one of your agents in a project folder, with per-job allowed and denied tools, budget and timeout; defaults to plan (read-only) [`e331306`](https://github.com/trongnghia203/claude-code-cli-ui/commit/e331306)
 - Add two-column view like CLI - schedules and runs on the left, run output or schedule summary on the right, selection kept in the URL [`e331306`](https://github.com/trongnghia203/claude-code-cli-ui/commit/e331306)
 - Add run history with status, duration, cost and a link to the chat session each run created [`e331306`](https://github.com/trongnghia203/claude-code-cli-ui/commit/e331306)
+- Fix links in run output (e.g. Jira tickets) looking like plain text - style as links, keep IDs on one line, open in new tab [`514a075`](https://github.com/trongnghia203/claude-code-cli-ui/commit/514a075)
+- Fix run output capped at a narrow column - use full container width [`0ba388d`](https://github.com/trongnghia203/claude-code-cli-ui/commit/0ba388d)
 
 **Agents**
 - Fix New Agent wizard not scrolling on short windows, Back and Next buttons were cut off [`6719b9d`](https://github.com/trongnghia203/claude-code-cli-ui/commit/6719b9d)
