@@ -29,6 +29,7 @@
 - Move project switcher to the sidebar top with a collapsible Recent list [`3c30fa8`](https://github.com/trongnghia203/claude-code-cli-ui/commit/3c30fa8)
 - Fix project chip showing the no-project style after load, wrap long folder names to 2 lines [`73587ae`](https://github.com/trongnghia203/claude-code-cli-ui/commit/73587ae)
 - Fix Working Directory `..` listing the wrong folder, fix `..` and Home path filtering [`73587ae`](https://github.com/trongnghia203/claude-code-cli-ui/commit/73587ae)
+- Fix stale directory responses overwriting the Working Directory list, add hover tint on `..` [`62d73c3`](https://github.com/trongnghia203/claude-code-cli-ui/commit/62d73c3)
 - Move Settings before Explore [`69be6f7`](https://github.com/trongnghia203/claude-code-cli-ui/commit/69be6f7)
 - Fix icon alignment in chat and sidebar header buttons [`ce7d3ef`](https://github.com/trongnghia203/claude-code-cli-ui/commit/ce7d3ef)
 
