@@ -1,7 +1,66 @@
 <script setup lang="ts">
 import type { Settings } from '~/types'
 
-const { settings, loading, load, save } = useSettings()
+const globalSettings = useSettings()
+const { workingDir } = useWorkingDir()
+
+// ---- Scope: global (~/.claude/settings.json), project (<dir>/.claude/settings.json), local (<dir>/.claude/settings.local.json) ----
+type SettingsScope = 'global' | 'project' | 'local'
+const scope = ref<SettingsScope>('global')
+const scopeTabs: { value: SettingsScope; label: string; icon: string }[] = [
+  { value: 'global', label: 'Global', icon: 'i-lucide-globe' },
+  { value: 'project', label: 'Project', icon: 'i-lucide-folder' },
+  { value: 'local', label: 'Local', icon: 'i-lucide-user' },
+]
+const isGlobal = computed(() => scope.value === 'global')
+
+const projectList = ref<{ name: string; path: string; displayName: string }[]>([])
+const projectPath = ref(workingDir.value || '')
+const scopedSettings = ref<Settings | null>(null)
+const scopedLoading = ref(false)
+
+const settings = computed(() => (isGlobal.value ? globalSettings.settings.value : scopedSettings.value))
+const loading = computed(() => (isGlobal.value ? globalSettings.loading.value : scopedLoading.value))
+
+const scopeFilePath = computed(() => {
+  if (isGlobal.value) return '~/.claude/settings.json'
+  if (!projectPath.value) return ''
+  return `${projectPath.value}/.claude/${scope.value === 'project' ? 'settings.json' : 'settings.local.json'}`
+})
+
+async function load() {
+  if (isGlobal.value) return globalSettings.load()
+  if (!projectPath.value) {
+    scopedSettings.value = null
+    return
+  }
+  scopedLoading.value = true
+  try {
+    scopedSettings.value = await $fetch<Settings>('/api/projects/settings', {
+      query: { path: projectPath.value, scope: scope.value },
+    })
+  } catch (e: any) {
+    scopedSettings.value = null
+    toast.add({ title: 'Failed to load settings', description: e.message, color: 'error' })
+  } finally {
+    scopedLoading.value = false
+  }
+}
+
+async function save(data: Settings) {
+  if (isGlobal.value) return globalSettings.save(data)
+  if (!projectPath.value) throw new Error('Select a project first')
+  await $fetch('/api/projects/settings', {
+    method: 'PUT',
+    body: { path: projectPath.value, scope: scope.value, settings: data },
+  })
+  scopedSettings.value = data
+}
+
+watch([scope, projectPath], async () => {
+  await load()
+  syncRawJson()
+})
 const {
   skillImports,
   agentImports,
@@ -28,6 +87,13 @@ const showRemoveConfirm = ref(false)
 const repoToRemove = ref<{ owner: string; repo: string; type: 'skills' | 'agents'; count: number } | null>(null)
 
 onMounted(async () => {
+  try {
+    projectList.value = await $fetch('/api/projects')
+  } catch {
+    projectList.value = []
+  }
+  // Default the picker to the active working dir, else the most recent project
+  if (!projectPath.value) projectPath.value = projectList.value[0]?.path || ''
   await load()
   syncRawJson()
 })
@@ -91,7 +157,7 @@ async function onCheckUpdates() {
 watch(settings, () => syncRawJson())
 
 function syncRawJson() {
-  if (settings.value) rawJson.value = JSON.stringify(settings.value, null, 2)
+  rawJson.value = settings.value ? JSON.stringify(settings.value, null, 2) : '{}'
 }
 
 // ---- Structured field helpers ----
@@ -140,10 +206,8 @@ const statusLineOptions = [
 ]
 
 watch(settings, (val) => {
-  if (val?.statusLine) {
-    statusLineType.value = val.statusLine.type || ''
-    statusLineCommand.value = val.statusLine.command || ''
-  }
+  statusLineType.value = val?.statusLine?.type || ''
+  statusLineCommand.value = val?.statusLine?.command || ''
 }, { immediate: true })
 
 async function saveStatusLine() {
@@ -280,6 +344,40 @@ const lineCount = computed(() => rawJson.value.split('\n').length)
       </template>
     </PageHeader>
 
+    <!-- Scope tabs -->
+    <div class="px-6 pt-4 space-y-3">
+      <div class="flex items-center gap-1 p-1 rounded-lg w-fit" style="background: var(--surface-raised); border: 1px solid var(--border-subtle);">
+        <button
+          v-for="tab in scopeTabs"
+          :key="tab.value"
+          class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors focus-ring"
+          :style="scope === tab.value
+            ? 'background: var(--accent-muted); color: var(--text-primary);'
+            : 'color: var(--text-secondary);'"
+          @click="scope = tab.value"
+        >
+          <UIcon :name="tab.icon" class="size-3.5" />
+          {{ tab.label }}
+        </button>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-3">
+        <select
+          v-if="!isGlobal"
+          v-model="projectPath"
+          class="text-[12px] px-2 py-1.5 rounded-md focus-ring max-w-xs"
+          style="background: var(--surface-raised); border: 1px solid var(--border-default); color: var(--text-primary);"
+        >
+          <option v-if="!projectList.length" value="">No projects found</option>
+          <option v-if="projectPath && !projectList.some(p => p.path === projectPath)" :value="projectPath">{{ projectPath }}</option>
+          <option v-for="p in projectList" :key="p.name" :value="p.path">{{ p.displayName }}</option>
+        </select>
+        <code v-if="scopeFilePath" class="text-[11px] text-meta">{{ scopeFilePath }}</code>
+        <span v-if="scope === 'project'" class="text-[11px] text-meta">Shared with the team (committed)</span>
+        <span v-else-if="scope === 'local'" class="text-[11px] text-meta">Personal, gitignored</span>
+      </div>
+    </div>
+
     <div v-if="loading" class="flex justify-center py-16">
       <UIcon name="i-lucide-loader-2" class="size-6 animate-spin text-meta" />
     </div>
@@ -383,8 +481,8 @@ const lineCount = computed(() => rawJson.value.split('\n').length)
         </div>
       </div>
 
-      <!-- GitHub Imports -->
-      <div class="rounded-xl p-5 space-y-4 bg-card">
+      <!-- GitHub Imports (always global: stored in ~/.claude/.imports.json) -->
+      <div v-if="isGlobal" class="rounded-xl p-5 space-y-4 bg-card">
         <div class="flex items-center justify-between">
           <h3 class="text-section-title">GitHub Imports</h3>
           <UButton

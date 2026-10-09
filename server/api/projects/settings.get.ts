@@ -12,7 +12,9 @@ export default defineEventHandler(async (event) => {
   }
 
   const expandedPath = resolveHome(path)
-  const settingsPath = join(expandedPath, '.claude', 'settings.local.json')
+  // 'project' = shared .claude/settings.json, 'local' (default) = personal settings.local.json
+  const file = query.scope === 'project' ? 'settings.json' : 'settings.local.json'
+  const settingsPath = join(expandedPath, '.claude', file)
 
   if (!existsSync(settingsPath)) {
     return {}
