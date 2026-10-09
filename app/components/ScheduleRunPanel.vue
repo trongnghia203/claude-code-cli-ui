@@ -110,7 +110,7 @@ const resultHtml = computed(() =>
         </div>
 
         <div v-if="resultHtml" class="rounded-xl bg-card p-6" style="border: 1px solid var(--border-subtle)">
-          <div class="run-result text-[14px] leading-[1.7] max-w-4xl" v-html="resultHtml" />
+          <div class="run-result text-[14px] leading-[1.7] w-full" v-html="resultHtml" />
         </div>
         <p v-else-if="run.status === 'running'" class="flex items-center gap-2 text-[13px] text-meta">
           <UIcon name="i-lucide-loader-2" class="size-4 animate-spin" /> Running. This updates when the run finishes.
