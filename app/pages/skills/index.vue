@@ -7,14 +7,51 @@ const showCreateModal = ref(false)
 const showImportModal = ref(false)
 const searchQuery = ref('')
 
+// Source filter: toggle chips, multi-select. Nothing selected = show all.
+type SkillCategory = 'global' | 'plugin' | 'project' | 'github' | 'mcp'
+const categoryMeta: Record<SkillCategory, { label: string; icon: string }> = {
+  global: { label: 'Global', icon: 'i-lucide-globe' },
+  plugin: { label: 'Plugin', icon: 'i-lucide-puzzle' },
+  project: { label: 'Project', icon: 'i-lucide-folder' },
+  github: { label: 'GitHub', icon: 'i-lucide-github' },
+  mcp: { label: 'MCP', icon: 'i-lucide-server' },
+}
+function skillCategory(s: { source?: string; mcpServer?: unknown }): SkillCategory {
+  if (s.mcpServer) return 'mcp'
+  if (s.source === 'plugin') return 'plugin'
+  if (s.source === 'project') return 'project'
+  if (s.source === 'github') return 'github'
+  return 'global'
+}
+const activeCategories = ref<SkillCategory[]>([])
+function toggleCategory(c: SkillCategory) {
+  const i = activeCategories.value.indexOf(c)
+  if (i >= 0) activeCategories.value.splice(i, 1)
+  else activeCategories.value.push(c)
+}
+// Global, Plugin, Project always shown; GitHub / MCP only when such skills exist
+const categoryCounts = computed(() => {
+  const counts: Record<SkillCategory, number> = { global: 0, plugin: 0, project: 0, github: 0, mcp: 0 }
+  for (const s of skills.value) counts[skillCategory(s)]++
+  return counts
+})
+const categoryChips = computed(() =>
+  (Object.keys(categoryMeta) as SkillCategory[]).filter(c =>
+    ['global', 'plugin', 'project'].includes(c) || categoryCounts.value[c] > 0,
+  ),
+)
+
 const filteredSkills = computed(() => {
-  if (!searchQuery.value) return skills.value
   const q = searchQuery.value.toLowerCase()
-  return skills.value.filter(s =>
-    s.frontmatter.name.toLowerCase().includes(q) ||
-    s.frontmatter.description?.toLowerCase().includes(q) ||
-    s.frontmatter.agent?.toLowerCase().includes(q)
-  )
+  return skills.value.filter(s => {
+    if (activeCategories.value.length && !activeCategories.value.includes(skillCategory(s))) return false
+    if (!q) return true
+    return (
+      s.frontmatter.name.toLowerCase().includes(q) ||
+      s.frontmatter.description?.toLowerCase().includes(q) ||
+      s.frontmatter.agent?.toLowerCase().includes(q)
+    )
+  })
 })
 
 onMounted(() => {
@@ -26,7 +63,9 @@ onMounted(() => {
   <div>
     <PageHeader title="Skills">
       <template #trailing>
-        <span class="font-mono text-[12px] text-meta">{{ skills.length }}</span>
+        <span class="font-mono text-[12px] text-meta">
+          {{ filteredSkills.length === skills.length ? skills.length : `${filteredSkills.length} / ${skills.length}` }}
+        </span>
       </template>
       <template #right>
         <UButton label="Import" icon="i-lucide-upload" size="sm" variant="soft" @click="showImportModal = true" />
@@ -39,13 +78,39 @@ onMounted(() => {
         Specific capabilities that can be added to agents and invoked as slash commands.
       </p>
 
-      <!-- Search -->
-      <div class="mb-4">
+      <!-- Search + source filter -->
+      <div class="mb-4 flex flex-wrap items-center gap-3">
         <input
           v-model="searchQuery"
           placeholder="Search skills..."
           class="field-search max-w-xs"
         />
+        <div class="flex flex-wrap items-center gap-1.5">
+          <button
+            v-for="c in categoryChips"
+            :key="c"
+            type="button"
+            class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-medium transition-all focus-ring"
+            :style="activeCategories.includes(c)
+              ? 'background: var(--accent-muted); color: var(--accent); border: 1px solid var(--accent);'
+              : 'background: var(--surface-raised); color: var(--text-secondary); border: 1px solid var(--border-subtle);'"
+            :aria-pressed="activeCategories.includes(c)"
+            @click="toggleCategory(c)"
+          >
+            <UIcon :name="categoryMeta[c].icon" class="size-3" />
+            {{ categoryMeta[c].label }}
+            <span class="font-mono text-[10px] opacity-70">{{ categoryCounts[c] }}</span>
+          </button>
+          <button
+            v-if="activeCategories.length"
+            type="button"
+            class="px-2 py-1 rounded-full text-[11px] hover-bg"
+            style="color: var(--text-tertiary);"
+            @click="activeCategories = []"
+          >
+            Clear
+          </button>
+        </div>
       </div>
 
       <div
@@ -155,8 +220,8 @@ onMounted(() => {
       </div>
 
       <!-- Empty state: search miss -->
-      <div v-else-if="searchQuery" class="flex flex-col items-center justify-center py-16">
-        <p class="text-[13px] text-label">No skills match your search.</p>
+      <div v-else-if="searchQuery || activeCategories.length" class="flex flex-col items-center justify-center py-16">
+        <p class="text-[13px] text-label">No skills match your search or filters.</p>
       </div>
 
       <!-- Empty state: no skills -->
