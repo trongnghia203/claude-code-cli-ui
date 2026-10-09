@@ -132,6 +132,69 @@ export function fixCodeFences(text: string): string {
 }
 
 /**
+ * Strip Claude Code system XML tags from user message content.
+ * - Removes <local-command-caveat> blocks entirely (system injection, not user text)
+ * - Unwraps <bash-input> to show just the command
+ * - Strips any remaining unknown XML-like tags
+ */
+export function stripSystemXml(text: string): string {
+  if (!text) return text
+  return text
+    .replace(/<local-command-caveat>[\s\S]*?<\/local-command-caveat>/g, '')
+    .replace(/<bash-input>([\s\S]*?)<\/bash-input>/g, '$1')
+    .replace(/<[a-z][a-z0-9-]*(?:\s[^>]*)?>[\s\S]*?<\/[a-z][a-z0-9-]*>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .trim()
+}
+
+/**
+ * Returns true if the message content is purely a system XML injection
+ * (e.g. only <local-command-caveat>) with no user-authored text.
+ */
+export function isSystemXmlMessage(text: string | null | undefined): boolean {
+  if (!text) return false
+  return stripSystemXml(text).length === 0
+}
+
+/**
+ * Extract [Image: source: /path] references from text.
+ * Returns the cleaned text (placeholders removed) and the image paths.
+ */
+export function extractImageSources(text: string): { text: string; imagePaths: string[] } {
+  const imagePaths: string[] = []
+  const cleaned = text.replace(/\[Image(?:\s+#\d+)?:\s*source:\s*([^\]]+)\]/g, (_, p) => {
+    imagePaths.push(p.trim())
+    return ''
+  }).trim()
+  return { text: cleaned, imagePaths }
+}
+
+export type UserMessageKind = 'bash-input' | 'bash-stdout' | 'system' | 'text'
+
+export interface ParsedUserMessage {
+  kind: UserMessageKind
+  content: string
+}
+
+/**
+ * Parse a user message into its display kind and inner content.
+ */
+export function parseUserMessage(text: string | null | undefined): ParsedUserMessage {
+  if (!text) return { kind: 'text', content: '' }
+  const t = text.trim()
+  if (/^<local-command-caveat>[\s\S]*<\/local-command-caveat>\s*$/.test(t))
+    return { kind: 'system', content: '' }
+  const bashInput = t.match(/^<bash-input>([\s\S]*?)<\/bash-input>\s*$/)
+  if (bashInput) return { kind: 'bash-input', content: decodeHTMLEntities(bashInput[1].trim()) }
+  // bash-stdout may be followed by <bash-stderr>...</bash-stderr>
+  const bashStdout = t.match(/^<bash-stdout>([\s\S]*?)<\/bash-stdout>(?:<bash-stderr>[\s\S]*?<\/bash-stderr>)?\s*$/)
+  if (bashStdout) return { kind: 'bash-stdout', content: decodeHTMLEntities(bashStdout[1].trim()) }
+  const stripped = stripSystemXml(t)
+  if (!stripped) return { kind: 'system', content: '' }
+  return { kind: 'text', content: stripped }
+}
+
+/**
  * Format content for display.
  * Combines all formatting utilities in the correct order.
  */

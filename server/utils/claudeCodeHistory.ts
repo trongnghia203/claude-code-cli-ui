@@ -10,6 +10,15 @@ import { homedir } from 'os'
 
 import { getClaudeDir } from './claudeDir'
 
+function stripXmlForSummary(text: string): string {
+  return text
+    .replace(/<local-command-caveat>[\s\S]*?<\/local-command-caveat>/g, '')
+    .replace(/<bash-input>([\s\S]*?)<\/bash-input>/g, '$1')
+    .replace(/<[a-z][a-z0-9-]*(?:\s[^>]*)?>[\s\S]*?<\/[a-z][a-z0-9-]*>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .trim()
+}
+
 export interface ClaudeCodeProject {
   name: string
   path: string
@@ -481,10 +490,12 @@ async function parseJsonlSessions(filePath: string): Promise<{
                 textContent = textPart?.text || ''
               }
               if (textContent) {
-                // Truncate to reasonable length for display
-                session.summary = textContent.slice(0, 100).trim()
-                if (textContent.length > 100) {
-                  session.summary += '...'
+                const cleaned = stripXmlForSummary(textContent)
+                if (cleaned) {
+                  session.summary = cleaned.slice(0, 100).trim()
+                  if (cleaned.length > 100) {
+                    session.summary += '...'
+                  }
                 }
               }
             }

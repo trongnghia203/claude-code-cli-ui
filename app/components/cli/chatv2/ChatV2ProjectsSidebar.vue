@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useClaudeCodeHistory } from '~/composables/useClaudeCodeHistory'
-import { formatRelativeTime } from '~/utils/messageFormatting'
+import { formatRelativeTime, stripSystemXml } from '~/utils/messageFormatting'
 
 // Tick every 60s so isActiveSession stays live without a server round-trip
 const now = ref(Date.now())
@@ -733,7 +733,7 @@ function confirmDelete() {
                     class="text-[12px] font-medium truncate mb-1"
                     style="color: var(--text-primary);"
                   >
-                    <span class="truncate">{{ session.summary || 'Session' }}</span>
+                    <span class="truncate">{{ stripSystemXml(session.summary) || 'Session' }}</span>
                   </div>
                   <div class="flex flex-wrap items-center gap-2 text-[10px]" style="color: var(--text-tertiary);">
                     <span>{{ session.messageCount }} messages</span>

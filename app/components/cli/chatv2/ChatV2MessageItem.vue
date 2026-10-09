@@ -212,6 +212,21 @@ function buildUpdatedInput(): any {
   }
 }
 
+function formatToolResult(result: unknown): string {
+  let r: any = result
+  if (typeof r === 'string') {
+    const t = r.trim()
+    if (t.startsWith('{') || t.startsWith('[')) {
+      try { r = JSON.parse(t) } catch { return r }
+    } else return r
+  }
+  if (r && typeof r === 'object' && !Array.isArray(r) && 'content' in r) r = r.content
+  if (Array.isArray(r)) {
+    return r.map((p: any) => (typeof p === 'string' ? p : p?.type === 'text' ? p.text : JSON.stringify(p, null, 2))).join('\n')
+  }
+  return typeof r === 'string' ? r : JSON.stringify(r, null, 2)
+}
+
 // Handle permission response
 // Decision state is persisted by useChatV2Handler.respondToPermission -> sessionStore.updateMessageDecision
 function handlePermissionAllow(remember = false) {
@@ -656,19 +671,11 @@ function getTodoStatusBadge(status: string): { bg: string; color: string; label:
       <div class="space-y-1">
         <!-- Terminal box -->
         <div
-          class="relative rounded-lg overflow-hidden"
+          class="rounded-lg px-3 md:px-4 py-2 md:py-3"
           style="background: #1a1b26;"
         >
-          <!-- Terminal icon -->
-          <div
-            class="absolute top-2 left-2 size-3.5 md:size-4 rounded flex items-center justify-center"
-            style="background: #3b82f6;"
-          >
-            <UIcon name="i-lucide-terminal" class="size-2 md:size-2.5" style="color: white;" />
-          </div>
-
           <!-- Command -->
-          <div class="px-3 md:px-4 py-2 md:py-3 pl-8 md:pl-9 font-mono text-[11px] md:text-[12px] break-all" style="color: #9ece6a;">
+          <div class="font-mono text-[11px] md:text-[12px] break-all" style="color: #9ece6a;">
             <span style="color: #7aa2f7;">$</span> {{ bashCommand }}
           </div>
         </div>
@@ -698,7 +705,7 @@ function getTodoStatusBadge(status: string): { bg: string; color: string; label:
           class="rounded-lg overflow-x-auto max-h-48 max-w-full font-mono text-[11px] p-3"
           style="background: #1a1b26; color: #a9b1d6;"
         >
-          <pre class="whitespace-pre-wrap break-all">{{ typeof message.toolResult === 'string' ? message.toolResult : JSON.stringify(message.toolResult, null, 2) }}</pre>
+          <pre class="whitespace-pre-wrap break-all">{{ formatToolResult(message.toolResult) }}</pre>
         </div>
       </div>
     </template>
@@ -1100,7 +1107,7 @@ function getTodoStatusBadge(status: string): { bg: string; color: string; label:
                   background: 'var(--surface-base)',
                   color: message.isError ? '#ef4444' : 'var(--text-secondary)',
                 }"
-              >{{ typeof message.toolResult === 'string' ? message.toolResult : JSON.stringify(message.toolResult, null, 2) }}</pre>
+              >{{ formatToolResult(message.toolResult) }}</pre>
             </div>
           </div>
         </div>
