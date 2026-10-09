@@ -38,6 +38,16 @@
 - Move Settings before Explore [`69be6f7`](https://github.com/trongnghia203/claude-code-cli-ui/commit/69be6f7)
 - Fix icon alignment in chat and sidebar header buttons [`ce7d3ef`](https://github.com/trongnghia203/claude-code-cli-ui/commit/ce7d3ef)
 
+**Schedules (`/schedules`)**
+- Add Schedules page to run Claude unattended on a timer via launchd - weekdays, daily, weekly, hourly or every N minutes [`e331306`](https://github.com/trongnghia203/claude-code-cli-ui/commit/e331306)
+- Run a prompt or one of your agents in a project folder, with per-job allowed and denied tools, budget and timeout; defaults to plan (read-only) [`e331306`](https://github.com/trongnghia203/claude-code-cli-ui/commit/e331306)
+- Add two-column view like CLI - schedules and runs on the left, run output or schedule summary on the right, selection kept in the URL [`e331306`](https://github.com/trongnghia203/claude-code-cli-ui/commit/e331306)
+- Add run history with status, duration, cost and a link to the chat session each run created [`e331306`](https://github.com/trongnghia203/claude-code-cli-ui/commit/e331306)
+
+**Agents**
+- Fix New Agent wizard not scrolling on short windows, Back and Next buttons were cut off [`6719b9d`](https://github.com/trongnghia203/claude-code-cli-ui/commit/6719b9d)
+- Show the CLI's real models (Opus 5.5, Sonnet 5.5, Fable 5.1, Haiku 5.5) plus Default in the agent Settings tab and wizard [`6719b9d`](https://github.com/trongnghia203/claude-code-cli-ui/commit/6719b9d)
+
 **Dashboard**
 - Add Recent chats card under Agents - this project or all, one line per chat with `[project]` tag, click opens the session [`21b8ebc`](https://github.com/trongnghia203/claude-code-cli-ui/commit/21b8ebc)
 - Add `GET /api/v2/claude-code/recent-sessions` merging the newest sessions across projects [`21b8ebc`](https://github.com/trongnghia203/claude-code-cli-ui/commit/21b8ebc)
