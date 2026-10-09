@@ -539,7 +539,7 @@ function confirmDelete() {
       </div>
 
       <!-- Projects List -->
-      <div v-if="viewMode === 'projects'" class="flex-1 overflow-y-auto p-2 space-y-0">
+      <div v-if="viewMode === 'projects'" class="flex-1 overflow-y-auto p-2 space-y-1">
         <!-- Loading state -->
         <div v-if="isLoadingProjects" class="flex items-center justify-center py-8">
           <UIcon name="i-lucide-loader-2" class="size-5 animate-spin" style="color: var(--text-secondary);" />
@@ -556,7 +556,7 @@ function confirmDelete() {
             :key="'pinned-' + project.name"
             class="stagger-item px-3 rounded-lg cursor-pointer transition-all hover-bg group min-w-0"
             :class="folderViewMode === 'compact' ? 'py-0' : 'py-1.5'"
-            style="background: var(--accent-light); border-left: 2px solid var(--accent);"
+            style="background: var(--accent-light);"
             :style="{ animationDelay: `${index * 40}ms` }"
             @click="handleProjectClick(project)"
           >
@@ -573,7 +573,7 @@ function confirmDelete() {
                 <span class="font-medium truncate" :class="folderViewMode === 'compact' ? 'text-[14px] flex-1 min-w-0' : 'text-[13px] break-words flex-1 min-w-0'" style="color: var(--text-primary);">
                   {{ project.displayName }}<span v-if="folderViewMode === 'compact'" class="ml-1 text-[12px] font-normal" style="color: var(--text-tertiary);">[{{ project.sessionCount }}]</span>
                 </span>
-                <div class="flex items-center gap-0.5 max-w-0 overflow-hidden group-hover:max-w-[120px] transition-[max-width] duration-200 shrink-0">
+                <div class="flex items-center gap-0.5 max-w-0 overflow-hidden opacity-0 group-hover:opacity-100 group-hover:max-w-[120px] transition-[max-width,opacity] duration-200 shrink-0">
                   <button class="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors" title="Unpin" @click.stop="togglePin(project.name)">
                     <UIcon name="i-lucide-pin-off" class="size-3" style="color: var(--accent);" />
                   </button>
@@ -604,12 +604,12 @@ function confirmDelete() {
           :key="project.name"
           class="stagger-item px-3 rounded-lg cursor-pointer transition-all hover-bg group min-w-0"
           :class="folderViewMode === 'compact' ? 'py-0' : 'py-1.5'"
-          style="background: var(--surface-raised);"
+          style="background: transparent;"
           :style="{ animationDelay: `${(index + pinnedProjects.length) * 40}ms` }"
           @click="handleProjectClick(project)"
         >
           <div class="flex items-center gap-2 min-w-0" :class="folderViewMode !== 'compact' ? 'mb-0.5' : ''">
-            <UIcon name="i-lucide-folder" class="size-3.5 shrink-0" style="color: var(--accent);" />
+            <UIcon name="i-lucide-folder" class="size-3.5 shrink-0" style="color: var(--text-tertiary);" />
             <template v-if="editingProjectName === project.name">
               <div class="flex items-center gap-1 flex-1 min-w-0" @click.stop>
                 <input ref="projectEditInputRef" v-model="projectEditInput" class="flex-1 min-w-0 px-1.5 py-0.5 rounded text-[12px] font-medium outline-none" style="background: var(--surface-raised); border: 1px solid var(--accent); color: var(--text-primary);" @keyup.enter="saveProjectEdit" @keyup.escape="cancelProjectEdit" />
@@ -618,10 +618,10 @@ function confirmDelete() {
               </div>
             </template>
             <template v-else>
-              <span class="font-medium truncate flex-1 min-w-0" :class="folderViewMode === 'compact' ? 'text-[14px]' : 'text-[13px]'" style="color: var(--text-primary);">
+              <span class="font-normal truncate flex-1 min-w-0" :class="folderViewMode === 'compact' ? 'text-[14px]' : 'text-[13px]'" style="color: var(--text-secondary);">
                 {{ project.displayName }}<span v-if="folderViewMode === 'compact'" class="ml-1 text-[12px] font-normal" style="color: var(--text-tertiary);">[{{ project.sessionCount }}]</span>
               </span>
-              <div class="flex items-center gap-0.5 max-w-0 overflow-hidden group-hover:max-w-[140px] transition-[max-width] duration-200 shrink-0">
+              <div class="flex items-center gap-0.5 max-w-0 overflow-hidden opacity-0 group-hover:opacity-100 group-hover:max-w-[140px] transition-[max-width,opacity] duration-200 shrink-0">
                 <button class="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors" :title="isHidden(project.name) ? 'Unhide' : 'Hide folder'" @click.stop="toggleHide(project.name)">
                   <UIcon :name="isHidden(project.name) ? 'i-lucide-eye' : 'i-lucide-eye-off'" class="size-3" style="color: var(--text-tertiary);" />
                 </button>
