@@ -2,68 +2,68 @@
 
 ## Unreleased
 
-- Add macOS launcher (`scripts/`) - Swift+WKWebView app, `claude-ui` CLI, `install.sh` [`744f1a0`](https://github.com/trongnghia203/claude-code-cli-ui/commit/744f1a0)
+- Add macOS launcher (`scripts/`) - Swift+WKWebView app, `claude-ui` CLI, `install.sh` [`b929e24`](https://github.com/trongnghia203/claude-code-cli-ui/commit/b929e24)
 
 ## 2026-10-09
 
 **Project awareness**
-- Add project-local skills loading from `<workingDir>/.claude/skills/` with green `project` badge in Skills list [`f6385ce`](https://github.com/trongnghia203/claude-code-cli-ui/commit/f6385ce)
-- Add `GET /api/project/info` reading project `CLAUDE.md`, `AGENTS.md`, `.claude/settings.json`, `.claude/settings.local.json` [`f6385ce`](https://github.com/trongnghia203/claude-code-cli-ui/commit/f6385ce)
-- Add project config card on Dashboard surfacing which project files exist when working dir is set [`f6385ce`](https://github.com/trongnghia203/claude-code-cli-ui/commit/f6385ce)
+- Add project-local skills loading from `<workingDir>/.claude/skills/` with green `project` badge in Skills list [`5fff836`](https://github.com/trongnghia203/claude-code-cli-ui/commit/5fff836)
+- Add `GET /api/project/info` reading project `CLAUDE.md`, `AGENTS.md`, `.claude/settings.json`, `.claude/settings.local.json` [`5fff836`](https://github.com/trongnghia203/claude-code-cli-ui/commit/5fff836)
+- Add project config card on Dashboard surfacing which project files exist when working dir is set [`5fff836`](https://github.com/trongnghia203/claude-code-cli-ui/commit/5fff836)
 
 **Logs page (`/logs`)**
-- Add Logs page with SSE tail of `~/.claude/daemon.log` - filters, search, pause/resume, auto-scroll [`cbe986a`](https://github.com/trongnghia203/claude-code-cli-ui/commit/cbe986a)
-- Add log source switcher (Claude Daemon vs UI dev server) [`cbe986a`](https://github.com/trongnghia203/claude-code-cli-ui/commit/cbe986a)
-- Add Logs nav link to sidebar [`cbe986a`](https://github.com/trongnghia203/claude-code-cli-ui/commit/cbe986a)
+- Add Logs page with SSE tail of `~/.claude/daemon.log` - filters, search, pause/resume, auto-scroll [`339832a`](https://github.com/trongnghia203/claude-code-cli-ui/commit/339832a)
+- Add log source switcher (Claude Daemon vs UI dev server) [`339832a`](https://github.com/trongnghia203/claude-code-cli-ui/commit/339832a)
+- Add Logs nav link to sidebar [`339832a`](https://github.com/trongnghia203/claude-code-cli-ui/commit/339832a)
 
 **Token Usage dashboard (`/usage`)**
-- Add token usage dashboard with stat cards, timeline chart, cost breakdown donut, top projects table, model performance table [`c6f97fc`](https://github.com/trongnghia203/claude-code-cli-ui/commit/c6f97fc)
-- Add Usage nav link to sidebar [`c6f97fc`](https://github.com/trongnghia203/claude-code-cli-ui/commit/c6f97fc)
-- Fix sort tables by cost descending [`c6f97fc`](https://github.com/trongnghia203/claude-code-cli-ui/commit/c6f97fc)
+- Add token usage dashboard with stat cards, timeline chart, cost breakdown donut, top projects table, model performance table [`d512fc8`](https://github.com/trongnghia203/claude-code-cli-ui/commit/d512fc8)
+- Add Usage nav link to sidebar [`d512fc8`](https://github.com/trongnghia203/claude-code-cli-ui/commit/d512fc8)
+- Fix sort tables by cost descending [`d512fc8`](https://github.com/trongnghia203/claude-code-cli-ui/commit/d512fc8)
 
 **Working directory popover**
-- Add `..` parent navigation entry to suggestions list [`1a308a0`](https://github.com/trongnghia203/claude-code-cli-ui/commit/1a308a0)
-- Add Home button inline with title row [`1a308a0`](https://github.com/trongnghia203/claude-code-cli-ui/commit/1a308a0)
-- Increase suggestions box height to 420px, sort folders alphabetically, raise limit to 20 [`1a308a0`](https://github.com/trongnghia203/claude-code-cli-ui/commit/1a308a0)
-- Remove icon before `..` entry [`1a308a0`](https://github.com/trongnghia203/claude-code-cli-ui/commit/1a308a0)
+- Add `..` parent navigation entry to suggestions list [`a5b929a`](https://github.com/trongnghia203/claude-code-cli-ui/commit/a5b929a)
+- Add Home button inline with title row [`a5b929a`](https://github.com/trongnghia203/claude-code-cli-ui/commit/a5b929a)
+- Increase suggestions box height to 420px, sort folders alphabetically, raise limit to 20 [`a5b929a`](https://github.com/trongnghia203/claude-code-cli-ui/commit/a5b929a)
+- Remove icon before `..` entry [`a5b929a`](https://github.com/trongnghia203/claude-code-cli-ui/commit/a5b929a)
 
 **CLI project folder sidebar**
-- Add pin/hide for project folders [`f0cab66`](https://github.com/trongnghia203/claude-code-cli-ui/commit/f0cab66)
-- Add sort option (recent / name / sessions) [`f0cab66`](https://github.com/trongnghia203/claude-code-cli-ui/commit/f0cab66)
-- Add accent background for pinned folders [`f0cab66`](https://github.com/trongnghia203/claude-code-cli-ui/commit/f0cab66)
-- Add compact view toggle [`f0cab66`](https://github.com/trongnghia203/claude-code-cli-ui/commit/f0cab66)
-- Fix compact mode layout - single line, row height, collapse button width [`f0cab66`](https://github.com/trongnghia203/claude-code-cli-ui/commit/f0cab66)
+- Add pin/hide for project folders [`78e5412`](https://github.com/trongnghia203/claude-code-cli-ui/commit/78e5412)
+- Add sort option (recent / name / sessions) [`78e5412`](https://github.com/trongnghia203/claude-code-cli-ui/commit/78e5412)
+- Add accent background for pinned folders [`78e5412`](https://github.com/trongnghia203/claude-code-cli-ui/commit/78e5412)
+- Add compact view toggle [`78e5412`](https://github.com/trongnghia203/claude-code-cli-ui/commit/78e5412)
+- Fix compact mode layout - single line, row height, collapse button width [`78e5412`](https://github.com/trongnghia203/claude-code-cli-ui/commit/78e5412)
 
 **Typography - font sizes**
-- Bump sidebar nav: `13px` → `14px`, row padding `py-[7px]` → `py-[5px]` [`24be193`](https://github.com/trongnghia203/claude-code-cli-ui/commit/24be193)
-- Bump Skills list: name `13px` → `14px`, description `12px` → `13px`, padding `py-2.5` → `py-1.5` [`24be193`](https://github.com/trongnghia203/claude-code-cli-ui/commit/24be193)
-- Bump Agents, Commands, Plugins list rows: name `13px` → `14px`, description `12px` → `13px` [`24be193`](https://github.com/trongnghia203/claude-code-cli-ui/commit/24be193)
-- Bump Plugins row padding `py-2.5` → `py-1.5` [`24be193`](https://github.com/trongnghia203/claude-code-cli-ui/commit/24be193)
+- Bump sidebar nav: `13px` → `14px`, row padding `py-[7px]` → `py-[5px]` [`7011192`](https://github.com/trongnghia203/claude-code-cli-ui/commit/7011192)
+- Bump Skills list: name `13px` → `14px`, description `12px` → `13px`, padding `py-2.5` → `py-1.5` [`7011192`](https://github.com/trongnghia203/claude-code-cli-ui/commit/7011192)
+- Bump Agents, Commands, Plugins list rows: name `13px` → `14px`, description `12px` → `13px` [`7011192`](https://github.com/trongnghia203/claude-code-cli-ui/commit/7011192)
+- Bump Plugins row padding `py-2.5` → `py-1.5` [`7011192`](https://github.com/trongnghia203/claude-code-cli-ui/commit/7011192)
 
 **Typography - contrast & fonts**
-- Replace Clash Display with Geist Sans as `--font-display` [`24be193`](https://github.com/trongnghia203/claude-code-cli-ui/commit/24be193)
-- Remove `font-display` from MCP server name chips and sidebar brand text [`24be193`](https://github.com/trongnghia203/claude-code-cli-ui/commit/24be193)
-- Bump sidebar inactive nav items `text-tertiary` → `text-secondary` [`52b9606`](https://github.com/trongnghia203/claude-code-cli-ui/commit/52b9606)
-- Bump sidebar bottom items (Search, Claude, Light mode, Set project directory) to `text-secondary` [`52b9606`](https://github.com/trongnghia203/claude-code-cli-ui/commit/52b9606)
-- Bump `CLAUDE CODE` subtitle `text-disabled` → `text-tertiary` [`52b9606`](https://github.com/trongnghia203/claude-code-cli-ui/commit/52b9606)
-- Bump `.claude` path footer `9px` → `10px`, `text-disabled` → `text-tertiary` [`52b9606`](https://github.com/trongnghia203/claude-code-cli-ui/commit/52b9606)
+- Replace Clash Display with Geist Sans as `--font-display` [`7011192`](https://github.com/trongnghia203/claude-code-cli-ui/commit/7011192)
+- Remove `font-display` from MCP server name chips and sidebar brand text [`7011192`](https://github.com/trongnghia203/claude-code-cli-ui/commit/7011192)
+- Bump sidebar inactive nav items `text-tertiary` → `text-secondary` [`c845624`](https://github.com/trongnghia203/claude-code-cli-ui/commit/c845624)
+- Bump sidebar bottom items (Search, Claude, Light mode, Set project directory) to `text-secondary` [`c845624`](https://github.com/trongnghia203/claude-code-cli-ui/commit/c845624)
+- Bump `CLAUDE CODE` subtitle `text-disabled` → `text-tertiary` [`c845624`](https://github.com/trongnghia203/claude-code-cli-ui/commit/c845624)
+- Bump `.claude` path footer `9px` → `10px`, `text-disabled` → `text-tertiary` [`c845624`](https://github.com/trongnghia203/claude-code-cli-ui/commit/c845624)
 
 **MCP servers**
-- Add capability discovery and support for modern HTTP transport [`4d29329`](https://github.com/trongnghia203/claude-code-cli-ui/commit/4d29329)
-- Fix MCP permission display [`4d29329`](https://github.com/trongnghia203/claude-code-cli-ui/commit/4d29329)
-- Fix stdio transport load capabilities [`4d29329`](https://github.com/trongnghia203/claude-code-cli-ui/commit/4d29329)
+- Add capability discovery and support for modern HTTP transport [`7890d20`](https://github.com/trongnghia203/claude-code-cli-ui/commit/7890d20)
+- Fix MCP permission display [`7890d20`](https://github.com/trongnghia203/claude-code-cli-ui/commit/7890d20)
+- Fix stdio transport load capabilities [`7890d20`](https://github.com/trongnghia203/claude-code-cli-ui/commit/7890d20)
 
 **Chat interface**
-- Add git panel and file explorer sidebar [`9314402`](https://github.com/trongnghia203/claude-code-cli-ui/commit/9314402)
-- Add AskUserQuestion UI with permission answer flow [`eb07ef1`](https://github.com/trongnghia203/claude-code-cli-ui/commit/eb07ef1)
-- Fix live session sync and active indicator [`d3cb533`](https://github.com/trongnghia203/claude-code-cli-ui/commit/d3cb533)
-- Fix chat message deduplication [`0dcae9d`](https://github.com/trongnghia203/claude-code-cli-ui/commit/0dcae9d)
+- Add git panel and file explorer sidebar [`6422210`](https://github.com/trongnghia203/claude-code-cli-ui/commit/6422210)
+- Add AskUserQuestion UI with permission answer flow [`67da2ab`](https://github.com/trongnghia203/claude-code-cli-ui/commit/67da2ab)
+- Fix live session sync and active indicator [`b2f3961`](https://github.com/trongnghia203/claude-code-cli-ui/commit/b2f3961)
+- Fix chat message deduplication [`9dc8a1f`](https://github.com/trongnghia203/claude-code-cli-ui/commit/9dc8a1f)
 
 **Agents / Skills / Project Artifacts**
-- Add clickable agents/skills in project artifacts and project modal [`1feb9ca`](https://github.com/trongnghia203/claude-code-cli-ui/commit/1feb9ca)
-- Add file location display in Skill and Agent detail pages [`443522c`](https://github.com/trongnghia203/claude-code-cli-ui/commit/443522c)
-- Fix skill loading from non-standard project artifact paths [`1c0d1d6`](https://github.com/trongnghia203/claude-code-cli-ui/commit/1c0d1d6)
+- Add clickable agents/skills in project artifacts and project modal [`9423006`](https://github.com/trongnghia203/claude-code-cli-ui/commit/9423006)
+- Add file location display in Skill and Agent detail pages [`9c6aa6c`](https://github.com/trongnghia203/claude-code-cli-ui/commit/9c6aa6c)
+- Fix skill loading from non-standard project artifact paths [`6b33625`](https://github.com/trongnghia203/claude-code-cli-ui/commit/6b33625)
 
 **Misc**
-- Standardize dev server port to 3030 [`0dcae9d`](https://github.com/trongnghia203/claude-code-cli-ui/commit/0dcae9d)
-- Add CI setup [`eb07ef1`](https://github.com/trongnghia203/claude-code-cli-ui/commit/eb07ef1)
+- Standardize dev server port to 3030 [`9dc8a1f`](https://github.com/trongnghia203/claude-code-cli-ui/commit/9dc8a1f)
+- Add CI setup [`67da2ab`](https://github.com/trongnghia203/claude-code-cli-ui/commit/67da2ab)
