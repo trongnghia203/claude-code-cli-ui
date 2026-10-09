@@ -13,10 +13,36 @@ const initialized = ref(false)
 const showSearch = ref(false)
 const sidebarCollapsed = useState('sidebar-collapsed', () => false)
 const { isPanelOpen: chatOpen } = useChat()
-const { workingDir, displayPath, setWorkingDir, clearWorkingDir } = useWorkingDir()
+const { workingDir, setWorkingDir, clearWorkingDir } = useWorkingDir()
 const colorMode = useColorMode()
 
 const showWorkingDirPopover = ref(false)
+const workingDirName = computed(() => workingDir.value.replace(/\/+$/, '').split('/').pop() || workingDir.value)
+const RECENT_KEY = 'agents-ui:recent-open'
+const showRecent = ref(false)
+onMounted(() => {
+  try { showRecent.value = localStorage.getItem(RECENT_KEY) === '1' } catch {}
+})
+function toggleRecent() {
+  showRecent.value = !showRecent.value
+  try { localStorage.setItem(RECENT_KEY, showRecent.value ? '1' : '0') } catch {}
+}
+const recentProjects = ref<{ name: string; path: string; displayName: string }[]>([])
+
+async function loadRecentProjects() {
+  try {
+    const all = await $fetch<{ name: string; path: string; displayName: string }[]>('/api/projects')
+    recentProjects.value = all.slice(0, 8)
+  } catch {
+    recentProjects.value = []
+  }
+}
+
+function pickRecentProject(path: string) {
+  setWorkingDir(path)
+  showWorkingDirPopover.value = false
+  dirSuggestions.value = []
+}
 const workingDirInput = ref('')
 const dirSuggestions = ref<{ name: string; path: string; hasChildren: boolean }[]>([])
 const selectedSuggestionIdx = ref(-1)
@@ -34,6 +60,7 @@ function openWorkingDirPopover() {
   dirSuggestions.value = []
   selectedSuggestionIdx.value = -1
   showWorkingDirPopover.value = true
+  loadRecentProjects()
   if (workingDirInput.value) fetchDirSuggestions(workingDirInput.value)
 }
 
@@ -210,6 +237,146 @@ function badgeFor(to: string) {
           </button>
         </div>
 
+        <!-- Project switcher -->
+        <div :class="sidebarCollapsed ? 'px-1.5 pb-2' : 'px-2.5 pb-2'">
+          <UPopover v-model:open="showWorkingDirPopover" :ui="{ width: 'w-[280px]' }">
+            <button
+              class="w-full flex items-center rounded-lg transition-all duration-150 focus-ring cursor-pointer press-scale"
+              :class="sidebarCollapsed ? 'justify-center px-0 py-2' : 'gap-2 px-3 py-2 text-left'"
+              :style="{
+                color: 'var(--text-secondary)',
+                border: workingDir ? '1px solid var(--border-subtle)' : '1px dashed var(--warning, #d97706)',
+              }"
+              :title="workingDir || 'Set project directory'"
+              @click="openWorkingDirPopover"
+            >
+              <UIcon name="i-lucide-folder" class="size-3.5 shrink-0" :style="{ color: workingDir ? 'var(--accent)' : 'var(--warning, #d97706)' }" />
+              <template v-if="!sidebarCollapsed">
+                <div class="flex-1 min-w-0">
+                  <div class="text-[9px] tracking-wider uppercase leading-none" style="color: var(--text-tertiary);">Project</div>
+                  <div v-if="workingDir" class="text-[12px] font-medium truncate mt-0.5" style="color: var(--text-primary);">
+                    {{ workingDirName }}
+                  </div>
+                  <div v-else class="text-[12px] mt-0.5" style="color: var(--warning, #d97706);">
+                    No project set
+                  </div>
+                </div>
+                <UIcon name="i-lucide-chevrons-up-down" class="size-3 shrink-0" style="color: var(--text-disabled);" />
+              </template>
+            </button>
+            <template #content>
+              <div class="p-3 space-y-3">
+                <div class="flex items-center justify-between gap-2">
+                  <div class="text-[13px] font-semibold" style="color: var(--text-primary); font-family: var(--font-sans);">Working Directory</div>
+                  <button
+                    type="button"
+                    class="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] hover-bg transition-colors shrink-0"
+                    style="color: var(--text-tertiary); border: 1px solid var(--border-subtle);"
+                    title="Go to home directory"
+                    @click="workingDirInput = '~'; fetchDirSuggestions('~')"
+                  >
+                    <UIcon name="i-lucide-home" class="size-3" />
+                    Home
+                  </button>
+                </div>
+                <p class="text-[11px] leading-relaxed" style="color: var(--text-secondary);">
+                  Active project for chat, terminal, workflows and project settings. Claude operates in this directory.
+                </p>
+                <div v-if="recentProjects.length" class="space-y-1">
+                  <button
+                    type="button"
+                    class="flex items-center gap-1 text-[10px] uppercase tracking-wider hover:text-[var(--text-secondary)] transition-colors"
+                    style="color: var(--text-tertiary);"
+                    :aria-expanded="showRecent"
+                    @click="toggleRecent"
+                  >
+                    <UIcon name="i-lucide-chevron-right" class="size-3 transition-transform duration-150" :class="showRecent ? 'rotate-90' : ''" />
+                    Recent
+                  </button>
+                  <div v-if="showRecent" class="rounded-lg overflow-hidden max-h-[180px] overflow-y-auto" style="border: 1px solid var(--border-subtle); background: var(--surface-raised);">
+                    <button
+                      v-for="proj in recentProjects"
+                      :key="proj.path"
+                      type="button"
+                      class="w-full flex items-center gap-2 px-3 py-1.5 text-left hover-bg transition-colors"
+                      :style="{ color: proj.path === workingDir ? 'var(--text-primary)' : 'var(--text-secondary)' }"
+                      :title="proj.path"
+                      @click="pickRecentProject(proj.path)"
+                    >
+                      <UIcon :name="proj.path === workingDir ? 'i-lucide-check' : 'i-lucide-folder'" class="size-3.5 shrink-0" :style="{ color: proj.path === workingDir ? 'var(--accent)' : 'var(--text-disabled)' }" />
+                      <span class="text-[11px] truncate">{{ proj.displayName }}</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="relative">
+                  <input
+                    v-model="workingDirInput"
+                    class="field-input text-[12px] font-mono"
+                    placeholder="/path/to/your/project"
+                    autocomplete="off"
+                    @input="onDirInput"
+                    @keydown="onDirKeydown"
+                  />
+                  <!-- Directory suggestions -->
+                  <div
+                    v-if="dirSuggestions.length || parentDirPath"
+                    class="mt-1 rounded-lg overflow-hidden max-h-[420px] overflow-y-auto"
+                    style="border: 1px solid var(--border-subtle); background: var(--surface-raised);"
+                  >
+                    <!-- Parent (..) entry -->
+                    <button
+                      v-if="parentDirPath"
+                      type="button"
+                      class="w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors duration-75 border-b"
+                      style="border-color: var(--border-subtle); color: var(--text-tertiary);"
+                      @click="workingDirInput = parentDirPath; fetchDirSuggestions(parentDirPath)"
+                    >
+                      <span class="text-[11px] font-mono truncate">..</span>
+                    </button>
+                    <button
+                      v-for="(suggestion, idx) in dirSuggestions"
+                      :key="suggestion.path"
+                      type="button"
+                      class="w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors duration-75"
+                      :style="{
+                        background: idx === selectedSuggestionIdx ? 'var(--accent-muted)' : 'transparent',
+                        color: idx === selectedSuggestionIdx ? 'var(--text-primary)' : 'var(--text-secondary)',
+                      }"
+                      @click="selectSuggestion(suggestion)"
+                      @mouseenter="selectedSuggestionIdx = idx"
+                    >
+                      <UIcon
+                        :name="suggestion.hasChildren ? 'i-lucide-folder' : 'i-lucide-folder-dot'"
+                        class="size-3.5 shrink-0"
+                        :style="{ color: idx === selectedSuggestionIdx ? 'var(--accent)' : 'var(--text-disabled)' }"
+                      />
+                      <span class="text-[11px] font-mono truncate">{{ suggestion.name }}</span>
+                      <UIcon
+                        v-if="suggestion.hasChildren"
+                        name="i-lucide-chevron-right"
+                        class="size-3 shrink-0 ml-auto"
+                        style="color: var(--text-disabled);"
+                      />
+                    </button>
+                  </div>
+                </div>
+                <div class="flex items-center justify-between">
+                  <button
+                    v-if="workingDir"
+                    class="text-[11px] font-medium px-2 py-1 rounded hover-bg"
+                    style="color: var(--error);"
+                    @click="clearWorkingDir(); showWorkingDirPopover = false"
+                  >
+                    Clear
+                  </button>
+                  <div v-else />
+                  <UButton label="Save" size="xs" @click="saveWorkingDir" />
+                </div>
+              </div>
+            </template>
+          </UPopover>
+        </div>
+
         <!-- Primary Nav -->
         <nav class="flex-1 pt-1 space-y-0.5 overflow-y-auto" :class="sidebarCollapsed ? 'px-1.5' : 'px-2.5'">
           <!-- Top Section -->
@@ -373,115 +540,9 @@ function badgeFor(to: string) {
           </ClientOnly>
         </div>
 
-        <!-- Footer: working directory -->
+        <!-- Footer: config directory -->
         <div :class="sidebarCollapsed ? 'px-1.5 pb-2.5' : 'px-2.5 pb-2.5'" style="border-top: 1px solid var(--border-subtle); padding-top: 0.75rem;">
-          <UPopover v-model:open="showWorkingDirPopover" :ui="{ width: 'w-[280px]' }">
-            <button
-              class="w-full flex items-center rounded-lg transition-all duration-150 focus-ring cursor-pointer press-scale"
-              :class="sidebarCollapsed ? 'justify-center px-0 py-2' : 'gap-2 px-3 py-2 text-left'"
-              style="color: var(--text-secondary); border: 1px solid var(--border-subtle);"
-              :title="sidebarCollapsed ? (workingDir || 'Set project directory') : undefined"
-              @click="openWorkingDirPopover"
-            >
-              <UIcon name="i-lucide-folder" class="size-3.5 shrink-0" :style="{ color: workingDir ? 'var(--accent)' : undefined }" />
-              <template v-if="!sidebarCollapsed">
-                <div class="flex-1 min-w-0">
-                  <div v-if="workingDir" class="font-mono text-[10px] truncate" style="color: var(--text-secondary);">
-                    {{ displayPath }}
-                  </div>
-                  <div v-else class="text-[11px]" style="font-family: var(--font-sans);">
-                    Set project directory
-                  </div>
-                </div>
-                <UIcon name="i-lucide-pencil" class="size-3 shrink-0" style="color: var(--text-disabled);" />
-              </template>
-            </button>
-            <template #content>
-              <div class="p-3 space-y-3">
-                <div class="flex items-center justify-between gap-2">
-                  <div class="text-[13px] font-semibold" style="color: var(--text-primary); font-family: var(--font-sans);">Working Directory</div>
-                  <button
-                    type="button"
-                    class="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] hover-bg transition-colors shrink-0"
-                    style="color: var(--text-tertiary); border: 1px solid var(--border-subtle);"
-                    title="Go to home directory"
-                    @click="workingDirInput = '~'; fetchDirSuggestions('~')"
-                  >
-                    <UIcon name="i-lucide-home" class="size-3" />
-                    Home
-                  </button>
-                </div>
-                <p class="text-[11px] leading-relaxed" style="color: var(--text-secondary);">
-                  Set the project directory for all chat conversations. Claude will operate in this directory.
-                </p>
-                <div class="relative">
-                  <input
-                    v-model="workingDirInput"
-                    class="field-input text-[12px] font-mono"
-                    placeholder="/path/to/your/project"
-                    autocomplete="off"
-                    @input="onDirInput"
-                    @keydown="onDirKeydown"
-                  />
-                  <!-- Directory suggestions -->
-                  <div
-                    v-if="dirSuggestions.length || parentDirPath"
-                    class="mt-1 rounded-lg overflow-hidden max-h-[420px] overflow-y-auto"
-                    style="border: 1px solid var(--border-subtle); background: var(--surface-raised);"
-                  >
-                    <!-- Parent (..) entry -->
-                    <button
-                      v-if="parentDirPath"
-                      type="button"
-                      class="w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors duration-75 border-b"
-                      style="border-color: var(--border-subtle); color: var(--text-tertiary);"
-                      @click="workingDirInput = parentDirPath; fetchDirSuggestions(parentDirPath)"
-                    >
-                      <span class="text-[11px] font-mono truncate">..</span>
-                    </button>
-                    <button
-                      v-for="(suggestion, idx) in dirSuggestions"
-                      :key="suggestion.path"
-                      type="button"
-                      class="w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors duration-75"
-                      :style="{
-                        background: idx === selectedSuggestionIdx ? 'var(--accent-muted)' : 'transparent',
-                        color: idx === selectedSuggestionIdx ? 'var(--text-primary)' : 'var(--text-secondary)',
-                      }"
-                      @click="selectSuggestion(suggestion)"
-                      @mouseenter="selectedSuggestionIdx = idx"
-                    >
-                      <UIcon
-                        :name="suggestion.hasChildren ? 'i-lucide-folder' : 'i-lucide-folder-dot'"
-                        class="size-3.5 shrink-0"
-                        :style="{ color: idx === selectedSuggestionIdx ? 'var(--accent)' : 'var(--text-disabled)' }"
-                      />
-                      <span class="text-[11px] font-mono truncate">{{ suggestion.name }}</span>
-                      <UIcon
-                        v-if="suggestion.hasChildren"
-                        name="i-lucide-chevron-right"
-                        class="size-3 shrink-0 ml-auto"
-                        style="color: var(--text-disabled);"
-                      />
-                    </button>
-                  </div>
-                </div>
-                <div class="flex items-center justify-between">
-                  <button
-                    v-if="workingDir"
-                    class="text-[11px] font-medium px-2 py-1 rounded hover-bg"
-                    style="color: var(--error);"
-                    @click="clearWorkingDir(); showWorkingDirPopover = false"
-                  >
-                    Clear
-                  </button>
-                  <div v-else />
-                  <UButton label="Save" size="xs" @click="saveWorkingDir" />
-                </div>
-              </div>
-            </template>
-          </UPopover>
-          <div v-if="!sidebarCollapsed" class="font-mono text-[10px] truncate tracking-wide mt-1.5 px-1" style="color: var(--text-tertiary);">
+          <div v-if="!sidebarCollapsed" class="font-mono text-[10px] truncate tracking-wide px-1" style="color: var(--text-tertiary);">
             {{ claudeDir || 'No config directory' }}
           </div>
         </div>
