@@ -1,12 +1,18 @@
 <script setup lang="ts">
 import { renderMarkdownWithHighlighting } from '~/utils/markdown'
+import { diffLines, collapseUnchanged } from '~/utils/lineDiff'
 
 const props = withDefaults(defineProps<{
   modelValue: string
   agentName?: string
   agentDescription?: string
   placeholder?: string
+  /** Saved text to diff against. When provided, a Diff tab is shown. */
+  original?: string
+  /** Mode the editor opens in (read-first pages pass 'preview') */
+  defaultMode?: 'edit' | 'preview'
 }>(), {
+  defaultMode: 'edit',
   agentName: '',
   agentDescription: '',
   placeholder: 'Write instructions...',
@@ -16,7 +22,27 @@ const emit = defineEmits<{
   'update:modelValue': [value: string]
 }>()
 
-const mode = ref<'edit' | 'preview'>('edit')
+const mode = ref<'edit' | 'preview' | 'diff'>(props.defaultMode)
+const modes = computed(() => (props.original !== undefined ? (['edit', 'preview', 'diff'] as const) : (['edit', 'preview'] as const)))
+// Fall back if the Diff tab disappears (e.g. another editor reuses this component)
+watch(modes, (list) => {
+  if (!list.includes(mode.value as never)) mode.value = 'edit'
+})
+
+const diffRows = computed(() => {
+  if (props.original === undefined || mode.value !== 'diff') return []
+  return collapseUnchanged(diffLines(props.original, props.modelValue))
+})
+const diffStats = computed(() => {
+  if (props.original === undefined) return { add: 0, del: 0 }
+  let add = 0
+  let del = 0
+  for (const l of diffLines(props.original, props.modelValue)) {
+    if (l.type === 'add') add++
+    else if (l.type === 'del') del++
+  }
+  return { add, del }
+})
 const isImproving = ref(false)
 const improveError = ref<string | null>(null)
 const suggestion = ref<string | null>(null)
@@ -54,7 +80,7 @@ async function improveInstructions() {
         description: props.agentDescription,
         currentInstructions: props.modelValue,
       },
-      timeout: 30000,
+      timeout: 120000,
     })
     suggestion.value = response.improvedInstructions
   } catch (e: unknown) {
@@ -82,7 +108,7 @@ function dismissSuggestion() {
       <div class="flex items-center gap-2">
         <div class="flex rounded-lg overflow-hidden" style="border: 1px solid var(--border-subtle);">
           <button
-            v-for="m in (['edit', 'preview'] as const)"
+            v-for="m in modes"
             :key="m"
             class="px-2.5 py-1 text-[11px] font-medium capitalize transition-all"
             :style="{
@@ -92,6 +118,10 @@ function dismissSuggestion() {
             @click="mode = m"
           >
             {{ m }}
+            <span v-if="m === 'diff' && (diffStats.add || diffStats.del)" class="ml-1 font-mono">
+              <span style="color: #22c55e;">+{{ diffStats.add }}</span>
+              <span style="color: #ef4444;"> -{{ diffStats.del }}</span>
+            </span>
           </button>
         </div>
         <span class="text-[11px] font-mono" style="color: var(--text-disabled);">{{ wordCount }} words</span>
@@ -138,6 +168,47 @@ function dismissSuggestion() {
       :placeholder="placeholder"
       @input="emit('update:modelValue', ($event.target as HTMLTextAreaElement).value)"
     />
+
+    <!-- Diff mode -->
+    <div v-else-if="mode === 'diff'" class="flex-1 min-h-0 overflow-auto py-2">
+      <p v-if="!diffStats.add && !diffStats.del" class="p-4 text-[13px]" style="color: var(--text-disabled);">No changes since last save.</p>
+      <div v-else class="font-mono text-[12px] leading-[1.6] min-w-fit">
+        <template v-for="(row, i) in diffRows" :key="i">
+          <div
+            v-if="row.collapsed"
+            class="px-4 py-0.5 text-[11px] select-none"
+            style="color: var(--text-disabled); background: var(--surface-raised);"
+          >
+            ... {{ row.collapsed }} unchanged line{{ row.collapsed > 1 ? 's' : '' }}
+          </div>
+          <div
+            v-else
+            class="flex"
+            :style="{
+              background: row.type === 'add' ? 'rgba(34,197,94,0.12)' : row.type === 'del' ? 'rgba(239,68,68,0.12)' : 'transparent',
+            }"
+          >
+            <span class="w-10 shrink-0 text-right pr-2 select-none" style="color: var(--text-disabled);">{{ row.oldNo ?? '' }}</span>
+            <span class="w-10 shrink-0 text-right pr-2 select-none" style="color: var(--text-disabled);">{{ row.newNo ?? '' }}</span>
+            <span
+              class="w-4 shrink-0 select-none"
+              :style="{ color: row.type === 'add' ? '#22c55e' : row.type === 'del' ? '#ef4444' : 'var(--text-disabled)' }"
+            >{{ row.type === 'add' ? '+' : row.type === 'del' ? '-' : '' }}</span>
+            <span class="whitespace-pre pr-4" style="color: var(--text-primary);">
+              <template v-if="row.segments">
+                <span
+                  v-for="(seg, k) in row.segments"
+                  :key="k"
+                  class="rounded-[2px]"
+                  :style="seg.changed ? { background: row.type === 'add' ? 'rgba(34,197,94,0.35)' : 'rgba(239,68,68,0.35)' } : undefined"
+                >{{ seg.text }}</span>
+              </template>
+              <template v-else>{{ row.text }}</template>
+            </span>
+          </div>
+        </template>
+      </div>
+    </div>
 
     <!-- Preview mode -->
     <div

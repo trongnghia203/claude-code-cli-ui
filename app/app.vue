@@ -151,6 +151,7 @@ const navTop = [
   { label: 'Plugins', icon: 'i-lucide-puzzle', to: '/plugins' },
   { label: 'MCP Servers', icon: 'i-lucide-server', to: '/mcp' },
   { label: 'Output Styles', icon: 'i-lucide-palette', to: '/output-styles' },
+  { label: 'Memory', icon: 'i-lucide-brain', to: '/memory' },
 ]
 
 const navMid = [

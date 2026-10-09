@@ -378,6 +378,7 @@ useUnsavedChanges(isDirty)
         <div class="rounded-xl overflow-hidden bg-card flex flex-col" style="border: 1px solid var(--border-subtle); height: 500px;">
           <InstructionEditor
             v-model="body"
+            default-mode="preview"
             :agent-name="frontmatter.name"
             :agent-description="frontmatter.description"
           />
