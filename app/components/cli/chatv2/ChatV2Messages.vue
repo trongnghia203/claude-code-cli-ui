@@ -183,22 +183,23 @@ function handleOpenFile(filePath: string) {
                 <div
                   v-if="extractImageSources(msg.content || '').text"
                   class="text-[12px] md:text-[13px] whitespace-pre-wrap break-words overflow-wrap-anywhere max-w-full"
-                  :class="{ 'pb-5': msg.content }"
                 >{{ extractImageSources(msg.content || '').text }}</div>
 
-                <!-- Copy button -->
+                <!-- Copy button: floats to the left of the bubble so the bubble needs no reserved padding.
+                     pr-2 is part of the button, so the hover is not lost while crossing the gap. -->
                 <button
                   v-if="msg.content"
-                  class="absolute bottom-1.5 right-2 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                  style="background: rgba(255, 255, 255, 0.15);"
+                  class="absolute right-full top-1/2 -translate-y-1/2 pr-2 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
                   title="Copy to clipboard"
                   @click="copyUserMessage(msg.id, msg.content!)"
                 >
-                  <UIcon
-                    :name="copiedMessageId === msg.id ? 'i-lucide-check' : 'i-lucide-copy'"
-                    class="size-3"
-                    :style="{ color: copiedMessageId === msg.id ? '#86efac' : 'rgba(255,255,255,0.7)' }"
-                  />
+                  <span class="block p-1.5 rounded-lg" style="background: var(--surface-raised); border: 1px solid var(--border-subtle);">
+                    <UIcon
+                      :name="copiedMessageId === msg.id ? 'i-lucide-check' : 'i-lucide-copy'"
+                      class="size-3.5 block"
+                      :style="{ color: copiedMessageId === msg.id ? '#22c55e' : 'var(--text-tertiary)' }"
+                    />
+                  </span>
                 </button>
               </div>
             </template>
