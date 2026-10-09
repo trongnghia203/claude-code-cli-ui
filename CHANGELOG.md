@@ -24,12 +24,15 @@
 - Fix context ring - use last API call usage and the SDK context window, recalc on model switch [`ebf894d`](https://github.com/trongnghia203/claude-code-cli-ui/commit/ebf894d)
 - Render shell commands, system messages and `[Image: source: ...]` in chat [`1247aa8`](https://github.com/trongnghia203/claude-code-cli-ui/commit/1247aa8)
 - Fix uneven padding in user message bubbles, copy button floats beside the bubble [`628a862`](https://github.com/trongnghia203/claude-code-cli-ui/commit/628a862)
+- Fix medium-effort gauge icon sitting off-centre in its circle [`af96760`](https://github.com/trongnghia203/claude-code-cli-ui/commit/af96760)
+- Fix deleting an already-removed session showing a not-found error, drop it from the list instead [`d53d204`](https://github.com/trongnghia203/claude-code-cli-ui/commit/d53d204)
 
 **Sidebar and navigation**
 - Move project switcher to the sidebar top with a collapsible Recent list [`3c30fa8`](https://github.com/trongnghia203/claude-code-cli-ui/commit/3c30fa8)
 - Fix project chip showing the no-project style after load, wrap long folder names to 2 lines [`73587ae`](https://github.com/trongnghia203/claude-code-cli-ui/commit/73587ae)
 - Fix Working Directory `..` listing the wrong folder, fix `..` and Home path filtering [`73587ae`](https://github.com/trongnghia203/claude-code-cli-ui/commit/73587ae)
 - Fix stale directory responses overwriting the Working Directory list, add hover tint on `..` [`62d73c3`](https://github.com/trongnghia203/claude-code-cli-ui/commit/62d73c3)
+- Open the current project when clicking CLI in the sidebar, project list when none is set [`55b46b9`](https://github.com/trongnghia203/claude-code-cli-ui/commit/55b46b9)
 - Move Settings before Explore [`69be6f7`](https://github.com/trongnghia203/claude-code-cli-ui/commit/69be6f7)
 - Fix icon alignment in chat and sidebar header buttons [`ce7d3ef`](https://github.com/trongnghia203/claude-code-cli-ui/commit/ce7d3ef)
 
