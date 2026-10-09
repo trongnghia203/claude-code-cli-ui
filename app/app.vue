@@ -159,11 +159,11 @@ const navMid = [
 ]
 
 const navBottom = [
+  { label: 'Settings', icon: 'i-lucide-settings', to: '/settings' },
   { label: 'Explore', icon: 'i-lucide-compass', to: '/explore' },
   { label: 'Graph', icon: 'i-lucide-workflow', to: '/graph' },
   { label: 'Usage', icon: 'i-lucide-bar-chart-2', to: '/usage' },
   { label: 'Logs', icon: 'i-lucide-scroll-text', to: '/logs' },
-  { label: 'Settings', icon: 'i-lucide-settings', to: '/settings' },
 ]
 
 function isActive(to: string) {
