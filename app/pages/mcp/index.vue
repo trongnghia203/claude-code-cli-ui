@@ -87,10 +87,8 @@ onMounted(() => {
   fetchServers()
   loadSources()
 })
-watch(workingDir, () => {
-  fetchServers()
-  loadSources()
-})
+// The app shell refetches the server list on a project switch; this page also needs its own sources
+watch(workingDir, loadSources)
 
 async function onAddServer(payload: any) {
   adding.value = true

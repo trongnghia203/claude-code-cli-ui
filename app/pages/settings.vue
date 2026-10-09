@@ -57,6 +57,11 @@ async function save(data: Settings) {
   scopedSettings.value = data
 }
 
+// Project and Local tabs follow the project selected in the sidebar
+watch(workingDir, (dir) => {
+  if (dir) projectPath.value = dir
+})
+
 watch([scope, projectPath], async () => {
   await load()
   syncRawJson()

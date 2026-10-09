@@ -23,7 +23,7 @@ const showLegend = ref(true)
 
 const { workingDir } = useWorkingDir()
 
-onMounted(async () => {
+async function loadRelationships() {
   try {
     relationships.value = await $fetch<Relationship[]>('/api/relationships', {
       query: { workingDir: workingDir.value }
@@ -31,6 +31,13 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
+}
+
+onMounted(loadRelationships)
+// Project-level agents, commands and skills change the graph
+watch(workingDir, () => {
+  loading.value = true
+  loadRelationships()
 })
 
 // --- Layout constants ---

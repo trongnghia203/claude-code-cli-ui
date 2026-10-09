@@ -200,9 +200,16 @@ function linkTarget(link: { key?: string; to: string }): string {
   return link.to
 }
 
-// Switching project while on a CLI page: follow it, otherwise the session list keeps showing the old project
+// Lists that depend on the selected project (project skills, commands, agents, MCP servers, output styles).
+// They are shared state fetched once at start, so every page showing them goes stale on a project switch.
+function refreshProjectData() {
+  Promise.all([fetchAgents(), fetchCommands(), fetchSkills(), fetchServers(), fetchStyles()]).catch(() => {})
+}
+
 watch(workingDir, (dir, prev) => {
   if (!mounted.value || dir === prev) return
+  refreshProjectData()
+  // Switching project while on a CLI page: follow it, otherwise the session list keeps showing the old project
   if (route.path === '/cli' || route.path.startsWith('/cli/')) {
     navigateTo(linkTarget({ key: 'cli', to: '/cli' }))
   }
