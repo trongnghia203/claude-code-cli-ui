@@ -55,7 +55,12 @@ const sessionLink = computed(() =>
     ? `/cli/project/${encodeURIComponent(projectSlug(props.job.workingDir.replace(/\/+$/, '')))}/session/${encodeURIComponent(run.value.sessionId)}`
     : null,
 )
-const resultHtml = computed(() => (run.value?.result ? renderMarkdown(run.value.result) : ''))
+// Open result links (Jira tickets etc.) in a new tab
+const resultHtml = computed(() =>
+  run.value?.result
+    ? renderMarkdown(run.value.result).replace(/<a href=/g, '<a target="_blank" rel="noopener noreferrer" href=')
+    : '',
+)
 </script>
 
 <template>
@@ -129,6 +134,8 @@ const resultHtml = computed(() => (run.value?.result ? renderMarkdown(run.value.
 .run-result :deep(table) { border-collapse: collapse; width: 100%; font-size: 13px; margin: 0.8em 0; }
 .run-result :deep(th), .run-result :deep(td) { border: 1px solid var(--border-subtle); padding: 6px 10px; text-align: left; vertical-align: top; }
 .run-result :deep(th) { background: var(--surface-raised); font-weight: 600; }
+.run-result :deep(a) { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; cursor: pointer; }
+.run-result :deep(a:hover) { opacity: 0.8; }
 .run-result :deep(p) { margin: 0.6em 0; }
 .run-result :deep(ul), .run-result :deep(ol) { padding-left: 1.5em; margin: 0.6em 0; }
 .run-result :deep(h1), .run-result :deep(h2), .run-result :deep(h3) { font-weight: 600; margin: 1em 0 0.4em; }
