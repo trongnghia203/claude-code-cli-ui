@@ -187,9 +187,15 @@ export function useClaudeCodeHistory() {
    */
   async function deleteSession(projectName: string, sessionId: string) {
     try {
-      await $fetch(`/api/projects/${encodeURIComponent(projectName)}/sessions/${encodeURIComponent(sessionId)}`, {
-        method: 'DELETE'
-      })
+      try {
+        await $fetch(`/api/projects/${encodeURIComponent(projectName)}/sessions/${encodeURIComponent(sessionId)}`, {
+          method: 'DELETE'
+        })
+      } catch (error: any) {
+        // Already gone (deleted elsewhere, e.g. from a terminal): the goal is met, so just drop it from the list
+        const status = error?.statusCode ?? error?.status ?? error?.response?.status
+        if (status !== 404) throw error
+      }
 
       // Update local state
       sessions.value = sessions.value.filter(s => s.id !== sessionId)
