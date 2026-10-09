@@ -187,7 +187,7 @@ function badgeFor(to: string) {
               <span class="text-[12px] font-semibold tracking-tight group-hover/brand:text-accent transition-colors" style="color: var(--text-primary);">
                 Agent Manager
               </span>
-              <span class="text-[9px] tracking-wider uppercase" style="color: var(--text-disabled);">
+              <span class="text-[9px] tracking-wider uppercase" style="color: var(--text-tertiary);">
                 Claude Code
               </span>
             </div>
@@ -223,7 +223,7 @@ function badgeFor(to: string) {
               { 'nav-item--active': isActive(link.to) }
             ]"
             :style="{
-              color: isActive(link.to) ? 'var(--text-primary)' : 'var(--text-tertiary)',
+              color: isActive(link.to) ? 'var(--text-primary)' : 'var(--text-secondary)',
               fontWeight: isActive(link.to) ? '500' : '400',
               background: isActive(link.to) ? 'var(--accent-muted)' : undefined,
             }"
@@ -262,7 +262,7 @@ function badgeFor(to: string) {
               { 'nav-item--active': isActive(link.to) }
             ]"
             :style="{
-              color: isActive(link.to) ? 'var(--text-primary)' : 'var(--text-tertiary)',
+              color: isActive(link.to) ? 'var(--text-primary)' : 'var(--text-secondary)',
               fontWeight: isActive(link.to) ? '500' : '400',
               background: isActive(link.to) ? 'var(--accent-muted)' : undefined,
             }"
@@ -293,7 +293,7 @@ function badgeFor(to: string) {
               { 'nav-item--active': isActive(link.to) }
             ]"
             :style="{
-              color: isActive(link.to) ? 'var(--text-primary)' : 'var(--text-tertiary)',
+              color: isActive(link.to) ? 'var(--text-primary)' : 'var(--text-secondary)',
               fontWeight: isActive(link.to) ? '500' : '400',
               background: isActive(link.to) ? 'var(--accent-muted)' : undefined,
             }"
@@ -314,15 +314,15 @@ function badgeFor(to: string) {
           <button
             class="w-full flex items-center rounded-lg transition-all duration-150 focus-ring cursor-pointer press-scale"
             :class="sidebarCollapsed ? 'justify-center px-0 py-2' : 'gap-2 px-3 py-2'"
-            style="color: var(--text-disabled); background: var(--input-bg); border: 1px solid var(--border-subtle);"
+            style="color: var(--text-secondary); background: var(--input-bg); border: 1px solid var(--border-subtle);"
             :title="sidebarCollapsed ? 'Search (⌘K)' : undefined"
-            @mouseenter="($event.currentTarget as HTMLElement).style.borderColor = 'var(--border-default)'; ($event.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'"
-            @mouseleave="($event.currentTarget as HTMLElement).style.borderColor = 'var(--border-subtle)'; ($event.currentTarget as HTMLElement).style.color = 'var(--text-disabled)'"
+            @mouseenter="($event.currentTarget as HTMLElement).style.borderColor = 'var(--border-default)'; ($event.currentTarget as HTMLElement).style.color = 'var(--text-primary)'"
+            @mouseleave="($event.currentTarget as HTMLElement).style.borderColor = 'var(--border-subtle)'; ($event.currentTarget as HTMLElement).style.color = 'var(--text-secondary)'"
             @click="showSearch = true"
           >
             <UIcon name="i-lucide-search" class="size-3.5" />
             <template v-if="!sidebarCollapsed">
-              <span class="text-[12px] flex-1 text-left" style="font-family: var(--font-sans);">Search</span>
+              <span class="text-[13px] flex-1 text-left" style="font-family: var(--font-sans);">Search</span>
               <kbd class="text-[9px] font-mono px-1.5 py-0.5 rounded" style="background: var(--badge-subtle-bg); color: var(--text-disabled);">⌘K</kbd>
             </template>
           </button>
@@ -334,7 +334,7 @@ function badgeFor(to: string) {
             class="w-full flex items-center rounded-lg transition-all duration-150 focus-ring cursor-pointer press-scale"
             :class="sidebarCollapsed ? 'justify-center px-0 py-2' : 'gap-2 px-3 py-2'"
             :style="{
-              color: chatOpen ? 'var(--accent)' : 'var(--text-tertiary)',
+              color: chatOpen ? 'var(--accent)' : 'var(--text-secondary)',
               background: chatOpen ? 'var(--accent-muted)' : 'transparent',
             }"
             :title="sidebarCollapsed ? 'Claude (⌘J)' : undefined"
@@ -349,7 +349,7 @@ function badgeFor(to: string) {
               />
             </div>
             <template v-if="!sidebarCollapsed">
-              <span class="text-[12px] flex-1 text-left" style="font-family: var(--font-sans);">Claude</span>
+              <span class="text-[13px] flex-1 text-left" style="font-family: var(--font-sans);">Claude</span>
               <kbd class="text-[9px] font-mono px-1.5 py-0.5 rounded" style="background: var(--badge-subtle-bg); color: var(--text-disabled);">⌘J</kbd>
             </template>
           </button>
@@ -361,12 +361,12 @@ function badgeFor(to: string) {
             <button
               class="w-full flex items-center rounded-lg transition-all duration-150 focus-ring press-scale"
               :class="sidebarCollapsed ? 'justify-center px-0 py-2' : 'gap-2 px-3 py-2'"
-              style="color: var(--text-tertiary);"
+              style="color: var(--text-secondary);"
               :title="sidebarCollapsed ? (colorMode.value === 'dark' ? 'Light mode' : 'Dark mode') : undefined"
               @click="toggleTheme"
             >
               <UIcon :name="colorMode.value === 'dark' ? 'i-lucide-sun' : 'i-lucide-moon'" class="size-4" />
-              <span v-if="!sidebarCollapsed" class="text-[12px]" style="font-family: var(--font-sans);">
+              <span v-if="!sidebarCollapsed" class="text-[13px]" style="font-family: var(--font-sans);">
                 {{ colorMode.value === 'dark' ? 'Light mode' : 'Dark mode' }}
               </span>
             </button>
@@ -379,7 +379,7 @@ function badgeFor(to: string) {
             <button
               class="w-full flex items-center rounded-lg transition-all duration-150 focus-ring cursor-pointer press-scale"
               :class="sidebarCollapsed ? 'justify-center px-0 py-2' : 'gap-2 px-3 py-2 text-left'"
-              style="color: var(--text-disabled); border: 1px solid var(--border-subtle);"
+              style="color: var(--text-secondary); border: 1px solid var(--border-subtle);"
               :title="sidebarCollapsed ? (workingDir || 'Set project directory') : undefined"
               @click="openWorkingDirPopover"
             >
@@ -481,7 +481,7 @@ function badgeFor(to: string) {
               </div>
             </template>
           </UPopover>
-          <div v-if="!sidebarCollapsed" class="font-mono text-[9px] truncate tracking-wide mt-1.5 px-1" style="color: var(--text-disabled);">
+          <div v-if="!sidebarCollapsed" class="font-mono text-[10px] truncate tracking-wide mt-1.5 px-1" style="color: var(--text-tertiary);">
             {{ claudeDir || 'No config directory' }}
           </div>
         </div>
