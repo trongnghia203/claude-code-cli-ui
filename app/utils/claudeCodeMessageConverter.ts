@@ -64,6 +64,19 @@ function isSystemMessage(content: string): boolean {
     content.includes('{"subtasks":')
 }
 
+/** `/name args` for a slash command logged as <command-name>/mcp</command-name> ... <command-args>x</command-args> */
+function parseSlashCommand(text: string): string | null {
+  const name = text.match(/<command-name>\s*([^<]+?)\s*<\/command-name>/)?.[1]
+  if (!name) return null
+  const args = text.match(/<command-args>([\s\S]*?)<\/command-args>/)?.[1]?.trim()
+  return `${name.startsWith('/') ? name : `/${name}`}${args ? ` ${args}` : ''}`
+}
+
+/** Text of a local command's output, without its <local-command-stdout> wrapper */
+function stripLocalCommandTags(text: string): string {
+  return text.replace(/<\/?local-command-(?:stdout|stderr)>/g, '').trim()
+}
+
 /**
  * Extract text from tool result content
  */
@@ -153,6 +166,21 @@ export function convertClaudeCodeMessages(messages: ClaudeCodeMessage[]): Displa
 
     const content = msg.message?.content
 
+    // Output of a local slash command (/mcp, /cost, ...): no model call, so this is the whole response
+    if (msg.type === 'system' && (msg as any).subtype === 'local_command' && typeof (msg as any).content === 'string') {
+      const text = stripLocalCommandTags((msg as any).content)
+      if (text) {
+        displayMessages.push({
+          id: msg.uuid || `local-command-${msg.timestamp}`,
+          role: 'assistant',
+          content: text,
+          timestamp: msg.timestamp,
+          kind: 'text'
+        })
+      }
+      continue
+    }
+
     // Handle user messages
     if (msg.type === 'user' || msg.message?.role === 'user') {
       let textContent = ''
@@ -165,6 +193,20 @@ export function convertClaudeCodeMessages(messages: ClaudeCodeMessage[]): Displa
           .filter(block => block.type === 'text' && block.text)
           .map(block => block.text)
           .join('\n')
+      }
+
+      // Show a typed slash command (e.g. /mcp) as the user message it was
+      const slashCommand = parseSlashCommand(textContent)
+      if (slashCommand) {
+        seenToolCalls.clear()
+        displayMessages.push({
+          id: msg.uuid || `user-${msg.timestamp}`,
+          role: 'user',
+          content: slashCommand,
+          timestamp: msg.timestamp,
+          kind: 'text'
+        })
+        continue
       }
 
       // Skip system messages and DON'T clear seen tools for them

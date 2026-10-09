@@ -1,6 +1,14 @@
 import { randomUUID } from 'node:crypto'
 import type { NormalizedMessage } from '~/types'
 
+/** Unwrap <local-command-stdout>/<local-command-stderr> tags from slash command output. */
+export function stripLocalCommandTags(content: unknown): string {
+  if (typeof content !== 'string') return ''
+  return content
+    .replace(/<\/?local-command-(?:stdout|stderr)>/g, '')
+    .trim()
+}
+
 /**
  * Normalize Claude SDK messages into our unified format
  * Following the pattern from claudecodeui's adapter
@@ -85,17 +93,39 @@ export function normalizeSDKMessage(
     }
   }
 
-  // Handle system messages (local command output from slash commands)
-  if (sdkMessage.type === 'system') {
-    if (sdkMessage.subtype === 'local_command_output') {
+  // Local slash commands (/mcp, /cost, ...) never call the model. The CLI returns their output as a
+  // synthetic assistant message whose text lives in `local_command_source`, with no stream events.
+  if (sdkMessage.type === 'assistant' && typeof sdkMessage.local_command_source === 'string') {
+    const text = stripLocalCommandTags(sdkMessage.local_command_source)
+    if (text) {
       messages.push({
         kind: 'text',
         id: sdkMessage.uuid || randomUUID(),
         sessionId,
         timestamp,
         role: 'assistant',
-        content: sdkMessage.content || '',
+        content: text,
       })
+    }
+  }
+
+  // Handle system messages (local command output from slash commands such as /mcp)
+  if (sdkMessage.type === 'system') {
+    // Older CLIs emit `local_command_output`; current ones emit `local_command` with the text
+    // wrapped in <local-command-stdout> tags. Local commands never call the model, so this
+    // output is the only "response" the user gets.
+    if (sdkMessage.subtype === 'local_command_output' || sdkMessage.subtype === 'local_command') {
+      const text = stripLocalCommandTags(sdkMessage.content)
+      if (text) {
+        messages.push({
+          kind: 'text',
+          id: sdkMessage.uuid || randomUUID(),
+          sessionId,
+          timestamp,
+          role: 'assistant',
+          content: text,
+        })
+      }
     }
     // Other system subtypes (init, etc.) are silently ignored
   }
