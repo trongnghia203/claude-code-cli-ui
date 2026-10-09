@@ -86,14 +86,19 @@ function saveWorkingDir() {
   dirSuggestions.value = []
 }
 
+// Responses can arrive out of order (e.g. clicking ".." quickly), so only the latest request may update the list
+let dirRequestSeq = 0
+
 async function fetchDirSuggestions(path: string) {
+  const seq = ++dirRequestSeq
   if (!path) { dirSuggestions.value = []; return }
   try {
     const data = await $fetch<{ directories: typeof dirSuggestions.value }>('/api/directories', { query: { path } })
+    if (seq !== dirRequestSeq) return
     dirSuggestions.value = data.directories
     selectedSuggestionIdx.value = -1
   } catch {
-    dirSuggestions.value = []
+    if (seq === dirRequestSeq) dirSuggestions.value = []
   }
 }
 
@@ -347,7 +352,7 @@ function badgeFor(to: string) {
                     <button
                       v-if="parentDirPath"
                       type="button"
-                      class="w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors duration-75 border-b"
+                      class="w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors duration-75 border-b hover:bg-[var(--accent-muted)]"
                       style="border-color: var(--border-subtle); color: var(--text-tertiary);"
                       @click="goToParentDir"
                     >
