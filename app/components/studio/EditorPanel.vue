@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { AgentFrontmatter, AgentMemory, AgentSkill, AgentTool } from '~/types'
-import { MODEL_META, MODEL_IDS } from '~/utils/models'
 import { getAgentColor, agentColorMap } from '~/utils/colors'
 
 const props = defineProps<{
@@ -19,11 +18,9 @@ const { fetchAll: fetchAllSkills, skills: allSkills } = useSkills()
 
 const activeTab = ref<'instructions' | 'settings' | 'skills'>('instructions')
 
-const modelOptions = MODEL_IDS.map(id => ({
-  value: id,
-  label: MODEL_META[id].label,
-  description: MODEL_META[id].description
-}))
+const { optionsWith, isSelected, load: loadModels } = useAvailableModels()
+onMounted(loadModels)
+const modelChoices = computed(() => optionsWith(props.frontmatter.model))
 
 const memoryOptions: { label: string; value: AgentMemory; description: string }[] = [
   { label: 'User', value: 'user', description: 'Global memory at ~/.claude/agent-memory/' },
@@ -96,17 +93,18 @@ const currentColor = computed(() => getAgentColor(props.frontmatter.color))
       </div>
       <div class="space-y-1">
         <label class="text-[11px] font-medium" style="color: var(--text-tertiary);">Model</label>
-        <div class="flex gap-2">
+        <div class="flex flex-wrap gap-2">
           <button
-            v-for="opt in modelOptions"
-            :key="opt.value"
+            v-for="opt in modelChoices"
+            :key="opt.label"
             class="px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all"
             :style="{
-              background: frontmatter.model === opt.value ? 'var(--accent-muted)' : 'var(--surface-raised)',
-              border: '1px solid ' + (frontmatter.model === opt.value ? 'rgba(229, 169, 62, 0.2)' : 'var(--border-subtle)'),
-              color: frontmatter.model === opt.value ? 'var(--accent)' : 'var(--text-secondary)'
+              background: isSelected(opt, frontmatter.model) ? 'var(--accent-muted)' : 'var(--surface-raised)',
+              border: '1px solid ' + (isSelected(opt, frontmatter.model) ? 'rgba(229, 169, 62, 0.2)' : 'var(--border-subtle)'),
+              color: isSelected(opt, frontmatter.model) ? 'var(--accent)' : 'var(--text-secondary)'
             }"
-            @click="updateFrontmatter('model', opt.value)"
+            :title="opt.desc"
+            @click="updateFrontmatter('model', opt.value as any)"
           >
             {{ opt.label }}
           </button>

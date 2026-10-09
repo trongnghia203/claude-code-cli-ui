@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import type { Agent, AgentFrontmatter, AgentMemory } from '~/types'
-import { MODEL_OPTIONS, DEFAULT_MODEL } from '~/utils/models'
+import { DEFAULT_MODEL } from '~/utils/models'
+
+const { options: modelOptions, load: loadModels } = useAvailableModels()
+onMounted(loadModels)
 
 const emit = defineEmits<{
   saved: [agent: Agent]
@@ -95,9 +98,9 @@ function toggleTool(tool: AgentTool) {
 
 
 <template>
-  <div class="p-6 space-y-5 bg-overlay w-[480px] max-w-full">
+  <div class="p-6 flex flex-col gap-5 bg-overlay w-[480px] max-w-full max-h-[calc(100dvh-4rem)]">
     <!-- Header with step indicator -->
-    <div class="space-y-3">
+    <div class="space-y-3 shrink-0">
       <div class="flex items-center justify-between">
         <h3 class="text-page-title">New Agent</h3>
         <span class="text-[11px] font-mono text-meta">{{ step }}/{{ totalSteps }}</span>
@@ -112,6 +115,8 @@ function toggleTool(tool: AgentTool) {
       </div>
     </div>
 
+    <!-- Steps scroll on short windows; header and buttons stay in view -->
+    <div class="flex-1 min-h-0 overflow-y-auto -mx-6 px-6 py-1.5 custom-scrollbar">
     <!-- Step 1: Name & Purpose -->
     <div v-if="step === 1" class="space-y-4">
       <p class="text-[12px] text-label leading-relaxed">
@@ -155,7 +160,7 @@ function toggleTool(tool: AgentTool) {
         </label>
         <div class="space-y-1.5">
           <button
-            v-for="opt in MODEL_OPTIONS"
+            v-for="opt in modelOptions"
             :key="opt.label"
             type="button"
             class="w-full flex items-start gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-150"
@@ -317,8 +322,10 @@ function toggleTool(tool: AgentTool) {
       </div>
     </div>
 
+    </div>
+
     <!-- Navigation -->
-    <div class="flex items-center justify-between pt-2">
+    <div class="flex items-center justify-between pt-2 shrink-0">
       <div>
         <UButton
           v-if="step > 1"
