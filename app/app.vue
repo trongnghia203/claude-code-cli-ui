@@ -52,7 +52,8 @@ const parentDirPath = computed(() => {
   const p = workingDirInput.value.replace(/\/+$/, '')
   if (!p || p === '/') return null
   const idx = p.lastIndexOf('/')
-  return idx <= 0 ? '/' : p.slice(0, idx)
+  // Trailing slash matters: without it the directory API treats the last segment as a name prefix to filter by
+  return idx <= 0 ? '/' : `${p.slice(0, idx)}/`
 })
 
 function openWorkingDirPopover() {
@@ -62,6 +63,21 @@ function openWorkingDirPopover() {
   showWorkingDirPopover.value = true
   loadRecentProjects()
   if (workingDirInput.value) fetchDirSuggestions(workingDirInput.value)
+}
+
+/** Go to the parent folder. Capture the target first: parentDirPath is computed from the input, so
+ *  reading it again after assigning the input would give the grandparent. */
+function goToParentDir() {
+  const target = parentDirPath.value
+  if (!target) return
+  workingDirInput.value = target
+  fetchDirSuggestions(target)
+}
+
+function goToHomeDir() {
+  // Trailing slash: without it the API treats "~" as a name prefix to filter by
+  workingDirInput.value = '~/'
+  fetchDirSuggestions('~/')
 }
 
 function saveWorkingDir() {
@@ -240,6 +256,9 @@ function badgeFor(to: string) {
 
         <!-- Project switcher -->
         <div :class="sidebarCollapsed ? 'px-1.5 pb-2' : 'px-2.5 pb-2'">
+          <!-- Client-only: the saved project lives in localStorage, so a server-rendered chip would show the
+               "no project" styling and Vue does not patch stale classes when hydrating -->
+          <ClientOnly>
           <UPopover v-model:open="showWorkingDirPopover" :ui="{ width: 'w-[280px]' }">
             <button
               class="w-full flex items-center rounded-lg transition-all duration-150 focus-ring cursor-pointer press-scale"
@@ -255,7 +274,7 @@ function badgeFor(to: string) {
               <template v-if="!sidebarCollapsed">
                 <div class="flex-1 min-w-0">
                   <div class="text-[9px] tracking-wider uppercase leading-none" style="color: var(--text-tertiary);">Project</div>
-                  <div v-if="workingDir" class="text-[12px] font-medium truncate mt-0.5" style="color: var(--text-primary);">
+                  <div v-if="workingDir" class="text-[12px] font-medium leading-snug line-clamp-2 [overflow-wrap:anywhere] mt-0.5" style="color: var(--text-primary);">
                     {{ workingDirName }}
                   </div>
                   <div v-else class="text-[12px] mt-0.5" style="color: var(--warning, #d97706);">
@@ -274,7 +293,7 @@ function badgeFor(to: string) {
                     class="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] hover-bg transition-colors shrink-0"
                     style="color: var(--text-tertiary); border: 1px solid var(--border-subtle);"
                     title="Go to home directory"
-                    @click="workingDirInput = '~'; fetchDirSuggestions('~')"
+                    @click="goToHomeDir"
                   >
                     <UIcon name="i-lucide-home" class="size-3" />
                     Home
@@ -330,7 +349,7 @@ function badgeFor(to: string) {
                       type="button"
                       class="w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors duration-75 border-b"
                       style="border-color: var(--border-subtle); color: var(--text-tertiary);"
-                      @click="workingDirInput = parentDirPath; fetchDirSuggestions(parentDirPath)"
+                      @click="goToParentDir"
                     >
                       <span class="text-[11px] font-mono truncate">..</span>
                     </button>
@@ -376,6 +395,14 @@ function badgeFor(to: string) {
               </div>
             </template>
           </UPopover>
+            <template #fallback>
+              <div
+                class="w-full rounded-lg"
+                :class="sidebarCollapsed ? 'h-9' : 'h-[52px]'"
+                style="border: 1px solid var(--border-subtle);"
+              />
+            </template>
+          </ClientOnly>
         </div>
 
         <!-- Primary Nav -->
