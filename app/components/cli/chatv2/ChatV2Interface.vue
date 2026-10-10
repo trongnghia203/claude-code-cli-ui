@@ -2066,7 +2066,12 @@ function handleClosePreview() {
 
           <!-- Tab Content -->
           <div class="flex-1 overflow-hidden flex flex-col">
-            <ChatV2ContextDetails v-if="activeRightTab === 'context'" :metrics="contextMonitor.metrics.value" />
+            <ChatV2ContextDetails
+              v-if="activeRightTab === 'context'"
+              :metrics="contextMonitor.metrics.value"
+              :session-id="currentSessionId || urlSessionId"
+              :cwd="localWorkingDir"
+            />
             <ChatV2FileTree 
               v-else-if="activeRightTab === 'explorer'" 
               :project-name="urlProjectName || localWorkingDir" 

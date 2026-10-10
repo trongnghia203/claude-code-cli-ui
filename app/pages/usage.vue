@@ -105,6 +105,9 @@ function exportCsv() {
     </div>
 
     <template v-else-if="stats">
+      <!-- Plan limits + what contributes (claude /usage) -->
+      <UsageLimitsPanel />
+
       <!-- Stat cards -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <UsageStatCard
@@ -207,6 +210,9 @@ function exportCsv() {
           </table>
         </div>
       </div>
+
+      <!-- Skills / agents / memory / MCP cost per turn -->
+      <UsageSkillFootprint />
     </template>
 
     <div v-else class="text-center py-20 text-[13px]" style="color: var(--text-tertiary);">

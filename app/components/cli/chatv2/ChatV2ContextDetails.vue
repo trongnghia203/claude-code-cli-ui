@@ -3,6 +3,8 @@ import type { ContextMetrics } from '~/types'
 
 const props = defineProps<{
   metrics: ContextMetrics
+  sessionId?: string | null
+  cwd?: string | null
 }>()
 
 const formatNumber = (num: number) => {
@@ -23,7 +25,7 @@ const getStatusColor = () => {
 </script>
 
 <template>
-  <div class="p-4 space-y-6">
+  <div class="p-4 space-y-6 overflow-y-auto">
     <!-- Summary Section -->
     <div class="space-y-3">
       <div class="flex flex-wrap items-center justify-between gap-2">
@@ -107,6 +109,9 @@ const getStatusColor = () => {
         <span class="text-[14px] font-mono font-semibold" style="color: #22c55e;">${{ metrics.cost.total.toFixed(4) }}</span>
       </div>
     </div>
+
+    <!-- Full /context breakdown (system prompt, tools, skills, memory, free space) -->
+    <UsageContextReport :session-id="sessionId" :cwd="cwd" />
 
     <!-- Information Box -->
     <div class="p-3 rounded-xl border space-y-2" style="background: rgba(229, 169, 62, 0.05); border-color: rgba(229, 169, 62, 0.15);">
