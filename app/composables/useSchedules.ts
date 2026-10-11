@@ -51,6 +51,7 @@ export type ScheduleInput = Omit<ScheduleItem, 'id' | 'scheduleText' | 'nextRun'
 export function useSchedules() {
   const jobs = ref<ScheduleItem[]>([])
   const supported = ref(true)
+  const mode = ref<'inprocess' | 'launchd'>('inprocess')
   const loading = ref(false)
   const toast = useToast()
 
@@ -59,9 +60,10 @@ export function useSchedules() {
   async function load() {
     loading.value = true
     try {
-      const res = await $fetch<{ supported: boolean; jobs: ScheduleItem[] }>('/api/schedules')
+      const res = await $fetch<{ supported: boolean; mode: 'inprocess' | 'launchd'; jobs: ScheduleItem[] }>('/api/schedules')
       jobs.value = res.jobs
       supported.value = res.supported
+      mode.value = res.mode
     } catch (e) {
       toast.add({ title: 'Failed to load schedules', description: errorText(e), color: 'error' })
     } finally {
@@ -126,5 +128,5 @@ export function useSchedules() {
     }
   }
 
-  return { jobs, supported, loading, load, save, setEnabled, remove, runNow, fetchRuns, fetchRun }
+  return { jobs, supported, mode, loading, load, save, setEnabled, remove, runNow, fetchRuns, fetchRun }
 }

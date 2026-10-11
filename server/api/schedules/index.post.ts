@@ -1,5 +1,5 @@
 import { scheduleCore } from '../../utils/schedules/core'
-import { installJob } from '../../utils/schedules/launchd'
+import { installJob } from '../../utils/schedules/scheduler'
 import { toJob } from '../../utils/schedules/validate'
 
 export default defineEventHandler(async (event) => {

@@ -1,5 +1,5 @@
 import { scheduleCore } from '../../utils/schedules/core'
-import { isLoaded, launchdSupported } from '../../utils/schedules/launchd'
+import { isLoaded, schedulerMode, schedulerSupported } from '../../utils/schedules/scheduler'
 
 export default defineEventHandler(async () => {
   const core = await scheduleCore()
@@ -16,5 +16,5 @@ export default defineEventHandler(async () => {
         : null,
     }
   }))
-  return { supported: launchdSupported, jobs: items }
+  return { supported: schedulerSupported, mode: schedulerMode, jobs: items }
 })

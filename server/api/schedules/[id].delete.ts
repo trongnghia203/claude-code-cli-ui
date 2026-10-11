@@ -1,6 +1,6 @@
 import { rmSync } from 'node:fs'
 import { scheduleCore } from '../../utils/schedules/core'
-import { uninstallJob } from '../../utils/schedules/launchd'
+import { uninstallJob } from '../../utils/schedules/scheduler'
 
 export default defineEventHandler(async (event) => {
   const core = await scheduleCore()

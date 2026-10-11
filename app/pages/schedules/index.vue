@@ -2,7 +2,7 @@
 import { formatRelativeTime } from '~/utils/messageFormatting'
 import type { RunStatus, ScheduleInput, ScheduleItem, ScheduleRunItem } from '~/composables/useSchedules'
 
-const { jobs, supported, loading, load, save, setEnabled, remove, runNow, fetchRuns } = useSchedules()
+const { jobs, supported, mode, loading, load, save, setEnabled, remove, runNow, fetchRuns } = useSchedules()
 const { workingDir } = useWorkingDir()
 const { agents, fetchAll: fetchAgents } = useAgents()
 const route = useRoute()
@@ -128,6 +128,7 @@ useHead({ title: 'Schedules | Agent Manager' })
 
       <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-3 pb-3 space-y-2">
         <p v-if="!supported" class="text-[12px] px-1" style="color: #d97706;">Scheduled runs need macOS (launchd).</p>
+        <p v-else-if="mode === 'inprocess' && jobs.length" class="text-[11px] px-1 text-meta">Schedules run while Claude UI is open. Missed runs are not made up.</p>
         <p v-else-if="!jobs.length && !loading" class="text-[12px] text-meta px-1 py-6 text-center">No schedules yet. Create one to run a prompt or an agent on a timer.</p>
 
         <div v-for="job in jobs" :key="job.id">
@@ -158,7 +159,7 @@ useHead({ title: 'Schedules | Agent Manager' })
                 <span class="text-meta">{{ formatRelativeTime(job.lastRun.startedAt) }}</span>
               </span>
               <span v-else class="text-meta">Never run</span>
-              <span v-if="job.enabled && !job.registered" class="px-1.5 rounded-full" style="background: rgba(239,68,68,0.1); color: #ef4444;" title="Enabled but not registered with launchd. Save it again to register.">not registered</span>
+              <span v-if="job.enabled && !job.registered" class="px-1.5 rounded-full" style="background: rgba(239,68,68,0.1); color: #ef4444;" title="Enabled but the scheduler is not running. Restart Claude UI, or save it again.">not registered</span>
             </div>
           </div>
 
