@@ -59,7 +59,11 @@ const period = computed(() => data.value?.periods[activePeriod.value])
       </div>
 
       <!-- Contributors -->
-      <div v-if="data.periods.length" class="space-y-3">
+      <div
+        v-if="data.periods.length"
+        class="space-y-3 lg:border-l lg:pl-6"
+        style="border-color: var(--border-subtle);"
+      >
         <div class="flex items-center justify-between gap-2">
           <span class="text-[11px] font-semibold uppercase tracking-wider" style="color: var(--text-tertiary);">What's contributing</span>
           <div class="flex gap-1">
@@ -80,7 +84,7 @@ const period = computed(() => data.value?.periods[activePeriod.value])
             {{ period.requests.toLocaleString() }} requests · {{ period.sessions }} sessions
           </div>
           <div v-for="i in period.insights" :key="i.text" class="flex items-baseline gap-2 text-[13px]">
-            <span class="font-mono w-10 shrink-0 text-right" style="color: var(--accent);">{{ i.pct }}</span>
+            <span class="font-mono w-10 shrink-0" style="color: var(--accent);">{{ i.pct }}</span>
             <span style="color: var(--text-secondary);">{{ i.text }}</span>
           </div>
           <div v-for="t in period.tops" :key="t.kind" class="space-y-1 pt-1">

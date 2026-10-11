@@ -44,8 +44,12 @@ const sections = computed(() => {
     { key: 'agents', title: 'Custom agents', unit: 'agents', groups: group(r.agents), color: COLORS['Custom agents'] },
     { key: 'memory', title: 'Memory files', unit: 'files', groups: group(r.memory.map(m => ({ ...m, name: m.path || m.name }))), color: COLORS['Memory files'] },
     { key: 'mcp', title: 'MCP tools (deferred, loaded on demand)', unit: 'tools', groups: group(r.mcpTools), color: COLORS['MCP tools'] },
-  ].filter(s => s.groups.length)
+  ].filter(s => s.groups.length).map(s => ({ ...s, max: Math.max(1, ...s.groups.map(g => g.tokens)) }))
 })
+
+function pctOf(n: number, max: number): number {
+  return max > 0 ? Math.max(2, Math.min(100, (n / max) * 100)) : 0
+}
 
 const expanded = ref<string | null>(null)
 const toggle = (id: string) => { expanded.value = expanded.value === id ? null : id }
@@ -107,19 +111,25 @@ const totalPerTurn = computed(() => {
                 class="size-3.5 shrink-0"
                 style="color: var(--text-tertiary);"
               />
-              <span class="flex-1 truncate" style="color: var(--text-primary);">{{ g.name }}</span>
-              <span class="text-[12px]" style="color: var(--text-tertiary);">{{ g.count }} {{ g.count === 1 ? s.unit.replace(/s$/, '') : s.unit }}</span>
+              <span class="w-44 shrink-0 truncate" style="color: var(--text-primary);">{{ g.name }}</span>
+              <div class="flex-1 h-2 rounded-full overflow-hidden min-w-12" style="background: var(--surface-raised);">
+                <div class="h-full rounded-full" :style="{ width: pctOf(g.tokens, s.max) + '%', background: s.color }" />
+              </div>
+              <span class="w-20 text-right text-[12px]" style="color: var(--text-tertiary);">{{ g.count }} {{ g.count === 1 ? s.unit.replace(/s$/, '') : s.unit }}</span>
               <span class="w-20 text-right font-mono text-[12px]" style="color: var(--accent);">~{{ fmt(g.tokens) }}</span>
             </div>
             <div v-if="expanded === s.key + g.name" class="pb-2 pl-7 space-y-0.5">
               <div
                 v-for="r in [...g.rows].sort((a, b) => b.tokens - a.tokens)"
                 :key="r.name"
-                class="flex items-center justify-between text-[12px] pr-1"
+                class="flex items-center gap-3 text-[12px] pr-1"
                 style="color: var(--text-secondary);"
               >
-                <span class="truncate">{{ r.name }}</span>
-                <span class="font-mono shrink-0 ml-2" style="color: var(--text-tertiary);">{{ fmt(r.tokens) }}</span>
+                <span class="w-56 shrink-0 truncate">{{ r.name }}</span>
+                <div class="flex-1 h-1.5 rounded-full overflow-hidden min-w-12" style="background: var(--surface-raised);">
+                  <div class="h-full rounded-full opacity-70" :style="{ width: pctOf(r.tokens, g.rows[0] ? Math.max(...g.rows.map(x => x.tokens)) : 1) + '%', background: s.color }" />
+                </div>
+                <span class="w-14 text-right font-mono shrink-0" style="color: var(--text-tertiary);">{{ fmt(r.tokens) }}</span>
               </div>
             </div>
           </div>
