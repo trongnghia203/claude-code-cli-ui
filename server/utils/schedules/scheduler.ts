@@ -21,19 +21,19 @@ const AGENTS_DIR = join(homedir(), 'Library', 'LaunchAgents')
 const legacyPlistExists = (id: string) => existsSync(join(AGENTS_DIR, `com.claude-ui.schedule.${id}.plist`))
 
 export async function installJob(job: ScheduleJob) {
-  if (schedulerMode === 'launchd') return launchd.installJob(job)
+  if (schedulerMode === 'launchd') return launchd.installLaunchdJob(job)
   ;(await scheduleCore()).ensureDirs()
   // Remove a LaunchAgent left over from the launchd mode so a job never fires twice
-  if (launchd.launchdSupported && legacyPlistExists(job.id)) await launchd.uninstallJob(job.id)
+  if (launchd.launchdSupported && legacyPlistExists(job.id)) await launchd.uninstallLaunchdJob(job.id)
 }
 
 export async function uninstallJob(id: string) {
-  if (schedulerMode === 'launchd') return launchd.uninstallJob(id)
-  if (launchd.launchdSupported && legacyPlistExists(id)) await launchd.uninstallJob(id)
+  if (schedulerMode === 'launchd') return launchd.uninstallLaunchdJob(id)
+  if (launchd.launchdSupported && legacyPlistExists(id)) await launchd.uninstallLaunchdJob(id)
 }
 
 export async function isLoaded(id: string): Promise<boolean> {
-  if (schedulerMode === 'launchd') return launchd.isLoaded(id)
+  if (schedulerMode === 'launchd') return launchd.isLaunchdLoaded(id)
   return loopStarted && !!(await scheduleCore()).getJob(id)
 }
 

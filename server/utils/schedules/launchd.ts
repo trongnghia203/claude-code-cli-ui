@@ -56,7 +56,7 @@ function dirnameOf(p?: string) {
   return p ? p.replace(/\/[^/]*$/, '') : ''
 }
 
-export async function uninstallJob(id: string) {
+export async function uninstallLaunchdJob(id: string) {
   if (!launchdSupported) return
   try {
     await run('launchctl', ['bootout', `${domain()}/${labelFor(id)}`])
@@ -67,10 +67,10 @@ export async function uninstallJob(id: string) {
 }
 
 /** (Re)register the job with launchd. A disabled job is only unregistered. */
-export async function installJob(job: ScheduleJob) {
+export async function installLaunchdJob(job: ScheduleJob) {
   if (!launchdSupported) throw new Error('Scheduled runs need macOS (launchd)')
   ;(await scheduleCore()).ensureDirs()
-  await uninstallJob(job.id)
+  await uninstallLaunchdJob(job.id)
   if (!job.enabled) return
   mkdirSync(AGENTS_DIR, { recursive: true })
   const path = plistPathFor(job.id)
@@ -83,7 +83,7 @@ export async function installJob(job: ScheduleJob) {
   }
 }
 
-export async function isLoaded(id: string): Promise<boolean> {
+export async function isLaunchdLoaded(id: string): Promise<boolean> {
   if (!launchdSupported || !existsSync(plistPathFor(id))) return false
   try {
     await run('launchctl', ['print', `${domain()}/${labelFor(id)}`])
