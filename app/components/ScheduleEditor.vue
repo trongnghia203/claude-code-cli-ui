@@ -161,7 +161,7 @@ function submit() {
         </div>
         <div class="field-group">
           <label class="field-label">Budget (USD)</label>
-          <input v-model.number="form.maxBudgetUsd" type="number" min="0.1" step="0.5" class="field-input" />
+          <input v-model.number="form.maxBudgetUsd" type="number" min="0.1" step="any" class="field-input" />
         </div>
         <div class="field-group">
           <label class="field-label">Timeout (min)</label>
