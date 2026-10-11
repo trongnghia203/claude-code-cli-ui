@@ -1,7 +1,8 @@
 import { getModelTagline } from '~/utils/models'
 import type { AgentModel } from '~/types'
 
-export const friendlyToolName: Record<string, string> = {
+// Index signature, not Record<string, string>: the auto-import scanner splits on that comma
+export const friendlyToolName: { [key: string]: string } = {
   Read: 'Reading your files...',
   Write: 'Saving changes...',
   Edit: 'Editing files...',

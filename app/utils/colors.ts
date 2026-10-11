@@ -2,7 +2,8 @@
  * Agent accent color palette.
  * Model colors/badges are in ~/utils/models.ts — import from there.
  */
-export const agentColorMap: Record<string, string> = {
+// Index signature, not Record<string, string>: the auto-import scanner splits on that comma
+export const agentColorMap: { [key: string]: string } = {
   red: '#ef4444',
   orange: '#f97316',
   amber: '#f59e0b',
