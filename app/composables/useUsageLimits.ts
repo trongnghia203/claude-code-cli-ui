@@ -26,10 +26,15 @@ export interface UsageLimits {
   generatedAt: number
 }
 
+/** Bars (session %) move fast: past this age, refresh in the background after showing cached data. */
+const BARS_STALE_MS = 5 * 60 * 1000
+
 export function useUsageLimits() {
   const data = ref<UsageLimits | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
+  /** True while a silent background revalidation runs (cached data stays visible). */
+  const refreshing = ref(false)
 
   async function fetchLimits(refresh = false) {
     loading.value = true
@@ -43,7 +48,22 @@ export function useUsageLimits() {
     }
   }
 
-  onMounted(() => fetchLimits())
+  async function revalidateIfStale() {
+    if (!data.value || Date.now() - data.value.generatedAt < BARS_STALE_MS) return
+    refreshing.value = true
+    try {
+      data.value = await $fetch<UsageLimits>('/api/usage/limits', { query: { refresh: '1' } })
+    } catch {
+      // keep showing cached data
+    } finally {
+      refreshing.value = false
+    }
+  }
 
-  return { data, loading, error, fetchLimits }
+  onMounted(async () => {
+    await fetchLimits()
+    await revalidateIfStale()
+  })
+
+  return { data, loading, error, refreshing, fetchLimits }
 }

@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process'
 import { homedir } from 'node:os'
 import { promisify } from 'node:util'
 import { getInstalledClaudePath } from './claudeBinary'
+import { cachedJson } from './diskCache'
 
 const execFileAsync = promisify(execFile)
 
@@ -75,25 +76,30 @@ export function parseUsageOutput(raw: string): UsageLimits {
     }
 
     if (/^What's contributing/i.test(line)) continue
-    if (/^Approximate/i.test(line)) { note = line.trim(); continue }
+    if (/^Approximate/i.test(line)) { note = line.trim().replace(/\s*—\s*/g, ' - '); continue }
     if (!plan && !limits.length) plan = line.trim()
+  }
+
+  // CLI drops the session bar while the 5h window is reset (0% used)
+  if (limits.length && !limits.some(l => /^Current session/i.test(l.label))) {
+    limits.unshift({ label: 'Current session', pct: 0, resets: 'window starts on your next message' })
   }
 
   return { plan, limits, note, periods, raw, generatedAt: Date.now() }
 }
 
-const CACHE_TTL_MS = 60 * 1000
-let cached: UsageLimits | null = null
+/** Usage changes slowly and a recompute spawns the CLI, so cache for 6h; users can force a refresh. */
+export const USAGE_CACHE_TTL_MS = 6 * 60 * 60 * 1000
 
 /** Runs the installed CLI's `/usage` in print mode (~2s) and parses the text. */
-export async function getUsageLimits(force = false): Promise<UsageLimits> {
-  if (cached && !force && Date.now() - cached.generatedAt < CACHE_TTL_MS) return cached
-  const bin = getInstalledClaudePath() ?? 'claude'
-  const { stdout } = await execFileAsync(bin, ['-p', '/usage'], {
-    cwd: homedir(),
-    timeout: 60_000,
-    maxBuffer: 4 * 1024 * 1024,
+export function getUsageLimits(force = false): Promise<UsageLimits> {
+  return cachedJson('limits', USAGE_CACHE_TTL_MS, force, async () => {
+    const bin = getInstalledClaudePath() ?? 'claude'
+    const { stdout } = await execFileAsync(bin, ['-p', '--no-session-persistence', '/usage'], {
+      cwd: homedir(),
+      timeout: 60_000,
+      maxBuffer: 4 * 1024 * 1024,
+    })
+    return parseUsageOutput(stdout)
   })
-  cached = parseUsageOutput(stdout)
-  return cached
 }

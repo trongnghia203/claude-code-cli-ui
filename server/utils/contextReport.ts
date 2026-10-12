@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process'
 import { homedir } from 'node:os'
 import { promisify } from 'node:util'
 import { getInstalledClaudePath } from './claudeBinary'
+import { cachedJson } from './diskCache'
 
 const execFileAsync = promisify(execFile)
 
@@ -96,6 +97,7 @@ export function parseContextMarkdown(md: string, cwd: string): ContextReport {
 }
 
 const CACHE_TTL_MS = 60 * 1000
+const GLOBAL_CACHE_TTL_MS = 6 * 60 * 60 * 1000
 const cache = new Map<string, ContextReport>()
 const SESSION_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -111,18 +113,29 @@ export async function getContextReport(
   sessionId?: string,
 ): Promise<ContextReport> {
   if (sessionId && !SESSION_ID_RE.test(sessionId)) throw new Error('Invalid session id')
+  // The global listing (skills, agents, memory, MCP) changes rarely: cache it 6h on disk.
+  // Session-scoped reports reflect a live conversation, so they keep the short in-memory TTL.
+  if (!sessionId && cwd === homedir()) {
+    return cachedJson('context-global', GLOBAL_CACHE_TTL_MS, force, () => runContextReport(cwd))
+  }
   const key = `${cwd}\0${sessionId ?? ''}`
   const hit = cache.get(key)
   if (hit && !force && Date.now() - hit.generatedAt < CACHE_TTL_MS) return hit
 
+  const report = await runContextReport(cwd, sessionId)
+  cache.set(key, report)
+  return report
+}
+
+async function runContextReport(cwd: string, sessionId?: string): Promise<ContextReport> {
+
   const bin = getInstalledClaudePath() ?? 'claude'
-  const args = sessionId ? ['-p', '--resume', sessionId, '/context'] : ['-p', '/context']
+  // Without a session, don't leave a junk "New Session" file behind for every refresh
+  const args = sessionId ? ['-p', '--resume', sessionId, '/context'] : ['-p', '--no-session-persistence', '/context']
   const { stdout } = await execFileAsync(bin, args, {
     cwd,
     timeout: 60_000,
     maxBuffer: 16 * 1024 * 1024,
   })
-  const report = { ...parseContextMarkdown(stdout, cwd), sessionId }
-  cache.set(key, report)
-  return report
+  return { ...parseContextMarkdown(stdout, cwd), sessionId }
 }
