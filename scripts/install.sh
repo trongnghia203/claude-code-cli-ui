@@ -11,7 +11,7 @@ BIN_DIR="$HOME/.local/bin"
 REPO="${CLAUDE_UI_DIR:-$(cd "$HERE/.." && pwd)}"
 
 [ "$(uname)" = "Darwin" ] || { echo "macOS only" >&2; exit 1; }
-for t in swiftc qlmanage sips iconutil codesign; do
+for t in swiftc sips iconutil codesign; do
   command -v "$t" >/dev/null || { echo "missing tool: $t (run: xcode-select --install)" >&2; exit 1; }
 done
 
@@ -32,8 +32,10 @@ fi
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP/AppIcon.iconset"
-qlmanage -t -s 1024 -o "$TMP" "$HERE/icon.svg" >/dev/null 2>&1
+# sips keeps the alpha channel; qlmanage flattens onto white, which shows as a white border in the Dock
+sips -s format png "$HERE/icon.svg" --out "$TMP/icon.svg.png" >/dev/null 2>&1
 [ -f "$TMP/icon.svg.png" ] || { echo "icon render failed" >&2; exit 1; }
+sips -z 1024 1024 "$TMP/icon.svg.png" >/dev/null
 for sz in 16 32 128 256 512; do
   sips -z "$sz" "$sz" "$TMP/icon.svg.png" --out "$TMP/AppIcon.iconset/icon_${sz}x${sz}.png" >/dev/null
   sips -z $((sz * 2)) $((sz * 2)) "$TMP/icon.svg.png" --out "$TMP/AppIcon.iconset/icon_${sz}x${sz}@2x.png" >/dev/null
