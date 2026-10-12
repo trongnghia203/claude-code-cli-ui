@@ -17,6 +17,13 @@ function fmt(n: number): string {
   return String(n)
 }
 
+function fmtAgo(ts: number): string {
+  const m = Math.floor((Date.now() - ts) / 60_000)
+  if (m < 1) return 'just now'
+  if (m < 60) return `${m}m ago`
+  return `${Math.floor(m / 60)}h ago`
+}
+
 function groupName(row: ContextRow): string {
   return row.source.replace(/^Plugin \((.+)\)$/, '$1')
 }
@@ -47,6 +54,14 @@ const sections = computed(() => {
   ].filter(s => s.groups.length).map(s => ({ ...s, max: Math.max(1, ...s.groups.map(g => g.tokens)) }))
 })
 
+// Explicit 2-column layout: Skills on the left, the rest stacked on the right.
+const columns = computed(() => {
+  const by = Object.fromEntries(sections.value.map(s => [s.key, s]))
+  return [['skills'], ['agents', 'memory', 'mcp']]
+    .map(keys => keys.map(k => by[k]).filter((s): s is NonNullable<typeof s> => !!s))
+    .filter(col => col.length)
+})
+
 function pctOf(n: number, max: number): number {
   return max > 0 ? Math.max(2, Math.min(100, (n / max) * 100)) : 0
 }
@@ -73,15 +88,18 @@ const totalPerTurn = computed(() => {
           · ~{{ fmt(totalPerTurn) }} tok/turn (skills + agents + memory)
         </span>
       </div>
-      <button
-        class="px-2.5 py-1 rounded-lg text-[12px] border flex items-center gap-1.5 hover-bg transition-colors"
-        style="border-color: var(--border-subtle); color: var(--text-secondary);"
-        :disabled="loading"
-        @click="fetchReport(true)"
-      >
-        <UIcon name="i-lucide-refresh-cw" class="size-3" :class="loading ? 'animate-spin' : ''" />
-        Refresh
-      </button>
+      <div class="flex items-center gap-2">
+        <span v-if="report?.generatedAt" class="text-[11px]" style="color: var(--text-tertiary);" title="Cached for 6h. Click Refresh to recalculate.">Updated {{ fmtAgo(report.generatedAt) }}</span>
+        <button
+          class="px-2.5 py-1 rounded-lg text-[12px] border flex items-center gap-1.5 hover-bg transition-colors"
+          style="border-color: var(--border-subtle); color: var(--text-secondary);"
+          :disabled="loading"
+          @click="fetchReport(true)"
+        >
+          <UIcon name="i-lucide-refresh-cw" class="size-3" :class="loading ? 'animate-spin' : ''" />
+          Refresh
+        </button>
+      </div>
     </div>
 
     <div v-if="loading && !report" class="flex items-center justify-center py-10 gap-2 text-[13px]" style="color: var(--text-tertiary);">
@@ -95,7 +113,9 @@ const totalPerTurn = computed(() => {
         Listing text added to the system prompt on every turn (cached input after the first turn). From a fresh <code>claude /context</code>.
       </p>
       <!-- Detail sections -->
-      <div v-for="s in sections" :key="s.key">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-x-10 gap-y-6 items-start">
+      <div v-for="(col, ci) in columns" :key="ci" class="space-y-6 min-w-0">
+      <div v-for="s in col" :key="s.key">
         <div class="flex items-center gap-2 mb-1">
           <span class="size-2.5 rounded-[3px]" :style="{ background: s.color }" />
           <span class="text-[11px] font-semibold uppercase tracking-wider" style="color: var(--text-tertiary);">{{ s.title }}</span>
@@ -111,12 +131,12 @@ const totalPerTurn = computed(() => {
                 class="size-3.5 shrink-0"
                 style="color: var(--text-tertiary);"
               />
-              <span class="w-44 shrink-0 truncate" style="color: var(--text-primary);">{{ g.name }}</span>
+              <span class="w-36 shrink-0 truncate" style="color: var(--text-primary);">{{ g.name }}</span>
               <div class="flex-1 h-2 rounded-full overflow-hidden min-w-12" style="background: var(--surface-raised);">
                 <div class="h-full rounded-full" :style="{ width: pctOf(g.tokens, s.max) + '%', background: s.color }" />
               </div>
-              <span class="w-20 text-right text-[12px]" style="color: var(--text-tertiary);">{{ g.count }} {{ g.count === 1 ? s.unit.replace(/s$/, '') : s.unit }}</span>
-              <span class="w-20 text-right font-mono text-[12px]" style="color: var(--accent);">~{{ fmt(g.tokens) }}</span>
+              <span class="w-16 text-right text-[12px]" style="color: var(--text-tertiary);">{{ g.count }} {{ g.count === 1 ? s.unit.replace(/s$/, '') : s.unit }}</span>
+              <span class="w-14 text-right font-mono text-[12px]" style="color: var(--accent);">~{{ fmt(g.tokens) }}</span>
             </div>
             <div v-if="expanded === s.key + g.name" class="pb-2 pl-7 space-y-0.5">
               <div
@@ -125,7 +145,7 @@ const totalPerTurn = computed(() => {
                 class="flex items-center gap-3 text-[12px] pr-1"
                 style="color: var(--text-secondary);"
               >
-                <span class="w-56 shrink-0 truncate">{{ r.name }}</span>
+                <span class="w-40 shrink-0 truncate" :title="r.name">{{ r.name }}</span>
                 <div class="flex-1 h-1.5 rounded-full overflow-hidden min-w-12" style="background: var(--surface-raised);">
                   <div class="h-full rounded-full opacity-70" :style="{ width: pctOf(r.tokens, g.rows[0] ? Math.max(...g.rows.map(x => x.tokens)) : 1) + '%', background: s.color }" />
                 </div>
@@ -134,6 +154,8 @@ const totalPerTurn = computed(() => {
             </div>
           </div>
         </div>
+      </div>
+      </div>
       </div>
     </div>
   </div>
