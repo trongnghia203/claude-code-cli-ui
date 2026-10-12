@@ -77,17 +77,17 @@ useHead({
 <template>
   <div class="h-full flex flex-col overflow-hidden">
     <PageHeader title="Project Artifacts">
-      <template #trailing>
-        <span class="text-[12px] text-meta">
+      <template #subtitle>
+        <p class="text-[12px] text-label">
           {{ visibleProjects.length }} projects detected
-        </span>
+        </p>
       </template>
       <template #right>
         <div class="flex items-center gap-3">
           <input
             v-model="searchQuery"
             placeholder="Search projects..."
-            class="field-search w-64"
+            class="field-search w-64 min-w-0 shrink"
           />
           <button
             class="p-2 rounded-lg transition-all hover-bg flex items-center justify-center shrink-0"
@@ -104,7 +104,7 @@ useHead({
           </button>
           <button
             v-if="hiddenTotal > 0"
-            class="px-3 py-2 rounded-xl text-[12px] font-medium transition-all flex items-center gap-1.5 hover-bg"
+            class="px-3 py-2 rounded-xl text-[12px] font-medium transition-all flex items-center gap-1.5 hover-bg whitespace-nowrap shrink-0"
             style="background: var(--surface-raised); border: 1px solid var(--border-subtle); color: var(--text-secondary);"
             @click="showHidden = !showHidden"
           >
@@ -112,7 +112,7 @@ useHead({
             {{ showHidden ? 'Hide hidden' : `Show ${hiddenTotal} hidden` }}
           </button>
           <button
-            class="px-4 py-2 rounded-xl text-[13px] font-semibold transition-all flex items-center gap-2"
+            class="px-4 py-2 rounded-xl text-[13px] font-semibold transition-all flex items-center gap-2 whitespace-nowrap shrink-0"
             style="background: var(--accent); color: white;"
             @click="openAddModal"
           >
@@ -121,7 +121,7 @@ useHead({
           </button>
           <NuxtLink
             to="/cli"
-            class="px-4 py-2 rounded-xl text-[13px] font-semibold transition-all flex items-center gap-2"
+            class="px-4 py-2 rounded-xl text-[13px] font-semibold transition-all flex items-center gap-2 whitespace-nowrap shrink-0"
             style="background: var(--accent); color: white;"
           >
             <UIcon name="i-lucide-plus" class="size-4" />
