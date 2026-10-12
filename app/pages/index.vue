@@ -9,15 +9,10 @@ const { commands, fetchAll: fetchCommands } = useCommands();
 const { plugins, fetchAll: fetchPlugins } = usePlugins();
 const { skills, fetchAll: fetchSkills } = useSkills();
 
-// Suggestions card collapses; remembered across visits
-const SUGGESTIONS_KEY = 'agents-ui:dashboard-suggestions-open'
+// Suggestions card can be collapsed for this visit; it always starts expanded
 const suggestionsOpen = ref(true)
-onMounted(() => {
-  try { suggestionsOpen.value = localStorage.getItem(SUGGESTIONS_KEY) !== '0' } catch {}
-})
 function toggleSuggestions() {
   suggestionsOpen.value = !suggestionsOpen.value
-  try { localStorage.setItem(SUGGESTIONS_KEY, suggestionsOpen.value ? '1' : '0') } catch {}
 }
 
 const { imports: githubImports, fetchImports } = useGithubImports();
@@ -36,6 +31,28 @@ interface RecentChat {
   projectDisplayName: string
 }
 const recentChats = ref<RecentChat[]>([])
+// Cost/tokens per recent chat, filled in after the list renders (summing a session file can be slow)
+const recentCosts = ref<Record<string, { cost: number; tokens: number; requests: number }>>({})
+const recentKey = (s: RecentChat) => `${s.projectName}/${s.id}`
+
+function fmtRecentCost(n: number): string {
+  return n >= 100 ? `$${Math.round(n)}` : `$${n.toFixed(2)}`
+}
+function fmtRecentTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
+  return String(n)
+}
+
+async function loadRecentCosts() {
+  if (!recentChats.value.length) return
+  try {
+    const res = await $fetch<{ costs: typeof recentCosts.value }>('/api/usage/session-costs', {
+      query: { keys: recentChats.value.map(recentKey).join(',') },
+    })
+    recentCosts.value = { ...recentCosts.value, ...res.costs }
+  } catch {}
+}
 const recentScope = ref<'project' | 'all'>('project')
 const recentScopes = [
   { value: 'project' as const, label: 'This project' },
@@ -53,6 +70,7 @@ async function loadRecentChats() {
       query: { limit: 8, project: onlyProject },
     })
     recentChats.value = res.sessions
+    loadRecentCosts()
   } catch {
     recentChats.value = []
   }
@@ -424,9 +442,10 @@ const statItems = computed(() => [
               style="color: var(--accent)"
             >Create agent</NuxtLink>
           </div>
+          <!-- min-h keeps the card at least two rows tall (row = 32px icon + py-3 + 1px divider) -->
           <div
             v-else
-            class="divide-y divide-[var(--border-subtle)]"
+            class="divide-y divide-[var(--border-subtle)] min-h-[113px]"
           >
             <NuxtLink
               v-for="agent in agents.slice(0, 6)"
@@ -538,6 +557,11 @@ const statItems = computed(() => [
                 <span class="text-[13px] font-medium truncate min-w-0" :title="s.summary">{{ recentTitle(s.summary) }}</span>
                 <span v-if="recentScope === 'all' || !workingDir" class="text-[11px] text-label shrink-0 max-w-[40%] truncate">[{{ s.projectDisplayName }}]</span>
               </div>
+              <span
+                v-if="recentCosts[recentKey(s)]?.requests"
+                class="font-mono text-[11px] shrink-0 text-meta"
+                :title="`${fmtRecentTokens(recentCosts[recentKey(s)]!.tokens)} tokens · ${recentCosts[recentKey(s)]!.requests} req`"
+              >{{ fmtRecentCost(recentCosts[recentKey(s)]!.cost) }}</span>
               <span class="text-[11px] shrink-0 text-meta">{{ formatRelativeTime(s.lastActivity) }}</span>
             </NuxtLink>
           </div>
