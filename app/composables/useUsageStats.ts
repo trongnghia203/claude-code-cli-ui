@@ -35,13 +35,16 @@ export interface UsageStats {
   byModel: ModelStat[]
   byDay: DayStat[]
   byProject: ProjectStat[]
+  cacheSavings: number
+  activeDays: number
+  peakDay: { date: string; cost: number } | null
 }
 
 export function useUsageStats() {
   const stats = ref<UsageStats | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
-  const timeRange = ref<TimeRange>('30d')
+  const timeRange = ref<TimeRange>('7d')
   const selectedProjectId = ref<string | null>(null)
 
   const granularity = computed<Granularity>(() => {

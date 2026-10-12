@@ -36,7 +36,7 @@ export default defineEventHandler(async (event) => {
     const entries = await fs.readdir(projectsDir, { withFileTypes: true })
     projectDirs = entries.filter(e => e.isDirectory()).map(e => e.name)
   } catch {
-    return { totalCost: 0, totalInputTokens: 0, totalOutputTokens: 0, totalCacheCreationTokens: 0, totalCacheReadTokens: 0, byModel: [], byDay: [], byProject: [] }
+    return { totalCost: 0, totalInputTokens: 0, totalOutputTokens: 0, totalCacheCreationTokens: 0, totalCacheReadTokens: 0, byModel: [], byDay: [], byProject: [], cacheSavings: 0, activeDays: 0, peakDay: null }
   }
 
   // Load custom project display names
@@ -49,8 +49,8 @@ export default defineEventHandler(async (event) => {
 
   const acc = createAccumulator()
 
-  // If filtering by specific project, only scan that dir
-  const dirsToScan = projId ? projectDirs.filter(d => d === projId) : projectDirs
+  // Scan every project even when filtered: appendEntry keeps byProject complete and filters the rest
+  const dirsToScan = projectDirs
 
   for (const dirName of dirsToScan) {
     const displayName = customNames[dirName]?.displayName || projectDisplayName(dirName)

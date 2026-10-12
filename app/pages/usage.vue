@@ -37,6 +37,28 @@ const projectOptions = computed(() => {
   return sortedByProject.value.map(p => ({ id: p.id, name: p.name }))
 })
 
+const totalInput = computed(() => stats.value
+  ? stats.value.totalInputTokens + stats.value.totalCacheCreationTokens + stats.value.totalCacheReadTokens
+  : 0)
+
+const cacheHitRate = computed(() => {
+  if (!stats.value || !totalInput.value) return '-'
+  const pct = (stats.value.totalCacheReadTokens / totalInput.value) * 100
+  return `${pct.toFixed(pct >= 99.5 || pct < 1 ? 1 : 0)}%`
+})
+
+const avgCostPerDay = computed(() => {
+  if (!stats.value?.activeDays) return '-'
+  return formatCost(stats.value.totalCost / stats.value.activeDays)
+})
+
+const peakDayLabel = computed(() => {
+  const peak = stats.value?.peakDay
+  if (!peak) return 'No usage in this period'
+  const date = new Date(`${peak.date}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return `Peak ${date}, ${formatCost(peak.cost)}`
+})
+
 function exportCsv() {
   if (!stats.value) return
   const rows = [
@@ -106,10 +128,10 @@ function exportCsv() {
 
     <template v-else-if="stats">
       <!-- Plan limits + what contributes (claude /usage) -->
-      <UsageLimitsPanel />
+      <UsageLimitsPanel :range="timeRange" :project-id="selectedProjectId" />
 
       <!-- Stat cards -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
         <UsageStatCard
           title="Total Cost"
           :value="formatCost(stats.totalCost)"
@@ -127,6 +149,18 @@ function exportCsv() {
           :value="formatTokens(stats.totalOutputTokens)"
           subtitle="AI responses"
           icon="i-lucide-arrow-down-left"
+        />
+        <UsageStatCard
+          title="Cache Hit Rate"
+          :value="cacheHitRate"
+          :subtitle="stats.cacheSavings > 0 ? `Saved ~${formatCost(stats.cacheSavings)} vs uncached` : 'Share of input read from cache'"
+          icon="i-lucide-database-zap"
+        />
+        <UsageStatCard
+          title="Avg Cost / Day"
+          :value="avgCostPerDay"
+          :subtitle="peakDayLabel"
+          icon="i-lucide-calendar-days"
         />
       </div>
 

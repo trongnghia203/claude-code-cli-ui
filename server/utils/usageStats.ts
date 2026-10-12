@@ -1,4 +1,4 @@
-import { computeUsageCost } from './models'
+import { computeUsageCost, resolveModelPricingFuzzy } from './models'
 
 export interface ModelStat {
   name: string
@@ -34,6 +34,11 @@ export interface UsageStats {
   byModel: ModelStat[]
   byDay: DayStat[]
   byProject: ProjectStat[]
+  /** Estimated $ saved by cache reads (billed at 10% of the input rate) */
+  cacheSavings: number
+  /** Days with any usage, and the most expensive one (independent of chart granularity) */
+  activeDays: number
+  peakDay: { date: string; cost: number } | null
 }
 
 export type Granularity = 'hourly' | 'daily' | 'weekly' | 'monthly'
@@ -50,6 +55,7 @@ interface Accumulator {
   byModel: Map<string, ModelStat>
   byDay: Map<string, DayStat>
   byProject: Map<string, ProjectStat>
+  costByDate: Map<string, number>
   totalCost: number
   totalInputTokens: number
   totalOutputTokens: number
@@ -97,6 +103,7 @@ export function createAccumulator(): Accumulator {
     byModel: new Map(),
     byDay: new Map(),
     byProject: new Map(),
+    costByDate: new Map(),
     totalCost: 0,
     totalInputTokens: 0,
     totalOutputTokens: 0,
@@ -121,7 +128,6 @@ export function appendEntry(
   const ts = (entry.timestamp as string) || ''
   const t = new Date(ts).getTime()
   if (isNaN(t) || t < filter.from || t > filter.to) return
-  if (filter.projectId && filter.projectId !== projectId) return
 
   const model = (msg?.model as string) || 'unknown'
   const inputTokens    = usage.input_tokens ?? 0
@@ -132,6 +138,18 @@ export function appendEntry(
     { input_tokens: inputTokens, output_tokens: outputTokens, cache_creation_input_tokens: cacheCreation, cache_read_input_tokens: cacheRead },
     model
   )
+
+  // byProject always covers every project, so the project list/dropdown stays complete while one is selected
+  const proj = acc.byProject.get(projectId)
+  if (proj) {
+    proj.inputTokens += inputTokens
+    proj.outputTokens += outputTokens
+    proj.cost += cost
+  } else {
+    acc.byProject.set(projectId, { id: projectId, name: projectName, inputTokens, outputTokens, cost })
+  }
+
+  if (filter.projectId && filter.projectId !== projectId) return
 
   // totals
   acc.totalCost += cost
@@ -152,6 +170,9 @@ export function appendEntry(
     acc.byModel.set(model, { name: model, inputTokens, outputTokens, cacheCreationTokens: cacheCreation, cacheReadTokens: cacheRead, cost })
   }
 
+  const dateKey = getTimeKey(ts, 'daily')
+  acc.costByDate.set(dateKey, (acc.costByDate.get(dateKey) ?? 0) + cost)
+
   // byDay
   const timeKey = getTimeKey(ts, filter.granularity)
   const dayEntry = acc.byDay.get(timeKey)
@@ -165,22 +186,21 @@ export function appendEntry(
     d[`${model}_cost`] = cost
     acc.byDay.set(timeKey, d)
   }
-
-  // byProject
-  const proj = acc.byProject.get(projectId)
-  if (proj) {
-    proj.inputTokens += inputTokens
-    proj.outputTokens += outputTokens
-    proj.cost += cost
-  } else {
-    acc.byProject.set(projectId, { id: projectId, name: projectName, inputTokens, outputTokens, cost })
-  }
 }
 
 export function finalizeStats(acc: Accumulator): UsageStats {
   const byModel = Array.from(acc.byModel.values()).sort((a, b) => b.cost - a.cost)
   const byDay   = Array.from(acc.byDay.values()).sort((a, b) => a.date.localeCompare(b.date))
   const byProject = Array.from(acc.byProject.values()).sort((a, b) => b.cost - a.cost)
+
+  const cacheSavings = byModel.reduce(
+    (n, m) => n + (m.cacheReadTokens / 1_000_000) * resolveModelPricingFuzzy(m.name).input * 0.9,
+    0,
+  )
+  let peakDay: UsageStats['peakDay'] = null
+  for (const [date, cost] of acc.costByDate) {
+    if (!peakDay || cost > peakDay.cost) peakDay = { date, cost }
+  }
 
   return {
     totalCost: acc.totalCost,
@@ -191,5 +211,8 @@ export function finalizeStats(acc: Accumulator): UsageStats {
     byModel,
     byDay,
     byProject,
+    cacheSavings,
+    activeDays: acc.costByDate.size,
+    peakDay,
   }
 }
