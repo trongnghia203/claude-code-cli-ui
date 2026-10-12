@@ -55,7 +55,7 @@ function cancelRemove() {
         {{ source.sourceType }}
       </span>
       <span class="text-[11px] text-meta truncate flex-1">{{ source.sourceUrl }}</span>
-      <span class="font-mono text-[10px] text-meta shrink-0">{{ formatDate(source.lastUpdated) }}</span>
+      <span class="font-mono text-[12px] text-label shrink-0">{{ formatDate(source.lastUpdated) }}</span>
     </div>
     <div class="flex items-center gap-2 ml-3">
       <template v-if="showConfirm">
