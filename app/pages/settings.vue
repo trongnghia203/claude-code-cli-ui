@@ -25,7 +25,7 @@ const loading = computed(() => (isGlobal.value ? globalSettings.loading.value : 
 const scopeFilePath = computed(() => {
   if (isGlobal.value) return '~/.claude/settings.json'
   if (!projectPath.value) return ''
-  return `${projectPath.value}/.claude/${scope.value === 'project' ? 'settings.json' : 'settings.local.json'}`
+  return `${projectPath.value.replace(/\/+$/, '')}/.claude/${scope.value === 'project' ? 'settings.json' : 'settings.local.json'}`
 })
 
 async function load() {
