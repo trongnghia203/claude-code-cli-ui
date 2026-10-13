@@ -200,6 +200,76 @@ function openChange(change: RepoChange) {
   if (files.value.some(f => f.path === change.path)) selectFile(change.path)
 }
 
+// ---- List / tree view (like the VS Code Source Control "View as List / Tree") ----
+type ViewMode = 'list' | 'tree'
+const VIEW_KEY = 'agents-ui:memory-view'
+const viewMode = ref<ViewMode>('tree')
+const openDirs = reactive<Record<string, boolean>>({})
+onMounted(() => {
+  try { if (localStorage.getItem(VIEW_KEY) === 'list') viewMode.value = 'list' } catch {}
+})
+function setView(mode: ViewMode) {
+  viewMode.value = mode
+  try { localStorage.setItem(VIEW_KEY, mode) } catch {}
+}
+
+interface TreeNode { label: string; key: string; dirs: Map<string, TreeNode>; files: MemoryFile[] }
+type Row =
+  | { kind: 'dir'; key: string; label: string; depth: number; open: boolean }
+  | { kind: 'file'; file: MemoryFile; label: string; depth: number }
+
+/** Flatten a group into visible rows. Folders holding a single folder are merged ("a/b/c") like VS Code. */
+function treeRows(group: { name: string; items: MemoryFile[] }): Row[] {
+  const root: TreeNode = { label: '', key: group.name, dirs: new Map(), files: [] }
+  for (const f of group.items) {
+    const parts = f.name.split('/')
+    let node = root
+    for (const part of parts.slice(0, -1)) {
+      let next = node.dirs.get(part)
+      if (!next) {
+        next = { label: part, key: `${node.key}/${part}`, dirs: new Map(), files: [] }
+        node.dirs.set(part, next)
+      }
+      node = next
+    }
+    node.files.push(f)
+  }
+  const rows: Row[] = []
+  const walk = (node: TreeNode, depth: number) => {
+    for (const d of node.dirs.values()) {
+      let cur = d
+      let label = d.label
+      while (cur.files.length === 0 && cur.dirs.size === 1) {
+        cur = [...cur.dirs.values()][0]!
+        label += `/${cur.label}`
+      }
+      const open = !!openDirs[cur.key]
+      rows.push({ kind: 'dir', key: cur.key, label, depth, open })
+      if (open) walk(cur, depth + 1)
+    }
+    for (const f of node.files) rows.push({ kind: 'file', file: f, label: f.name.split('/').pop()!, depth })
+  }
+  walk(root, 0)
+  return rows
+}
+
+function groupRows(group: { name: string; items: MemoryFile[] }): Row[] {
+  if (viewMode.value === 'list') return group.items.map(f => ({ kind: 'file', file: f, label: f.name, depth: 0 }))
+  return treeRows(group)
+}
+
+/** Expand every folder above the file so it is visible in the tree */
+function revealInTree(path: string) {
+  const f = files.value.find(x => x.path === path)
+  if (!f) return
+  const parts = f.name.split('/').slice(0, -1)
+  let key = f.group
+  for (const part of parts) {
+    key += `/${part}`
+    openDirs[key] = true
+  }
+}
+
 const needsProject = computed(() => scope.value === 'project' && !workingDir.value)
 const selected = computed(() => files.value.find(f => f.path === selectedPath.value))
 const dirty = computed(() => content.value !== original.value)
@@ -253,6 +323,7 @@ async function loadList() {
 async function selectFile(path: string, force = false) {
   if (!force && dirty.value && !window.confirm('Discard unsaved changes?')) return
   selectedPath.value = path
+  revealInTree(path)
   loadingFile.value = true
   try {
     const res = await $fetch<{ exists: boolean; content: string }>('/api/memory/file', {
@@ -351,6 +422,19 @@ useHead({ title: 'Memory | Agent Manager' })
               {{ tab.label }}
             </button>
           </div>
+          <div class="flex items-center justify-end gap-1 mt-2">
+            <button
+              v-for="m in ([{ v: 'list', icon: 'i-lucide-list', t: 'View as List' }, { v: 'tree', icon: 'i-lucide-list-tree', t: 'View as Tree' }] as const)"
+              :key="m.v"
+              class="p-1 rounded hover-bg focus-ring"
+              :style="viewMode === m.v ? 'background: var(--accent-muted); color: var(--text-primary);' : 'color: var(--text-tertiary);'"
+              :title="m.t"
+              :aria-pressed="viewMode === m.v"
+              @click="setView(m.v)"
+            >
+              <UIcon :name="m.icon" class="size-3.5" />
+            </button>
+          </div>
         </div>
         <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-3 pb-3 space-y-4">
         <div v-if="loadingList" class="flex justify-center py-8">
@@ -361,28 +445,39 @@ useHead({ title: 'Memory | Agent Manager' })
             <div class="px-2 text-[10px] font-semibold uppercase tracking-wider truncate" style="color: var(--text-tertiary);" :title="group.name">
               {{ group.name }}
             </div>
-            <button
-              v-for="f in group.items"
-              :key="f.path"
-              class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-colors hover-bg focus-ring"
-              :style="f.path === selectedPath ? 'background: var(--accent-muted);' : ''"
-              :title="f.path"
-              @click="selectFile(f.path)"
-            >
-              <UIcon
-                :name="f.exists ? 'i-lucide-file-text' : 'i-lucide-file-plus'"
-                class="size-3.5 shrink-0"
-                :style="{ color: f.exists ? 'var(--accent)' : 'var(--text-disabled)' }"
-              />
-              <span class="text-[12px] truncate" :style="{ color: f.exists ? 'var(--text-primary)' : 'var(--text-tertiary)' }">{{ f.name }}</span>
-              <span
-                v-if="fileStatus.get(f.path)"
-                class="ml-auto text-[11px] font-semibold font-mono"
-                :style="{ color: statusColor(fileStatus.get(f.path)!.letter) }"
-                :title="statusTitle(fileStatus.get(f.path)!.letter) + (fileStatus.get(f.path)!.staged ? ' (staged)' : '')"
-              >{{ fileStatus.get(f.path)!.letter }}</span>
-              <span v-else-if="!f.exists" class="ml-auto text-[9px] uppercase tracking-wide" style="color: var(--text-disabled);">new</span>
-            </button>
+            <template v-for="row in groupRows(group)" :key="row.kind === 'dir' ? 'd:' + row.key : row.file.path">
+              <button
+                v-if="row.kind === 'dir'"
+                class="w-full flex items-center gap-1.5 py-1 pr-2 rounded-lg text-left transition-colors hover-bg focus-ring"
+                :style="{ paddingLeft: `${8 + row.depth * 12}px` }"
+                :title="row.key"
+                @click="openDirs[row.key] = !row.open"
+              >
+                <UIcon name="i-lucide-chevron-right" class="size-3 shrink-0 transition-transform duration-150" :class="row.open ? 'rotate-90' : ''" style="color: var(--text-tertiary);" />
+                <span class="text-[12px] truncate" style="color: var(--text-secondary);">{{ row.label }}</span>
+              </button>
+              <button
+                v-else
+                class="w-full flex items-center gap-2 py-1.5 pr-2 rounded-lg text-left transition-colors hover-bg focus-ring"
+                :style="{ paddingLeft: `${8 + row.depth * 12 + (viewMode === 'tree' && row.depth > 0 ? 4 : 0)}px`, background: row.file.path === selectedPath ? 'var(--accent-muted)' : '' }"
+                :title="row.file.path"
+                @click="selectFile(row.file.path)"
+              >
+                <UIcon
+                  :name="row.file.exists ? 'i-lucide-file-text' : 'i-lucide-file-plus'"
+                  class="size-3.5 shrink-0"
+                  :style="{ color: row.file.exists ? 'var(--accent)' : 'var(--text-disabled)' }"
+                />
+                <span class="text-[12px] truncate" :style="{ color: row.file.exists ? 'var(--text-primary)' : 'var(--text-tertiary)' }">{{ row.label }}</span>
+                <span
+                  v-if="fileStatus.get(row.file.path)"
+                  class="ml-auto text-[11px] font-semibold font-mono"
+                  :style="{ color: statusColor(fileStatus.get(row.file.path)!.letter) }"
+                  :title="statusTitle(fileStatus.get(row.file.path)!.letter) + (fileStatus.get(row.file.path)!.staged ? ' (staged)' : '')"
+                >{{ fileStatus.get(row.file.path)!.letter }}</span>
+                <span v-else-if="!row.file.exists" class="ml-auto text-[9px] uppercase tracking-wide" style="color: var(--text-disabled);">new</span>
+              </button>
+            </template>
           </div>
           <p v-if="!groups.length && !needsProject" class="text-[12px] text-meta px-2">No files found.</p>
         </template>

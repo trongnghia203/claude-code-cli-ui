@@ -1,6 +1,6 @@
 import { readdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, relative, sep } from 'node:path'
 import { getClaudeDir } from './claudeDir'
 import { resolveHome } from './path'
 
@@ -61,6 +61,39 @@ async function collectDir(dir: string, label: string, group: string, out: Memory
   }
 }
 
+const KNOWLEDGE_MAX_FILES = 2000
+const KNOWLEDGE_MAX_DEPTH = 8
+
+const KNOWLEDGE_EXT = /\.(md|json|jsonl)$/i
+
+/** Recursively collect *.md and *.json(l) (e.g. _indexes.jsonl) under a knowledge folder; `name` is "knowledge/<relative path>" so it nests under the parent group. */
+async function collectKnowledge(dir: string, group: string, out: MemoryFile[]) {
+  if (!existsSync(dir)) return
+  let count = 0
+  async function walk(current: string, depth: number) {
+    if (depth > KNOWLEDGE_MAX_DEPTH || count >= KNOWLEDGE_MAX_FILES) return
+    let entries
+    try {
+      entries = await readdir(current, { withFileTypes: true })
+    } catch {
+      return
+    }
+    entries.sort((a, b) => a.name.localeCompare(b.name))
+    for (const e of entries) {
+      if (e.name.startsWith('.') || e.name === 'node_modules') continue
+      const p = join(current, e.name)
+      if (e.isDirectory()) {
+        await walk(p, depth + 1)
+      } else if (e.isFile() && KNOWLEDGE_EXT.test(e.name)) {
+        if (count >= KNOWLEDGE_MAX_FILES) return
+        count++
+        out.push({ path: p, name: `knowledge/${relative(dir, p).split(sep).join('/')}`, group, exists: true, suggested: false })
+      }
+    }
+  }
+  await walk(dir, 0)
+}
+
 export async function listMemoryFiles(scope: MemoryScope, projectPath?: string): Promise<MemoryFile[]> {
   const out: MemoryFile[] = []
   const claudeDir = getClaudeDir()
@@ -68,6 +101,7 @@ export async function listMemoryFiles(scope: MemoryScope, projectPath?: string):
   if (scope === 'global') {
     await collect(claudeDir, '~/.claude', ['CLAUDE.md', 'AGENTS.md'], out)
     await collectDir(join(claudeDir, 'rules'), 'rules', '~/.claude/rules', out)
+    await collectKnowledge(join(claudeDir, 'knowledge'), '~/.claude', out)
     return out
   }
 
@@ -80,6 +114,7 @@ export async function listMemoryFiles(scope: MemoryScope, projectPath?: string):
   }
   await collectDir(join(dotClaude, 'rules'), '.claude/rules', '.claude/rules', out)
   await collectDir(join(claudeDir, 'projects', encodeProjectDirName(root), 'memory'), 'memory', 'Auto memory', out)
+  await collectKnowledge(join(root, 'knowledge'), 'Project root', out)
   return out
 }
 
