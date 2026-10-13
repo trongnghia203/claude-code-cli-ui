@@ -79,6 +79,8 @@ async function refreshGit() {
   try {
     const res = await $fetch<{ repos: RepoState[] }>('/api/memory/git/changes', { query: gitQuery() })
     repos.value = res.repos
+    // Committed or discarded: nothing left to diff, go back to the normal view
+    if (gitBase.value !== null && !fileStatus.value.has(selectedPath.value)) gitBase.value = null
   } catch {
     repos.value = []
   }
@@ -287,6 +289,14 @@ function revealInTree(path: string) {
   }
 }
 
+/** Expand the folders above a file and scroll it into view in the file list */
+async function revealFile(path: string) {
+  revealInTree(path)
+  await nextTick()
+  const el = Array.from(document.querySelectorAll<HTMLElement>('[data-memory-path]')).find(e => e.dataset.memoryPath === path)
+  el?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+}
+
 const needsProject = computed(() => scope.value === 'project' && !workingDir.value)
 const selected = computed(() => files.value.find(f => f.path === selectedPath.value))
 const dirty = computed(() => content.value !== original.value)
@@ -445,7 +455,7 @@ useHead({ title: 'Memory | Agent Manager' })
               v-for="m in ([{ v: 'list', icon: 'i-lucide-list', t: 'View as List' }, { v: 'tree', icon: 'i-lucide-list-tree', t: 'View as Tree' }] as const)"
               :key="m.v"
               class="p-1 rounded hover-bg focus-ring"
-              :style="viewMode === m.v ? 'background: var(--accent-muted); color: var(--text-primary);' : 'color: var(--text-tertiary);'"
+              :style="viewMode === m.v ? 'background: var(--accent-muted); color: var(--text-primary);' : 'color: var(--text-secondary);'"
               :title="m.t"
               :aria-pressed="viewMode === m.v"
               @click="setView(m.v)"
@@ -460,7 +470,7 @@ useHead({ title: 'Memory | Agent Manager' })
         </div>
         <template v-else>
           <div v-for="group in groups" :key="group.name" class="space-y-1">
-            <div class="px-2 text-[10px] font-semibold uppercase tracking-wider truncate" style="color: var(--text-tertiary);" :title="group.name">
+            <div class="px-2 text-[10px] font-semibold uppercase tracking-wider truncate" style="color: var(--text-secondary);" :title="group.name">
               {{ group.name }}
             </div>
             <template v-for="row in groupRows(group)" :key="row.kind === 'dir' ? 'd:' + row.key : row.file.path">
@@ -471,11 +481,12 @@ useHead({ title: 'Memory | Agent Manager' })
                 :title="row.key"
                 @click="openDirs[row.key] = !row.open"
               >
-                <UIcon name="i-lucide-chevron-right" class="size-3 shrink-0 transition-transform duration-150" :class="row.open ? 'rotate-90' : ''" style="color: var(--text-tertiary);" />
+                <UIcon name="i-lucide-chevron-right" class="size-3 shrink-0 transition-transform duration-150" :class="row.open ? 'rotate-90' : ''" style="color: var(--text-secondary);" />
                 <span class="text-[12px] truncate" style="color: var(--text-secondary);">{{ row.label }}</span>
               </button>
               <button
                 v-else
+                :data-memory-path="row.file.path"
                 class="w-full flex items-center gap-2 py-1.5 pr-2 rounded-lg text-left transition-colors hover-bg focus-ring"
                 :style="{ paddingLeft: `${8 + row.depth * 12 + (viewMode === 'tree' && row.depth > 0 ? 4 : 0)}px`, background: row.file.path === selectedPath ? 'var(--accent-muted)' : '' }"
                 :title="row.file.path"
@@ -497,7 +508,7 @@ useHead({ title: 'Memory | Agent Manager' })
               </button>
             </template>
           </div>
-          <p v-if="!groups.length && !needsProject" class="text-[12px] text-meta px-2">No files found.</p>
+          <p v-if="!groups.length && !needsProject" class="text-[12px] text-muted-ui px-2">No files found.</p>
         </template>
         <!-- Source control -->
         <div v-if="repos.length" class="pt-4 space-y-2" style="border-top: 1px solid var(--border-subtle);">
@@ -505,7 +516,7 @@ useHead({ title: 'Memory | Agent Manager' })
           <div class="flex items-center justify-between h-6">
             <button
               class="flex items-center gap-1 px-2 text-[10px] font-semibold uppercase tracking-wider"
-              style="color: var(--text-tertiary);"
+              style="color: var(--text-secondary);"
               :aria-expanded="scmOpen"
               @click="toggleScm"
             >
@@ -513,7 +524,7 @@ useHead({ title: 'Memory | Agent Manager' })
               Source Control
               <span v-if="totalChanges" class="ml-1 min-w-[16px] text-center text-[10px] font-semibold px-1 rounded-full" style="background: var(--accent); color: white;">{{ totalChanges }}</span>
             </button>
-            <button v-if="scmOpen" class="p-1 rounded hover-bg" title="Refresh" style="color: var(--text-tertiary);" @click="refreshGit">
+            <button v-if="scmOpen" class="p-1 rounded hover-bg" title="Refresh" style="color: var(--text-secondary);" @click="refreshGit">
               <UIcon name="i-lucide-refresh-cw" class="size-3" />
             </button>
           </div>
@@ -526,7 +537,7 @@ useHead({ title: 'Memory | Agent Manager' })
                 <span class="shrink-0 flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded-full" style="background: var(--accent-muted); color: var(--accent);">
                   <UIcon name="i-lucide-git-branch" class="size-2.5" />{{ repo.branch }}
                 </span>
-                <span v-if="repo.ahead || repo.behind" class="shrink-0 text-[10px] font-mono text-meta" :title="repo.upstream ?? ''">
+                <span v-if="repo.ahead || repo.behind" class="shrink-0 text-[10px] font-mono text-muted-ui" :title="repo.upstream ?? ''">
                   <span v-if="repo.ahead">&uarr;{{ repo.ahead }}</span>
                   <span v-if="repo.behind"> &darr;{{ repo.behind }}</span>
                 </span>
@@ -599,7 +610,7 @@ useHead({ title: 'Memory | Agent Manager' })
                     <div class="flex items-center gap-1 py-1 px-2">
                       <button
                         class="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider flex-1 text-left"
-                        style="color: var(--text-tertiary);"
+                        style="color: var(--text-secondary);"
                         @click="collapsed[repo.root + section.key] = !collapsed[repo.root + section.key]"
                       >
                         <UIcon :name="collapsed[repo.root + section.key] ? 'i-lucide-chevron-right' : 'i-lucide-chevron-down'" class="size-3" />
@@ -607,7 +618,7 @@ useHead({ title: 'Memory | Agent Manager' })
                       </button>
                       <button
                         class="p-0.5 rounded hover-bg"
-                        style="color: var(--text-tertiary);"
+                        style="color: var(--text-secondary);"
                         :title="section.action === 'stage' ? 'Stage all' : 'Unstage all'"
                         @click="stage(repo, section.items.map(c => c.path), section.action)"
                       >
@@ -625,10 +636,19 @@ useHead({ title: 'Memory | Agent Manager' })
                       >
                         <UIcon name="i-lucide-file-text" class="size-3.5 shrink-0" style="color: var(--accent);" />
                         <span class="text-[12px] truncate" style="color: var(--text-primary);">{{ c.name }}</span>
-                        <span v-if="c.dir" class="text-[10px] truncate min-w-0 text-meta">{{ c.dir }}</span>
+                        <span v-if="c.dir" class="text-[10px] truncate min-w-0 text-muted-ui">{{ c.dir }}</span>
+                        <button
+                          v-if="c.status !== 'D'"
+                          class="ml-auto shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 hover-bg"
+                          style="color: var(--text-secondary);"
+                          title="Reveal in file list"
+                          @click.stop="revealFile(c.path)"
+                        >
+                          <UIcon name="i-lucide-locate-fixed" class="size-3.5" />
+                        </button>
                         <button
                           v-if="section.key === 'changes'"
-                          class="ml-auto shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 hover-bg"
+                          class="shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 hover-bg"
                           style="color: var(--text-secondary);"
                           :title="c.status === 'U' ? 'Delete file' : 'Discard Changes'"
                           @click.stop="discard(repo, c)"
@@ -637,7 +657,6 @@ useHead({ title: 'Memory | Agent Manager' })
                         </button>
                         <button
                           class="shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 hover-bg"
-                          :class="section.key === 'changes' ? '' : 'ml-auto'"
                           style="color: var(--text-secondary);"
                           :title="section.action === 'stage' ? 'Stage' : 'Unstage'"
                           @click.stop="stage(repo, [c.path], section.action)"
@@ -650,8 +669,8 @@ useHead({ title: 'Memory | Agent Manager' })
                   </template>
                 </div>
               </template>
-              <p v-else class="text-[11px] text-meta px-2">No changes to memory files.</p>
-              <p v-if="repo.otherChanges" class="text-[10px] text-meta px-2" title="Not listed here and never committed from this page">
+              <p v-else class="text-[11px] text-muted-ui px-2">No changes to memory files.</p>
+              <p v-if="repo.otherChanges" class="text-[10px] text-muted-ui px-2" title="Not listed here and never committed from this page">
                 +{{ repo.otherChanges }} other changed file{{ repo.otherChanges > 1 ? 's' : '' }} in this repo
               </p>
             </div>
@@ -673,9 +692,9 @@ useHead({ title: 'Memory | Agent Manager' })
               <div class="text-[13px] font-medium truncate" style="color: var(--text-primary);">
                 {{ selected.name }}
                 <span v-if="dirty" class="ml-1 text-[11px]" style="color: var(--accent);">unsaved</span>
-                <span v-else-if="!selected.exists" class="ml-1 text-[11px] text-meta">will be created on save</span>
+                <span v-else-if="!selected.exists" class="ml-1 text-[11px] text-muted-ui">will be created on save</span>
               </div>
-              <div class="text-[10px] font-mono truncate text-meta" :title="selected.path">{{ selected.path }}</div>
+              <div class="text-[10px] font-mono truncate text-muted-ui" :title="selected.path">{{ selected.path }}</div>
             </div>
             <button
               class="px-4 py-1.5 rounded-lg text-[12px] font-semibold transition-all flex items-center gap-2 disabled:opacity-50"
@@ -708,3 +727,8 @@ useHead({ title: 'Memory | Agent Manager' })
     </div>
   </div>
 </template>
+
+<style scoped>
+/* .text-meta (--text-disabled) is too faint for small labels here */
+.text-muted-ui { color: var(--text-tertiary); }
+</style>
