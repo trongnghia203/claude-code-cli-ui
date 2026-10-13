@@ -26,20 +26,24 @@ watch(selectedJobId, loadRuns)
 
 const editing = ref<ScheduleItem | null>(null)
 const showEditor = ref(false)
+// Editing an existing schedule happens in the right panel; the modal is only for creating one
+const inlineEdit = ref(false)
+watch([selectedJobId, selectedRunId], () => { inlineEdit.value = false })
 const confirmDelete = ref<ScheduleItem | null>(null)
 
 function newJob() {
   editing.value = null
   showEditor.value = true
 }
-function editJob(job: ScheduleItem) {
+function toggleEdit(job: ScheduleItem) {
   editing.value = job
-  showEditor.value = true
+  inlineEdit.value = !inlineEdit.value
 }
 async function onSave(input: ScheduleInput) {
   const wasEditing = editing.value
   if (await save(input, wasEditing?.id)) {
     showEditor.value = false
+    inlineEdit.value = false
     toast.add({ title: wasEditing ? 'Schedule updated' : 'Schedule created', color: 'success', duration: 2000 })
     await loadRuns()
   }
@@ -97,6 +101,9 @@ function duration(ms?: number) {
   const s = Math.round(ms / 1000)
   return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`
 }
+// Built-in tools first (file-reading tool leading), then MCP tools; A-Z within each rank
+const toolRank = (t: string) => (t.startsWith('mcp__') ? 2 : /^Read\b/.test(t) ? 0 : 1)
+const sortTools = (items: string[]) => [...items].sort((a, b) => toolRank(a) - toolRank(b) || a.localeCompare(b))
 const cost = (usd?: number) => (usd == null ? '' : `$${usd.toFixed(2)}`)
 
 useHead({ title: 'Schedules | Agent Manager' })
@@ -206,11 +213,28 @@ useHead({ title: 'Schedules | Agent Manager' })
             <p class="text-[11px] font-mono text-meta truncate">{{ selectedJob.workingDir }}</p>
           </div>
           <UButton size="sm" variant="soft" icon="i-lucide-play" label="Run now" :disabled="selectedJob.lastRun?.status === 'running'" @click="onRunNow(selectedJob)" />
-          <UButton size="sm" variant="ghost" color="neutral" icon="i-lucide-pencil" label="Edit" @click="editJob(selectedJob)" />
+          <UButton
+            size="sm"
+            :variant="inlineEdit ? 'soft' : 'ghost'"
+            color="neutral"
+            :icon="inlineEdit ? 'i-lucide-x' : 'i-lucide-pencil'"
+            :label="inlineEdit ? 'Cancel edit' : 'Edit'"
+            @click="toggleEdit(selectedJob)"
+          />
           <UButton size="sm" variant="ghost" color="neutral" icon="i-lucide-trash-2" aria-label="Delete" @click="confirmDelete = selectedJob" />
         </div>
 
-        <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-6 py-5 space-y-5 max-w-4xl">
+        <ScheduleEditor
+          v-if="inlineEdit"
+          :key="selectedJob.id"
+          inline
+          class="flex-1 min-h-0"
+          :job="selectedJob"
+          @save="onSave"
+          @cancel="inlineEdit = false"
+        />
+
+        <div v-else class="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-6 py-5 space-y-5">
           <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div class="rounded-xl bg-card p-3" style="border: 1px solid var(--border-subtle)">
               <div class="text-[10px] uppercase tracking-wider text-meta">Schedule</div>
@@ -237,14 +261,14 @@ useHead({ title: 'Schedules | Agent Manager' })
 
           <div v-if="selectedJob.allowedTools.length" class="space-y-1.5">
             <div class="text-[11px] font-semibold uppercase tracking-wider text-meta">Allowed tools</div>
-            <div class="flex flex-wrap gap-1.5">
-              <span v-for="t in selectedJob.allowedTools" :key="t" class="text-[11px] font-mono px-2 py-0.5 rounded-full" style="background: var(--surface-raised); border: 1px solid var(--border-subtle); color: var(--text-secondary);">{{ t }}</span>
+            <div class="flex flex-col items-start gap-1.5">
+              <span v-for="t in sortTools(selectedJob.allowedTools)" :key="t" class="text-[12.5px] font-mono px-2.5 py-1 rounded-full" style="background: var(--surface-raised); border: 1px solid var(--border-subtle); color: var(--text-secondary);">{{ t }}</span>
             </div>
           </div>
           <div v-if="selectedJob.disallowedTools.length" class="space-y-1.5">
             <div class="text-[11px] font-semibold uppercase tracking-wider text-meta">Denied tools</div>
-            <div class="flex flex-wrap gap-1.5">
-              <span v-for="t in selectedJob.disallowedTools" :key="t" class="text-[11px] font-mono px-2 py-0.5 rounded-full" style="background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.2); color: #ef4444;">{{ t }}</span>
+            <div class="flex flex-col items-start gap-1.5">
+              <span v-for="t in sortTools(selectedJob.disallowedTools)" :key="t" class="text-[12.5px] font-mono px-2.5 py-1 rounded-full" style="background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.2); color: #ef4444;">{{ t }}</span>
             </div>
           </div>
 

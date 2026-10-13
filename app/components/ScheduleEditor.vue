@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ScheduleInput, ScheduleItem, ScheduleSpec } from '~/composables/useSchedules'
 
-const props = defineProps<{ job?: ScheduleItem; defaultDir?: string }>()
+const props = defineProps<{ job?: ScheduleItem; defaultDir?: string; inline?: boolean }>()
 const emit = defineEmits<{ save: [input: ScheduleInput]; cancel: [] }>()
 
 const { agents, fetchAll: fetchAgents } = useAgents()
@@ -81,27 +81,33 @@ function submit() {
 </script>
 
 <template>
-  <form class="p-6 space-y-4 bg-overlay w-[560px] max-w-full max-h-[calc(100dvh-4rem)] flex flex-col" @submit.prevent="submit">
-    <h3 class="text-page-title shrink-0">{{ job ? 'Edit schedule' : 'New schedule' }}</h3>
+  <form
+    :class="inline ? 'h-full flex flex-col min-h-0' : 'p-6 space-y-4 bg-overlay w-[560px] max-w-full max-h-[calc(100dvh-4rem)] flex flex-col'"
+    @submit.prevent="submit"
+  >
+    <h3 v-if="!inline" class="text-page-title shrink-0">{{ job ? 'Edit schedule' : 'New schedule' }}</h3>
 
-    <div class="space-y-4 overflow-y-auto -mx-6 px-6 py-1.5 flex-1 min-h-0 custom-scrollbar">
-      <div class="field-group">
-        <label class="field-label" data-required>Name</label>
-        <input v-model="form.name" class="field-input" placeholder="GC Lead Jira triage" />
-      </div>
+    <div class="overflow-y-auto flex-1 min-h-0 custom-scrollbar" :class="inline ? '' : '-mx-6 px-6 py-1.5'">
+     <div :class="inline ? 'space-y-5 px-6 py-5' : 'space-y-4'">
+      <div :class="inline ? 'grid grid-cols-2 gap-4' : 'space-y-4'">
+        <div class="field-group">
+          <label class="field-label" data-required>Name</label>
+          <input v-model="form.name" class="field-input" placeholder="GC Lead Jira triage" />
+        </div>
 
-      <div class="field-group">
-        <label class="field-label">Agent <span class="font-normal text-meta">(optional)</span></label>
-        <select v-model="form.agent" class="field-select">
-          <option value="">No agent, plain prompt</option>
-          <option v-for="a in agents" :key="a.slug" :value="a.slug">{{ a.frontmatter.name }}</option>
-        </select>
-        <span class="field-hint">Runs the whole session as this agent, with its instructions and tool list.</span>
+        <div class="field-group">
+          <label class="field-label">Agent <span class="font-normal text-meta">(optional)</span></label>
+          <select v-model="form.agent" class="field-select">
+            <option value="">No agent, plain prompt</option>
+            <option v-for="a in agents" :key="a.slug" :value="a.slug">{{ a.frontmatter.name }}</option>
+          </select>
+          <span class="field-hint">Runs the whole session as this agent, with its instructions and tool list.</span>
+        </div>
       </div>
 
       <div class="field-group">
         <label class="field-label" data-required>Prompt</label>
-        <textarea v-model="form.prompt" rows="4" class="field-textarea" placeholder="What should Claude do on each run?" />
+        <textarea v-model="form.prompt" :rows="inline ? 6 : 4" class="field-textarea" placeholder="What should Claude do on each run?" />
       </div>
 
       <div class="field-group">
@@ -110,6 +116,7 @@ function submit() {
         <span class="field-hint">Claude runs in this folder, so it reads that project's CLAUDE.md and settings.</span>
       </div>
 
+      <div :class="inline ? 'grid grid-cols-2 gap-4' : 'space-y-4'">
       <div class="field-group">
         <label class="field-label">When</label>
         <div class="flex flex-wrap items-center gap-2">
@@ -133,7 +140,9 @@ function submit() {
         </select>
         <span class="field-hint">{{ modeHint }}</span>
       </div>
+      </div>
 
+      <div :class="inline ? 'grid grid-cols-2 gap-4' : 'space-y-4'">
       <div class="field-group">
         <div class="flex items-center justify-between">
           <label class="field-label">Allowed tools <span class="font-normal text-meta">(one per line)</span></label>
@@ -141,14 +150,15 @@ function submit() {
             Fill from agent
           </button>
         </div>
-        <textarea v-model="form.allowedTools" rows="4" class="field-textarea font-mono text-[12px]" placeholder="Read&#10;Write(~/notes/*.md)&#10;mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql" />
+        <textarea v-model="form.allowedTools" :rows="inline ? 8 : 4" class="field-textarea font-mono text-[12px]" placeholder="Read&#10;Write(~/notes/*.md)&#10;mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql" />
         <span class="field-hint">Approved without asking. A path in brackets limits where Write or Edit may act.</span>
       </div>
 
       <div class="field-group">
         <label class="field-label">Denied tools <span class="font-normal text-meta">(one per line)</span></label>
-        <textarea v-model="form.disallowedTools" rows="3" class="field-textarea font-mono text-[12px]" placeholder="mcp__claude_ai_Atlassian__transitionJiraIssue" />
+        <textarea v-model="form.disallowedTools" :rows="inline ? 8 : 3" class="field-textarea font-mono text-[12px]" placeholder="mcp__claude_ai_Atlassian__transitionJiraIssue" />
         <span class="field-hint">Always blocked, even if the agent asks for them.</span>
+      </div>
       </div>
 
       <div class="grid grid-cols-3 gap-3">
@@ -176,10 +186,11 @@ function submit() {
         </span>
         <span class="text-[13px]">Enabled (runs on schedule)</span>
       </label>
+     </div>
     </div>
 
-    <p v-if="error" class="text-[12px] shrink-0" style="color: var(--error)">{{ error }}</p>
-    <div class="flex justify-end gap-2 shrink-0">
+    <p v-if="error" class="text-[12px] shrink-0" :class="inline ? 'px-6 pb-2' : ''" style="color: var(--error)">{{ error }}</p>
+    <div class="flex justify-end gap-2 shrink-0" :class="inline ? 'px-6 py-3' : ''" :style="inline ? 'border-top: 1px solid var(--border-subtle)' : ''">
       <UButton label="Cancel" variant="ghost" color="neutral" size="sm" type="button" @click="emit('cancel')" />
       <UButton :label="job ? 'Save' : 'Create'" size="sm" type="submit" />
     </div>
