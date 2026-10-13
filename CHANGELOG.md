@@ -10,6 +10,12 @@
 - Add Source Control panel under the file list - staged and changed memory files, stage / unstage / discard, commit, commit and push, push [`7cc88cb`](https://github.com/trongnghia203/claude-code-cli-ui/commit/7cc88cb)
 - Limit git actions to listed memory files, never force push, confirm before pushing `main` / `master` [`7cc88cb`](https://github.com/trongnghia203/claude-code-cli-ui/commit/7cc88cb)
 - Fix Improve with Claude - 22s to ~6s, plain text result, no raw JSON in the file [`d270f9b`](https://github.com/trongnghia203/claude-code-cli-ui/commit/d270f9b)
+- Show the `knowledge` folder with a list / tree view [`e7b1f46`](https://github.com/trongnghia203/claude-code-cli-ui/commit/e7b1f46)
+- Open the git diff against HEAD when clicking a changed file in Source Control; diff closes after commit or discard [`def6fbe`](https://github.com/trongnghia203/claude-code-cli-ui/commit/def6fbe) [`ba025a5`](https://github.com/trongnghia203/claude-code-cli-ui/commit/ba025a5)
+- Add `GET /api/memory/git/base` returning the HEAD version of a memory file [`def6fbe`](https://github.com/trongnghia203/claude-code-cli-ui/commit/def6fbe)
+- Speed up Source Control list and diff - one git call per folder, not per file [`def6fbe`](https://github.com/trongnghia203/claude-code-cli-ui/commit/def6fbe)
+- Add reveal button on changed files to expand and scroll to the file in the file list [`ba025a5`](https://github.com/trongnghia203/claude-code-cli-ui/commit/ba025a5)
+- Raise contrast of small sidebar labels [`ba025a5`](https://github.com/trongnghia203/claude-code-cli-ui/commit/ba025a5)
 
 **MCP**
 - Add per-project switch to launch Claude with `--strict-mcp-config --mcp-config .mcp.json`, applied to chat and terminal [`fea2b14`](https://github.com/trongnghia203/claude-code-cli-ui/commit/fea2b14)
@@ -45,6 +51,10 @@
 - Add run history with status, duration, cost and a link to the chat session each run created [`e331306`](https://github.com/trongnghia203/claude-code-cli-ui/commit/e331306)
 - Fix links in run output (e.g. Jira tickets) looking like plain text - style as links, keep IDs on one line, open in new tab [`514a075`](https://github.com/trongnghia203/claude-code-cli-ui/commit/514a075)
 - Fix run output capped at a narrow column - use full container width [`0ba388d`](https://github.com/trongnghia203/claude-code-cli-ui/commit/0ba388d)
+- Run schedules in-process, no LaunchAgent by default [`dd9bbd1`](https://github.com/trongnghia203/claude-code-cli-ui/commit/dd9bbd1)
+- Allow any budget value in the schedule editor [`b14abfa`](https://github.com/trongnghia203/claude-code-cli-ui/commit/b14abfa)
+- Edit schedules inline, use full-width layout, sort tool list [`42de546`](https://github.com/trongnghia203/claude-code-cli-ui/commit/42de546)
+- Fix Nitro duplicate-import and DEP0205 warnings on startup [`d060760`](https://github.com/trongnghia203/claude-code-cli-ui/commit/d060760) [`05c8c05`](https://github.com/trongnghia203/claude-code-cli-ui/commit/05c8c05)
 
 **Agents**
 - Fix New Agent wizard not scrolling on short windows, Back and Next buttons were cut off [`6719b9d`](https://github.com/trongnghia203/claude-code-cli-ui/commit/6719b9d)
@@ -57,12 +67,26 @@
 - Make the Suggestions header collapse, remembered across visits [`21b8ebc`](https://github.com/trongnghia203/claude-code-cli-ui/commit/21b8ebc)
 - Shrink the Agents card to its content with an empty state, pin Suggestions and footer hints to the bottom, fix black row dividers [`21b8ebc`](https://github.com/trongnghia203/claude-code-cli-ui/commit/21b8ebc)
 - Fix Improve with Claude saving a chat session into history [`4a4e16a`](https://github.com/trongnghia203/claude-code-cli-ui/commit/4a4e16a)
+- Show session cost on Recent chats [`9737340`](https://github.com/trongnghia203/claude-code-cli-ui/commit/9737340)
+
+**Token Usage (`/usage`)**
+- Add plan limits, skill footprint and session context panels [`a3b1216`](https://github.com/trongnghia203/claude-code-cli-ui/commit/a3b1216)
+- Add bars to skill footprint, divider in plan limits [`5470303`](https://github.com/trongnghia203/claude-code-cli-ui/commit/5470303)
+- Add top sessions to plan limits [`cc85862`](https://github.com/trongnghia203/claude-code-cli-ui/commit/cc85862)
+- Add cache hit and average cost cards, chart totals [`cb33ae6`](https://github.com/trongnghia203/claude-code-cli-ui/commit/cb33ae6)
+- Use two-column skill footprint with updated label [`2878578`](https://github.com/trongnghia203/claude-code-cli-ui/commit/2878578)
+- Add cache usage and context reports; skip session persistence for them [`095af83`](https://github.com/trongnghia203/claude-code-cli-ui/commit/095af83)
 
 **Settings, skills, artifacts**
 - Add Global / Project / Local tabs to Settings, editing `settings.json` and `settings.local.json` per project [`436f082`](https://github.com/trongnghia203/claude-code-cli-ui/commit/436f082)
 - Add source filter chips to Skills - Global, Plugin, Project, GitHub, MCP [`a695a97`](https://github.com/trongnghia203/claude-code-cli-ui/commit/a695a97)
 - Add hide / unhide for projects on Project Artifacts, shared with the chat sidebar [`5a82637`](https://github.com/trongnghia203/claude-code-cli-ui/commit/5a82637)
 - Soften unpinned folders, drop the per-row orange border on pinned folders [`4714382`](https://github.com/trongnghia203/claude-code-cli-ui/commit/4714382)
+- Fix trailing slash in settings file path [`6b754cf`](https://github.com/trongnghia203/claude-code-cli-ui/commit/6b754cf)
+- Fix project artifacts header layout [`051e31d`](https://github.com/trongnghia203/claude-code-cli-ui/commit/051e31d)
+- Fix marketplace source date too small [`cf43740`](https://github.com/trongnghia203/claude-code-cli-ui/commit/cf43740)
+- Make app icon transparent and full-bleed [`5efa58b`](https://github.com/trongnghia203/claude-code-cli-ui/commit/5efa58b)
+- Raise `--text-tertiary` contrast in light (`#696975`) and dark (`#8a8a97`) themes - 4.5:1 or better on page background [`6763b1f`](https://github.com/trongnghia203/claude-code-cli-ui/commit/6763b1f)
 
 ## 2026-10-09
 
