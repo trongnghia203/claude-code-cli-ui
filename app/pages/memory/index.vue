@@ -196,8 +196,25 @@ async function pushRepo(repo: RepoState) {
   }
 }
 
-function openChange(change: RepoChange) {
-  if (files.value.some(f => f.path === change.path)) selectFile(change.path)
+/** HEAD version of the file opened from Source Control; the editor diffs against it. Null for normal opens. */
+const gitBase = ref<string | null>(null)
+
+async function openChange(change: RepoChange, repo: RepoState) {
+  if (!files.value.some(f => f.path === change.path)) return
+  if (dirty.value && selectedPath.value !== change.path && !window.confirm('Discard unsaved changes?')) return
+  let base = ''
+  if (change.status !== 'U') {
+    try {
+      const res = await $fetch<{ content: string }>('/api/memory/git/base', {
+        query: { ...gitQuery(), repoRoot: repo.root, path: change.path },
+      })
+      base = res.content
+    } catch (e: any) {
+      toast.add({ title: 'Could not load git diff', description: e.data?.message || e.message, color: 'error' })
+    }
+  }
+  await selectFile(change.path, true)
+  gitBase.value = base
 }
 
 // ---- List / tree view (like the VS Code Source Control "View as List / Tree") ----
@@ -322,6 +339,7 @@ async function loadList() {
 
 async function selectFile(path: string, force = false) {
   if (!force && dirty.value && !window.confirm('Discard unsaved changes?')) return
+  gitBase.value = null
   selectedPath.value = path
   revealInTree(path)
   loadingFile.value = true
@@ -603,7 +621,7 @@ useHead({ title: 'Memory | Agent Manager' })
                         :key="section.key + c.path"
                         class="group flex items-center gap-2 px-2 py-1 rounded-md hover-bg cursor-pointer"
                         :title="c.path"
-                        @click="openChange(c)"
+                        @click="openChange(c, repo)"
                       >
                         <UIcon name="i-lucide-file-text" class="size-3.5 shrink-0" style="color: var(--accent);" />
                         <span class="text-[12px] truncate" style="color: var(--text-primary);">{{ c.name }}</span>
@@ -674,9 +692,10 @@ useHead({ title: 'Memory | Agent Manager' })
           </div>
           <InstructionEditor
             v-else
+            :key="selected.path + (gitBase !== null ? ':git' : '')"
             v-model="content"
-            default-mode="preview"
-            :original="selected.exists ? original : ''"
+            :default-mode="gitBase !== null ? 'diff' : 'preview'"
+            :original="gitBase ?? (selected.exists ? original : '')"
             class="flex-1 min-h-0"
             :agent-name="selected.name"
             :placeholder="`# ${selected.name}\n\nWrite here...`"

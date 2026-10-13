@@ -23,15 +23,26 @@ function existingDir(filePath: string): string | null {
   return existsSync(dir) ? dir : null
 }
 
-async function repoRootOf(filePath: string): Promise<string | null> {
-  const dir = existingDir(filePath)
-  if (!dir) return null
+async function repoRootOfDir(dir: string): Promise<string | null> {
   try {
     const r = await git(dir, ['rev-parse', '--show-toplevel'])
     return r.code === 0 && r.stdout.trim() ? r.stdout.trim() : null
   } catch {
     return null
   }
+}
+
+/** Repo root per file. One git call per distinct folder (run in parallel), not per file. */
+async function repoRootsOf(files: MemoryFile[]): Promise<Map<string, string | null>> {
+  const dirOf = new Map<string, string | null>()
+  for (const f of files) dirOf.set(f.path, existingDir(f.path))
+  const rootByDir = new Map<string, Promise<string | null>>()
+  for (const dir of new Set(dirOf.values())) {
+    if (dir) rootByDir.set(dir, repoRootOfDir(dir))
+  }
+  const result = new Map<string, string | null>()
+  for (const [path, dir] of dirOf) result.set(path, dir ? await rootByDir.get(dir)! : null)
+  return result
 }
 
 export interface RepoChange {
@@ -79,8 +90,9 @@ function parsePorcelain(out: string): { x: string; y: string; path: string }[] {
 /** Group the memory files by git repository and report each repo's staged / changed memory files. */
 export async function getRepoStates(files: MemoryFile[]): Promise<RepoState[]> {
   const byRoot = new Map<string, MemoryFile[]>()
+  const roots = await repoRootsOf(files)
   for (const f of files) {
-    const root = await repoRootOf(f.path)
+    const root = roots.get(f.path)
     if (!root) continue
     if (!byRoot.has(root)) byRoot.set(root, [])
     byRoot.get(root)!.push(f)
@@ -146,8 +158,9 @@ export async function getRepoStates(files: MemoryFile[]): Promise<RepoState[]> {
 export async function resolveRepoRequest(scope: MemoryScope, projectPath: string | undefined, repoRoot: string, paths: string[] = []) {
   const files = await listMemoryFiles(scope, projectPath)
   const inRepo: MemoryFile[] = []
+  const roots = await repoRootsOf(files)
   for (const f of files) {
-    if ((await repoRootOf(f.path)) === repoRoot) inRepo.push(f)
+    if (roots.get(f.path) === repoRoot) inRepo.push(f)
   }
   if (!inRepo.length) throw new Error('Not a repository holding memory files')
   const allowed = new Set(inRepo.map(f => f.path))
@@ -221,3 +234,9 @@ export async function pushRepo(root: string): Promise<void> {
   if (push.code !== 0) throw new Error((push.stderr || push.stdout).trim() || 'git push failed')
 }
 
+
+/** File content at HEAD, or '' when the file is new (untracked or not in HEAD yet). */
+export async function readHeadContent(root: string, path: string): Promise<string> {
+  const r = await git(root, ['show', `HEAD:${relative(root, path).split('\\').join('/')}`])
+  return r.code === 0 ? r.stdout : ''
+}

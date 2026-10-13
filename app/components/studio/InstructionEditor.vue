@@ -10,7 +10,7 @@ const props = withDefaults(defineProps<{
   /** Saved text to diff against. When provided, a Diff tab is shown. */
   original?: string
   /** Mode the editor opens in (read-first pages pass 'preview') */
-  defaultMode?: 'edit' | 'preview'
+  defaultMode?: 'edit' | 'preview' | 'diff'
 }>(), {
   defaultMode: 'edit',
   agentName: '',
