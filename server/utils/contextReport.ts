@@ -130,8 +130,11 @@ export async function getContextReport(
 async function runContextReport(cwd: string, sessionId?: string): Promise<ContextReport> {
 
   const bin = getInstalledClaudePath() ?? 'claude'
-  // Without a session, don't leave a junk "New Session" file behind for every refresh
-  const args = sessionId ? ['-p', '--resume', sessionId, '/context'] : ['-p', '--no-session-persistence', '/context']
+  // --no-session-persistence in both cases: without a session it avoids a junk "New Session" file,
+  // with one it stops `--resume` from appending the /context turn to the user's transcript
+  const args = sessionId
+    ? ['-p', '--resume', sessionId, '--no-session-persistence', '/context']
+    : ['-p', '--no-session-persistence', '/context']
   const { stdout } = await execFileAsync(bin, args, {
     cwd,
     timeout: 60_000,
