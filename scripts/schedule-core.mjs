@@ -12,6 +12,18 @@ export const LOGS_DIR = join(CONFIG_DIR, 'logs')
 
 const MAX_RUNS_KEPT = 50
 const MAX_RESULT_CHARS = 100_000
+const MCP_RETRIES = 3
+const MCP_RETRY_DELAY_MS = 60_000
+
+/** True when a one-turn run reports that its MCP tools were still connecting or missing. */
+function mcpNotReady(stdout) {
+  try {
+    const p = JSON.parse(stdout)
+    return (p.num_turns ?? 0) <= 1 && /still connecting|no .{0,40}tools are available|MCP.{0,60}(not (yet )?(connected|available)|failed to connect)/i.test(String(p.result ?? ''))
+  } catch {
+    return false
+  }
+}
 
 export function ensureDirs() {
   for (const d of [CONFIG_DIR, RUNS_DIR, LOGS_DIR]) mkdirSync(d, { recursive: true })
@@ -183,7 +195,7 @@ export async function runJob(jobId, { trigger = 'schedule', runId = newRunId() }
   const claudePath = job.claudePath || 'claude'
   const timeoutMs = (job.timeoutMinutes || 30) * 60_000
 
-  const outcome = await new Promise((resolve) => {
+  const attempt = () => new Promise((resolve) => {
     let stdout = ''
     let stderr = ''
     let timedOut = false
@@ -195,6 +207,14 @@ export async function runJob(jobId, { trigger = 'schedule', runId = newRunId() }
     child.on('close', code => { clearTimeout(timer); resolve({ code, stdout, stderr, timedOut }) })
     child.stdin.end(job.prompt)
   })
+
+  // Connector MCP servers (claude.ai Atlassian etc.) connect in the background, and a run that starts before they are up
+  // answers with "tools not available" and exits 0. Retry those a few times instead of recording a hollow success.
+  let outcome = await attempt()
+  for (let retry = 0; retry < MCP_RETRIES && !outcome.spawnError && !outcome.timedOut && mcpNotReady(outcome.stdout); retry++) {
+    await new Promise(r => setTimeout(r, MCP_RETRY_DELAY_MS))
+    outcome = await attempt()
+  }
 
   const finishedAt = new Date()
   const record = {
