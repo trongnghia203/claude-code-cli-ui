@@ -176,6 +176,15 @@ export interface ParsedUserMessage {
   content: string
 }
 
+/** Claude Code logs loaded skill instructions as a synthetic user message. */
+export function getLoadedSkillName(text: string | null | undefined): string | null {
+  if (!text) return null
+  const match = text.trimStart().match(/^Base directory for this skill:\s*([^\r\n]+)\r?\n/)
+  if (!match) return null
+  const path = match[1].trim().replace(/\/$/, '')
+  return path.match(/(?:^|\/)skills\/([^/\s]+)$/)?.[1] || null
+}
+
 /**
  * Parse a user message into its display kind and inner content.
  */

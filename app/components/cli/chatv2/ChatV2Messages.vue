@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { DisplayChatMessage } from '~/types'
-import { parseUserMessage, extractImageSources } from '~/utils/messageFormatting'
+import { parseUserMessage, extractImageSources, getLoadedSkillName } from '~/utils/messageFormatting'
 
 const props = defineProps<{
   messages: DisplayChatMessage[]
@@ -17,6 +17,12 @@ const copiedMessageId = ref<string | null>(null)
 
 // Track expanded bash-stdout messages
 const expandedStdout = ref<Set<string>>(new Set())
+const expandedSkills = ref<Set<string>>(new Set())
+function toggleSkill(id: string) {
+  const next = new Set(expandedSkills.value)
+  next.has(id) ? next.delete(id) : next.add(id)
+  expandedSkills.value = next
+}
 function toggleStdout(id: string) {
   const s = new Set(expandedStdout.value)
   s.has(id) ? s.delete(id) : s.add(id)
@@ -45,31 +51,49 @@ async function copyUserMessage(messageId: string, content: string) {
 
 interface MessageGroup {
   id: string
-  role: 'user' | 'assistant' | 'shell'
+  role: 'user' | 'assistant' | 'shell' | 'skill'
   timestamp: string
   messages: DisplayChatMessage[]
+  skillName?: string
 }
 
 const messageGroups = computed<MessageGroup[]>(() => {
   const groups: MessageGroup[] = []
   let currentGroup: MessageGroup | null = null
+  let lastSkillInvocation: string | null = null
 
   for (const message of props.messages) {
     const parsed = parseUserMessage(message.content)
     if (parsed.kind === 'system') continue
 
-    const messageRole: 'user' | 'assistant' | 'shell' =
-      parsed.kind === 'bash-input' || parsed.kind === 'bash-stdout'
+    const loadedSkill = message.role === 'user' ? getLoadedSkillName(message.content) : null
+    const invocation = message.role === 'user' && !loadedSkill
+      ? parsed.content.match(/^\/(\S+)/)?.[1] || null
+      : null
+    if (message.role === 'user' && !loadedSkill) lastSkillInvocation = invocation
+
+    const messageRole: MessageGroup['role'] =
+      loadedSkill
+        ? 'skill'
+        : parsed.kind === 'bash-input' || parsed.kind === 'bash-stdout'
         ? 'shell'
         : message.role === 'user'
           ? 'user'
           : 'assistant'
 
-    if (currentGroup && currentGroup.role === messageRole) {
+    if (messageRole !== 'skill' && currentGroup && currentGroup.role === messageRole) {
       currentGroup.messages.push(message)
     } else {
       if (currentGroup) groups.push(currentGroup)
-      currentGroup = { id: message.id, role: messageRole, timestamp: message.timestamp, messages: [message] }
+      currentGroup = {
+        id: message.id,
+        role: messageRole,
+        timestamp: message.timestamp,
+        messages: [message],
+        skillName: loadedSkill && lastSkillInvocation?.split(':').pop() === loadedSkill
+          ? lastSkillInvocation
+          : loadedSkill || undefined,
+      }
     }
   }
 
@@ -143,6 +167,29 @@ function handleOpenFile(filePath: string) {
           >
             U
           </div>
+        </div>
+      </div>
+
+      <!-- Skill instructions from Claude Code history; available on demand, not a user bubble -->
+      <div v-else-if="group.role === 'skill'" class="flex flex-col gap-2 min-w-0 pl-9 md:pl-11">
+        <div v-for="msg in group.messages" :key="msg.id" class="min-w-0">
+          <button
+            class="inline-flex items-center gap-1.5 text-[12px] font-medium text-left"
+            style="color: var(--text-secondary);"
+            :aria-expanded="expandedSkills.has(msg.id)"
+            @click="toggleSkill(msg.id)"
+          >
+            <UIcon :name="expandedSkills.has(msg.id) ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'" class="size-3 shrink-0" />
+            <span>Skill loaded</span>
+            <span style="color: var(--text-tertiary);">/</span>
+            <span class="break-all" style="color: #a78bfa;">{{ group.skillName }}</span>
+            <span style="color: var(--text-tertiary);">{{ expandedSkills.has(msg.id) ? 'Hide instructions' : 'Show instructions' }}</span>
+          </button>
+          <pre
+            v-if="expandedSkills.has(msg.id)"
+            class="mt-2 p-3 rounded-lg text-[11px] whitespace-pre-wrap break-words max-h-80 overflow-y-auto"
+            style="background: var(--surface-raised); color: var(--text-secondary);"
+          >{{ msg.content }}</pre>
         </div>
       </div>
 

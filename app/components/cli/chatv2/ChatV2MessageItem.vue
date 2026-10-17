@@ -16,6 +16,7 @@ const emit = defineEmits<{
 // Collapsible states
 const showThinking = ref(false)
 const showToolDetails = ref(false)
+const showFullToolResult = ref(false)
 const showAskUserHistory = ref(false)
 const copied = ref(false)
 
@@ -213,19 +214,30 @@ function buildUpdatedInput(): any {
 }
 
 function formatToolResult(result: unknown): string {
-  let r: any = result
-  if (typeof r === 'string') {
-    const t = r.trim()
-    if (t.startsWith('{') || t.startsWith('[')) {
-      try { r = JSON.parse(t) } catch { return r }
-    } else return r
+  let value: any = result
+  for (let depth = 0; depth < 5; depth++) {
+    if (typeof value === 'string') {
+      const trimmed = value.trim()
+      if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return value
+      try { value = JSON.parse(trimmed) } catch { return value }
+    } else if (Array.isArray(value)) {
+      return value.map(part => formatToolResult(part)).join('\n')
+    } else if (value && typeof value === 'object') {
+      if ('content' in value) value = value.content
+      else if (typeof value.text === 'string' && (value.type === 'text' || 'metadata' in value)) value = value.text
+      else return JSON.stringify(value, null, 2)
+    } else {
+      return String(value ?? '')
+    }
   }
-  if (r && typeof r === 'object' && !Array.isArray(r) && 'content' in r) r = r.content
-  if (Array.isArray(r)) {
-    return r.map((p: any) => (typeof p === 'string' ? p : p?.type === 'text' ? p.text : JSON.stringify(p, null, 2))).join('\n')
-  }
-  return typeof r === 'string' ? r : JSON.stringify(r, null, 2)
+  return typeof value === 'string' ? value : JSON.stringify(value, null, 2)
 }
+
+const formattedToolResult = computed(() => formatToolResult(props.message.toolResult))
+const toolResultPreview = computed(() => {
+  const text = formattedToolResult.value
+  return !showFullToolResult.value && text.length > 600 ? `${text.slice(0, 600)}…` : text
+})
 
 // Handle permission response
 // Decision state is persisted by useChatV2Handler.respondToPermission -> sessionStore.updateMessageDecision
@@ -1093,7 +1105,7 @@ function getTodoStatusBadge(status: string): { bg: string; color: string; label:
             <div v-if="message.toolInput">
               <div class="text-[10px] font-medium mb-1" style="color: var(--text-tertiary);">Input</div>
               <pre
-                class="text-[11px] p-2 rounded-lg overflow-x-auto max-h-48 max-w-full font-mono whitespace-pre-wrap break-all"
+                class="text-[11px] p-2 rounded-lg overflow-x-auto max-h-48 max-w-full font-mono whitespace-pre-wrap break-words"
                 style="background: var(--surface-base); color: var(--text-secondary);"
               >{{ JSON.stringify(message.toolInput, null, 2) }}</pre>
             </div>
@@ -1102,12 +1114,18 @@ function getTodoStatusBadge(status: string): { bg: string; color: string; label:
             <div v-if="message.toolResult">
               <div class="text-[10px] font-medium mb-1" style="color: var(--text-tertiary);">Result</div>
               <pre
-                class="text-[11px] p-2 rounded-lg overflow-x-auto max-h-48 max-w-full font-mono whitespace-pre-wrap break-all"
+                class="text-[11px] p-2 rounded-lg overflow-x-auto max-h-80 max-w-full font-mono whitespace-pre-wrap break-words"
                 :style="{
                   background: 'var(--surface-base)',
                   color: message.isError ? '#ef4444' : 'var(--text-secondary)',
                 }"
-              >{{ formatToolResult(message.toolResult) }}</pre>
+              >{{ toolResultPreview }}</pre>
+              <button
+                v-if="formattedToolResult.length > 600"
+                class="mt-1 text-[11px] hover:underline"
+                style="color: var(--text-indigo);"
+                @click="showFullToolResult = !showFullToolResult"
+              >{{ showFullToolResult ? 'Show less' : 'Show full result' }}</button>
             </div>
           </div>
         </div>
