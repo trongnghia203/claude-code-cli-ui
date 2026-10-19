@@ -19,6 +19,8 @@ const { imports: githubImports, fetchImports } = useGithubImports();
 const { settings, load: loadSettings } = useSettings();
 const { info: projectInfo } = useProjectInfo();
 const { workingDir, displayPath } = useWorkingDir();
+const iterm = useItermSessions();
+iterm.startPolling();
 
 // Recent chats: newest sessions across projects, or only the current project's
 interface RecentChat {
@@ -29,6 +31,8 @@ interface RecentChat {
   isActiveSession?: boolean
   projectName: string
   projectDisplayName: string
+  projectPath?: string
+  cwd?: string
 }
 const recentChats = ref<RecentChat[]>([])
 // Cost/tokens per recent chat, filled in after the list renders (summing a session file can be slow)
@@ -564,11 +568,18 @@ const statItems = computed(() => [
               :to="`/cli/project/${encodeURIComponent(s.projectName)}/session/${encodeURIComponent(s.id)}`"
               class="flex items-center gap-3 px-4 h-10 hover-bg group min-w-0"
             >
-              <span
-                class="size-1.5 rounded-full shrink-0"
-                :style="{ background: s.isActiveSession ? '#22c55e' : 'var(--border-default)' }"
-                :title="s.isActiveSession ? 'Active now' : undefined"
-              />
+              <button
+                type="button"
+                class="flex items-center justify-center size-5 shrink-0 rounded transition-colors hover:bg-black/10 dark:hover:bg-white/10"
+                :title="iterm.isAttached(s.id) ? 'Running in iTerm2 - switch to it' : 'Open in iTerm2'"
+                @click.prevent.stop="iterm.launch(s.id, s.cwd || s.projectPath, s.projectPath)"
+              >
+                <UIcon
+                  name="i-lucide-square-terminal"
+                  class="size-3.5"
+                  :style="{ color: iterm.isAttached(s.id) ? 'var(--accent)' : 'var(--text-tertiary)' }"
+                />
+              </button>
               <div class="flex-1 min-w-0 flex items-baseline gap-2">
                 <span class="text-[13px] font-medium truncate min-w-0" :title="s.summary">{{ recentTitle(s.summary) }}</span>
                 <span v-if="recentScope === 'all' || !workingDir" class="text-[11px] text-label shrink-0 max-w-[40%] truncate">[{{ s.projectDisplayName }}]</span>
@@ -579,6 +590,11 @@ const statItems = computed(() => [
                 :title="`${fmtRecentTokens(recentCosts[recentKey(s)]!.tokens)} tokens · ${recentCosts[recentKey(s)]!.requests} req`"
               >{{ fmtRecentCost(recentCosts[recentKey(s)]!.cost) }}</span>
               <span class="text-[11px] shrink-0 text-meta">{{ formatRelativeTime(s.lastActivity) }}</span>
+              <span
+                class="size-1.5 rounded-full shrink-0"
+                :style="{ background: s.isActiveSession ? '#22c55e' : 'var(--border-default)' }"
+                :title="s.isActiveSession ? 'Active now' : 'Idle'"
+              />
             </NuxtLink>
             <div v-if="recentLoadingMore" class="px-4 h-8 flex items-center text-[11px] text-meta">Loading…</div>
           </div>
