@@ -330,6 +330,28 @@ function openProjectDeleteModal(project: typeof projects.value[0], event: Event)
   showDeleteModal.value = true
 }
 
+// Open session in iTerm2 (focuses existing tab if already running there)
+const toast = useToast()
+const ITERM_RESULT_TITLE = {
+  'focused': 'Switched to open iTerm2 session',
+  'opened-tab': 'Opened in new iTerm2 tab',
+  'opened-window': 'Opened in new iTerm2 window',
+} as const
+
+async function launchInIterm(session: typeof sessions.value[0], event: Event) {
+  event.stopPropagation()
+  const cwd = session.cwd || selectedProject.value?.path
+  try {
+    const { result } = await $fetch<{ result: keyof typeof ITERM_RESULT_TITLE }>(
+      `/api/sessions/${encodeURIComponent(session.id)}/launch-terminal`,
+      { method: 'POST', body: { cwd } },
+    )
+    toast.add({ title: ITERM_RESULT_TITLE[result] ?? 'Opened in iTerm2', color: 'success' })
+  } catch (e: any) {
+    toast.add({ title: 'Failed to open iTerm2', description: e?.data?.message || e?.message, color: 'error' })
+  }
+}
+
 // Start inline editing
 function startEditing(session: typeof sessions.value[0], event: Event) {
   event.stopPropagation()
@@ -758,6 +780,13 @@ function confirmDelete() {
                   </div>
                   <!-- Edit/delete buttons: shown on hover -->
                   <div class="flex items-center gap-0.5 opacity-0 group-hover/session:opacity-100 transition-opacity">
+                    <button
+                      class="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+                      title="Open in iTerm2"
+                      @click="launchInIterm(session, $event)"
+                    >
+                      <UIcon name="i-lucide-square-terminal" class="size-3" style="color: var(--text-tertiary);" />
+                    </button>
                     <button
                       class="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
                       title="Rename"
