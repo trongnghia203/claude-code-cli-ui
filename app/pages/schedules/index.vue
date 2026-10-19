@@ -111,7 +111,7 @@ useHead({ title: 'Schedules | Agent Manager' })
 
 <template>
   <div class="h-full flex min-h-0">
-    <!-- Left column: schedules and their runs -->
+    <!-- Left column: schedules -->
     <aside class="w-[340px] shrink-0 flex flex-col min-h-0" style="border-right: 1px solid var(--border-subtle)">
       <div class="shrink-0 px-4 min-h-[56px] flex items-center justify-between" style="border-bottom: 1px solid var(--border-subtle)">
         <h1 class="text-[14px] font-semibold flex items-center gap-2">
@@ -168,22 +168,6 @@ useHead({ title: 'Schedules | Agent Manager' })
               <span v-else class="text-meta">Never run</span>
               <span v-if="job.enabled && !job.registered" class="px-1.5 rounded-full" style="background: rgba(239,68,68,0.1); color: #ef4444;" title="Enabled but the scheduler is not running. Restart Claude UI, or save it again.">not registered</span>
             </div>
-          </div>
-
-          <!-- Runs of the selected schedule -->
-          <div v-if="selectedJobId === job.id" class="mt-1 ml-3 pl-2 space-y-0.5" style="border-left: 2px solid var(--border-subtle)">
-            <p v-if="!runs.length" class="text-[11px] text-meta px-2 py-2">No runs yet. Use Run now.</p>
-            <button
-              v-for="run in runs"
-              :key="run.id"
-              class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left hover-bg"
-              :style="selectedRunId === run.id ? 'background: var(--accent-muted);' : ''"
-              @click="select(job.id, run.id)"
-            >
-              <UIcon :name="STATUS[run.status].icon" class="size-3.5 shrink-0" :class="{ 'animate-spin': run.status === 'running' }" :style="{ color: STATUS[run.status].color }" />
-              <span class="text-[12px] flex-1 truncate">{{ when(run.startedAt) }}<span v-if="run.trigger === 'manual'" class="text-meta"> &middot; manual</span></span>
-              <span class="text-[10px] font-mono text-meta shrink-0">{{ [duration(run.durationMs), cost(run.costUsd)].filter(Boolean).join(' · ') }}</span>
-            </button>
           </div>
         </div>
       </div>
@@ -272,7 +256,7 @@ useHead({ title: 'Schedules | Agent Manager' })
             </div>
           </div>
 
-          <p class="text-[12px] text-meta">Pick a run on the left to read its output.</p>
+          <p class="text-[12px] text-meta">Pick a run on the right to read its output.</p>
         </div>
       </div>
 
@@ -289,6 +273,29 @@ useHead({ title: 'Schedules | Agent Manager' })
         <UButton v-if="supported" label="New Schedule" icon="i-lucide-plus" size="sm" class="mt-3" @click="newJob" />
       </div>
     </section>
+
+    <!-- Right column: runs of the selected schedule -->
+    <aside v-if="selectedJob" class="w-[320px] shrink-0 flex flex-col min-h-0" style="border-left: 1px solid var(--border-subtle)">
+      <div class="shrink-0 px-4 min-h-[56px] flex items-center" style="border-bottom: 1px solid var(--border-subtle)">
+        <h2 class="text-[14px] font-semibold flex items-center gap-2">
+          Runs <span class="font-mono text-[11px] font-normal text-meta">{{ runs.length }}</span>
+        </h2>
+      </div>
+      <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-3 space-y-0.5">
+        <p v-if="!runs.length" class="text-[11px] text-meta px-2 py-2">No runs yet. Use Run now.</p>
+        <button
+          v-for="run in runs"
+          :key="run.id"
+          class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left hover-bg"
+          :style="selectedRunId === run.id ? 'background: var(--accent-muted);' : ''"
+          @click="select(selectedJob.id, run.id)"
+        >
+          <UIcon :name="STATUS[run.status].icon" class="size-3.5 shrink-0" :class="{ 'animate-spin': run.status === 'running' }" :style="{ color: STATUS[run.status].color }" />
+          <span class="text-[12px] flex-1 truncate">{{ when(run.startedAt) }}<span v-if="run.trigger === 'manual'" class="text-meta"> &middot; manual</span></span>
+          <span class="text-[10px] font-mono text-meta shrink-0">{{ [duration(run.durationMs), cost(run.costUsd)].filter(Boolean).join(' · ') }}</span>
+        </button>
+      </div>
+    </aside>
 
     <!-- Create / edit -->
     <UModal v-model:open="showEditor">

@@ -109,8 +109,8 @@ const resultHtml = computed(() =>
           Blocked: {{ [...new Set(run.permissionDenials)].join(', ') }}. Add it to the schedule's allowed tools if the run needs it.
         </div>
 
-        <div v-if="resultHtml" class="rounded-xl bg-card p-6" style="border: 1px solid var(--border-subtle)">
-          <div class="run-result text-[14px] leading-[1.7] w-full" v-html="resultHtml" />
+        <div v-if="resultHtml" class="rounded-xl bg-card p-6 min-w-0 overflow-hidden" style="border: 1px solid var(--border-subtle)">
+          <div class="run-result text-[14px] leading-[1.7] w-full min-w-0" v-html="resultHtml" />
         </div>
         <p v-else-if="run.status === 'running'" class="flex items-center gap-2 text-[13px] text-meta">
           <UIcon name="i-lucide-loader-2" class="size-4 animate-spin" /> Running. This updates when the run finishes.
@@ -131,8 +131,9 @@ const resultHtml = computed(() =>
 </template>
 
 <style scoped>
-.run-result :deep(table) { border-collapse: collapse; width: 100%; font-size: 13px; margin: 0.8em 0; }
-.run-result :deep(th), .run-result :deep(td) { border: 1px solid var(--border-subtle); padding: 6px 10px; text-align: left; vertical-align: top; }
+/* Wide tables scroll inside the card instead of spilling past it */
+.run-result :deep(table) { display: block; overflow-x: auto; max-width: 100%; border-collapse: collapse; font-size: 13px; margin: 0.8em 0; }
+.run-result :deep(th), .run-result :deep(td) { border: 1px solid var(--border-subtle); padding: 6px 10px; text-align: left; vertical-align: top; min-width: 70px; max-width: 280px; }
 .run-result :deep(th) { background: var(--surface-raised); font-weight: 600; }
 .run-result :deep(a) { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; cursor: pointer; }
 .run-result :deep(a:hover) { opacity: 0.8; }
