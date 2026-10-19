@@ -1,5 +1,6 @@
 import { existsSync, statSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
+import { homedir } from 'node:os'
 import { resolveHome } from '../path'
 import { getInstalledClaudePath } from '../claudeBinary'
 import type { PermissionModeSetting, ScheduleJob, ScheduleSpec } from './core'
@@ -18,13 +19,15 @@ export function toJob(body: any, existing?: ScheduleJob): ScheduleJob {
   const prompt = String(body.prompt ?? '').trim()
   if (!prompt) throw new Error('Prompt is required')
 
-  const workingDir = resolveHome(String(body.workingDir ?? '').trim())
+  // Project jobs show on their project's tab, global ones on the Global tab
+  const scope: 'global' | 'project' = body.scope === 'global' ? 'global' : 'project'
+
+  // A global job needs no project: with no folder given it runs in the home folder
+  const typedDir = String(body.workingDir ?? '').trim()
+  const workingDir = resolveHome(typedDir || (scope === 'global' ? homedir() : ''))
   if (!workingDir || !existsSync(workingDir) || !statSync(workingDir).isDirectory()) {
     throw new Error(`Project folder not found: ${workingDir || '(empty)'}`)
   }
-
-  // Project jobs show on their project's tab, global ones on the Global tab
-  const scope: 'global' | 'project' = body.scope === 'global' ? 'global' : 'project'
 
   const s = body.schedule ?? {}
   if (!KINDS.includes(s.kind)) throw new Error('Pick a schedule type')

@@ -59,7 +59,7 @@ function submit() {
   error.value = ''
   if (!form.name.trim()) return (error.value = 'Give the schedule a name')
   if (!form.prompt.trim()) return (error.value = 'The prompt is empty')
-  if (!form.workingDir.trim()) return (error.value = 'Pick a project folder')
+  if (form.scope === 'project' && !form.workingDir.trim()) return (error.value = 'Pick a project folder')
   emit('save', {
     name: form.name.trim(),
     enabled: form.enabled,
@@ -113,54 +113,26 @@ function submit() {
       </div>
 
       <div class="field-group">
-        <label class="field-label" data-required>Project folder</label>
-        <input v-model="form.workingDir" class="field-input font-mono" placeholder="/Users/you/project" />
-        <span class="field-hint">Claude runs in this folder, so it reads that project's CLAUDE.md and settings.</span>
-      </div>
-
-      <div class="field-group">
         <label class="field-label">Scope</label>
-        <select v-model="form.scope" class="field-input">
+        <select v-model="form.scope" class="field-select">
           <option value="project">Project - listed on the tab of the project folder</option>
           <option value="global">Global - listed on the Global tab</option>
         </select>
         <span class="field-hint">All schedules are stored in one file. Scope only decides which tab lists it.</span>
       </div>
 
-      <div :class="inline ? 'grid grid-cols-2 gap-4' : 'space-y-4'">
-        <div class="field-group">
-          <label class="field-label" data-required>Name</label>
-          <input v-model="form.name" class="field-input" placeholder="GC Lead Jira triage" />
-        </div>
-
-        <div class="field-group">
-          <label class="field-label">Agent <span class="font-normal text-meta">(optional)</span></label>
-          <select v-model="form.agent" class="field-select">
-            <option value="">No agent, plain prompt</option>
-            <option v-for="a in agents" :key="a.slug" :value="a.slug">{{ a.frontmatter.name }}</option>
-          </select>
-          <span class="field-hint">Runs the whole session as this agent, with its instructions and tool list.</span>
-        </div>
-      </div>
-
       <div class="field-group">
-        <label class="field-label" data-required>Prompt</label>
-        <textarea v-model="form.prompt" :rows="inline ? 6 : 4" class="field-textarea" placeholder="What should Claude do on each run?" />
-      </div>
-
-      <div class="field-group">
-        <label class="field-label" data-required>Project folder</label>
-        <input v-model="form.workingDir" class="field-input font-mono" placeholder="/Users/you/project" />
-        <span class="field-hint">Claude runs in this folder, so it reads that project's CLAUDE.md and settings.</span>
-      </div>
-
-      <div class="field-group">
-        <label class="field-label">Stored in</label>
-        <select v-model="form.scope" class="field-input">
-          <option value="project">Project - &lt;project folder&gt;/.claude/schedules.json</option>
-          <option value="global">Global - ~/.config/claude-ui/schedules.json</option>
-        </select>
-        <span class="field-hint">Project schedules travel with the project folder. Global ones show on the Global tab.</span>
+        <label class="field-label" :data-required="form.scope === 'project' ? true : undefined">{{ form.scope === 'global' ? 'Run in folder' : 'Project folder' }}</label>
+        <input
+          v-model="form.workingDir"
+          class="field-input font-mono"
+          :placeholder="form.scope === 'global' ? 'Optional, defaults to your home folder' : '/Users/you/project'"
+        />
+        <span class="field-hint">
+          {{ form.scope === 'global'
+            ? 'Claude runs here. Global schedules usually do not need a project, so you can leave it empty.'
+            : "Claude runs in this folder, so it reads that project's CLAUDE.md and settings." }}
+        </span>
       </div>
 
       <div :class="inline ? 'grid grid-cols-2 gap-4' : 'space-y-4'">
