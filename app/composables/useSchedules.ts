@@ -23,6 +23,8 @@ export interface ScheduleItem {
   nextRun: string | null
   registered: boolean
   lastRun: { id: string; status: RunStatus; startedAt: string; durationMs?: number; costUsd?: number } | null
+  /** Which tab lists it: Global, or the tab of the project in workingDir */
+  scope: 'global' | 'project'
 }
 
 export type RunStatus = 'running' | 'success' | 'error' | 'timeout'

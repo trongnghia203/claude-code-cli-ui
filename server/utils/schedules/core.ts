@@ -33,6 +33,8 @@ export interface ScheduleJob {
   schedule: ScheduleSpec
   claudePath?: string
   createdAt: string
+  /** Which tab lists the job: the Global tab, or the tab of the project in workingDir */
+  scope: 'global' | 'project'
 }
 
 export interface ScheduleRun {

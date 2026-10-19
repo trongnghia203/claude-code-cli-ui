@@ -23,6 +23,9 @@ export function toJob(body: any, existing?: ScheduleJob): ScheduleJob {
     throw new Error(`Project folder not found: ${workingDir || '(empty)'}`)
   }
 
+  // Project jobs show on their project's tab, global ones on the Global tab
+  const scope: 'global' | 'project' = body.scope === 'global' ? 'global' : 'project'
+
   const s = body.schedule ?? {}
   if (!KINDS.includes(s.kind)) throw new Error('Pick a schedule type')
   if (s.kind === 'interval') {
@@ -57,5 +60,6 @@ export function toJob(body: any, existing?: ScheduleJob): ScheduleJob {
     },
     claudePath: getInstalledClaudePath(),
     createdAt: existing?.createdAt ?? new Date().toISOString(),
+    scope,
   }
 }

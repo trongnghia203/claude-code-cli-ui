@@ -14,6 +14,27 @@ const selectedJobId = computed(() => (typeof route.query.job === 'string' ? rout
 const selectedRunId = computed(() => (typeof route.query.run === 'string' ? route.query.run : null))
 const selectedJob = computed(() => jobs.value.find(j => j.id === selectedJobId.value) ?? null)
 
+// Same scope toggle as Memory: Project = schedules scoped to the current project, Global = the global ones
+type Scope = 'global' | 'project'
+const scope = ref<Scope>('project')
+const scopeTabs: { value: Scope; label: string; icon: string }[] = [
+  { value: 'global', label: 'Global', icon: 'i-lucide-globe' },
+  { value: 'project', label: 'Project', icon: 'i-lucide-folder' },
+]
+const trimDir = (d?: string | null) => (d ?? '').replace(/\/+$/, '')
+// Global lists only global schedules, Project only the ones scoped to the selected project (same split as Memory)
+const visibleJobs = computed(() =>
+  scope.value === 'project'
+    ? jobs.value.filter(j => j.scope === 'project' && trimDir(j.workingDir) === trimDir(workingDir.value))
+    : jobs.value.filter(j => j.scope === 'global'),
+)
+// With no project set there is no "this project": show everything
+watch(workingDir, (dir) => { if (!dir) scope.value = 'global' }, { immediate: true })
+// Leaving a schedule that the new scope hides would show a ghost selection
+watch(visibleJobs, (list) => {
+  if (selectedJobId.value && jobs.value.length && !list.some(j => j.id === selectedJobId.value)) select(null)
+})
+
 function select(jobId: string | null, runId: string | null = null) {
   router.push({ path: '/schedules', query: { ...(jobId ? { job: jobId } : {}), ...(runId ? { run: runId } : {}) } })
 }
@@ -115,11 +136,26 @@ useHead({ title: 'Schedules | Agent Manager' })
     <aside class="w-[340px] shrink-0 flex flex-col min-h-0" style="border-right: 1px solid var(--border-subtle)">
       <div class="shrink-0 px-4 min-h-[56px] flex items-center justify-between" style="border-bottom: 1px solid var(--border-subtle)">
         <h1 class="text-[14px] font-semibold flex items-center gap-2">
-          Schedules <span class="font-mono text-[11px] font-normal text-meta">{{ jobs.length }}</span>
+          Schedules <span class="font-mono text-[11px] font-normal text-meta">{{ visibleJobs.length }}</span>
         </h1>
         <button class="p-1.5 rounded-lg hover-bg flex items-center justify-center" title="Refresh" style="color: var(--text-tertiary)" @click="refresh">
           <UIcon name="i-lucide-refresh-cw" class="size-3.5 block" :class="{ 'animate-spin': loading }" />
         </button>
+      </div>
+
+      <div class="shrink-0 px-3 pt-3">
+        <div class="grid grid-cols-2 gap-1 p-1 rounded-lg" style="background: var(--surface-raised); border: 1px solid var(--border-subtle);">
+          <button
+            v-for="tab in scopeTabs"
+            :key="tab.value"
+            class="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-[12px] font-medium transition-colors focus-ring"
+            :style="scope === tab.value ? 'background: var(--accent-muted); color: var(--text-primary);' : 'color: var(--text-secondary);'"
+            @click="scope = tab.value"
+          >
+            <UIcon :name="tab.icon" class="size-3.5" />
+            {{ tab.label }}
+          </button>
+        </div>
       </div>
 
       <div class="shrink-0 p-3">
@@ -135,10 +171,12 @@ useHead({ title: 'Schedules | Agent Manager' })
 
       <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-3 pb-3 space-y-2">
         <p v-if="!supported" class="text-[12px] px-1" style="color: #d97706;">Scheduled runs need macOS (launchd).</p>
-        <p v-else-if="mode === 'inprocess' && jobs.length" class="text-[11px] px-1 text-meta">Schedules run while Claude UI is open. Missed runs are not made up.</p>
-        <p v-else-if="!jobs.length && !loading" class="text-[12px] text-meta px-1 py-6 text-center">No schedules yet. Create one to run a prompt or an agent on a timer.</p>
+        <p v-else-if="mode === 'inprocess' && visibleJobs.length" class="text-[11px] px-1 text-meta">Schedules run while Claude UI is open. Missed runs are not made up.</p>
+        <p v-else-if="!visibleJobs.length && !loading" class="text-[12px] text-meta px-1 py-6 text-center">
+          {{ scope === 'project' ? 'No schedules for this project yet. Create one to run a prompt or an agent on a timer.' : 'No global schedules yet.' }}
+        </p>
 
-        <div v-for="job in jobs" :key="job.id">
+        <div v-for="job in visibleJobs" :key="job.id">
           <div
             class="group rounded-xl p-3 cursor-pointer transition-colors"
             :style="{
@@ -300,7 +338,7 @@ useHead({ title: 'Schedules | Agent Manager' })
     <!-- Create / edit -->
     <UModal v-model:open="showEditor">
       <template #content>
-        <ScheduleEditor :job="editing ?? undefined" :default-dir="workingDir" @save="onSave" @cancel="showEditor = false" />
+        <ScheduleEditor :job="editing ?? undefined" :default-dir="workingDir" :default-scope="scope" @save="onSave" @cancel="showEditor = false" />
       </template>
     </UModal>
 

@@ -31,9 +31,14 @@ export function ensureDirs() {
 
 // ---------- storage ----------
 
+/**
+ * Every job, from the one schedules.json. Each has a `scope`: 'project' jobs show on that project's tab (matched on
+ * workingDir), 'global' jobs on the Global tab. Jobs saved before scopes existed count as project jobs.
+ */
 export function readJobs() {
   try {
-    return JSON.parse(readFileSync(SCHEDULES_FILE, 'utf-8')).jobs ?? []
+    const jobs = JSON.parse(readFileSync(SCHEDULES_FILE, 'utf-8')).jobs ?? []
+    return jobs.map(j => ({ ...j, scope: j.scope === 'global' ? 'global' : 'project' }))
   } catch {
     return []
   }

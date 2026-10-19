@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ScheduleInput, ScheduleItem, ScheduleSpec } from '~/composables/useSchedules'
 
-const props = defineProps<{ job?: ScheduleItem; defaultDir?: string; inline?: boolean }>()
+const props = defineProps<{ job?: ScheduleItem; defaultDir?: string; defaultScope?: 'global' | 'project'; inline?: boolean }>()
 const emit = defineEmits<{ save: [input: ScheduleInput]; cancel: [] }>()
 
 const { agents, fetchAll: fetchAgents } = useAgents()
@@ -16,6 +16,7 @@ const form = reactive({
   agent: props.job?.agent ?? '',
   prompt: props.job?.prompt ?? '',
   workingDir: props.job?.workingDir ?? props.defaultDir ?? '',
+  scope: (props.job?.scope ?? props.defaultScope ?? 'project') as 'global' | 'project',
   model: props.job?.model ?? '',
   permissionMode: props.job?.permissionMode ?? ('plan' as ScheduleInput['permissionMode']),
   allowedTools: (props.job?.allowedTools ?? []).join('\n'),
@@ -65,6 +66,7 @@ function submit() {
     agent: form.agent || null,
     prompt: form.prompt,
     workingDir: form.workingDir.trim(),
+    scope: form.scope,
     model: form.model || null,
     permissionMode: form.permissionMode,
     allowedTools: lines(form.allowedTools),
@@ -114,6 +116,51 @@ function submit() {
         <label class="field-label" data-required>Project folder</label>
         <input v-model="form.workingDir" class="field-input font-mono" placeholder="/Users/you/project" />
         <span class="field-hint">Claude runs in this folder, so it reads that project's CLAUDE.md and settings.</span>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label">Scope</label>
+        <select v-model="form.scope" class="field-input">
+          <option value="project">Project - listed on the tab of the project folder</option>
+          <option value="global">Global - listed on the Global tab</option>
+        </select>
+        <span class="field-hint">All schedules are stored in one file. Scope only decides which tab lists it.</span>
+      </div>
+
+      <div :class="inline ? 'grid grid-cols-2 gap-4' : 'space-y-4'">
+        <div class="field-group">
+          <label class="field-label" data-required>Name</label>
+          <input v-model="form.name" class="field-input" placeholder="GC Lead Jira triage" />
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Agent <span class="font-normal text-meta">(optional)</span></label>
+          <select v-model="form.agent" class="field-select">
+            <option value="">No agent, plain prompt</option>
+            <option v-for="a in agents" :key="a.slug" :value="a.slug">{{ a.frontmatter.name }}</option>
+          </select>
+          <span class="field-hint">Runs the whole session as this agent, with its instructions and tool list.</span>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label" data-required>Prompt</label>
+        <textarea v-model="form.prompt" :rows="inline ? 6 : 4" class="field-textarea" placeholder="What should Claude do on each run?" />
+      </div>
+
+      <div class="field-group">
+        <label class="field-label" data-required>Project folder</label>
+        <input v-model="form.workingDir" class="field-input font-mono" placeholder="/Users/you/project" />
+        <span class="field-hint">Claude runs in this folder, so it reads that project's CLAUDE.md and settings.</span>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label">Stored in</label>
+        <select v-model="form.scope" class="field-input">
+          <option value="project">Project - &lt;project folder&gt;/.claude/schedules.json</option>
+          <option value="global">Global - ~/.config/claude-ui/schedules.json</option>
+        </select>
+        <span class="field-hint">Project schedules travel with the project folder. Global ones show on the Global tab.</span>
       </div>
 
       <div :class="inline ? 'grid grid-cols-2 gap-4' : 'space-y-4'">
