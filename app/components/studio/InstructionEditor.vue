@@ -213,7 +213,7 @@ function dismissSuggestion() {
     <!-- Preview mode -->
     <div
       v-else
-      class="flex-1 min-h-0 overflow-y-auto p-4 instruction-preview"
+      class="flex-1 min-h-0 overflow-y-auto px-6 py-5 instruction-preview"
       style="color: var(--text-primary); font-family: var(--font-sans);"
     >
       <div
@@ -231,26 +231,30 @@ function dismissSuggestion() {
 
 <style scoped>
 .instruction-preview {
-  word-break: break-word;
   overflow-wrap: break-word;
   max-width: 100%;
 }
-.instruction-preview :deep(h1) { font-size: 1.4em; font-weight: 700; margin: 0.8em 0 0.4em; color: var(--text-primary); font-family: var(--font-display); }
-.instruction-preview :deep(h2) { font-size: 1.2em; font-weight: 600; margin: 0.7em 0 0.3em; color: var(--text-primary); font-family: var(--font-display); }
-.instruction-preview :deep(h3) { font-size: 1.05em; font-weight: 600; margin: 0.6em 0 0.3em; color: var(--text-primary); }
-.instruction-preview :deep(p) { margin: 0.5em 0; }
+.instruction-preview :deep(h1) { font-size: 1.5em; font-weight: 700; margin: 0.4em 0 0.6em; padding-bottom: 0.3em; border-bottom: 1px solid var(--border-subtle); color: var(--text-primary); font-family: var(--font-display); }
+.instruction-preview :deep(h2) { font-size: 1.25em; font-weight: 600; margin: 1.6em 0 0.5em; padding-bottom: 0.25em; border-bottom: 1px solid var(--border-subtle); color: var(--text-primary); font-family: var(--font-display); }
+.instruction-preview :deep(h3) { font-size: 1.05em; font-weight: 600; margin: 1.2em 0 0.4em; color: var(--text-primary); }
+.instruction-preview :deep(p) { margin: 0.7em 0; }
 .instruction-preview :deep(ul), .instruction-preview :deep(ol) { padding-left: 1.5em; margin: 0.5em 0; }
 .instruction-preview :deep(li) { margin: 0.25em 0; }
 .instruction-preview :deep(code) { font-family: var(--font-mono); font-size: 0.9em; background: var(--badge-subtle-bg); padding: 0.15em 0.4em; border-radius: 4px; }
 .instruction-preview :deep(pre) { background: var(--surface-base); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 0.75em 1em; overflow-x: auto; margin: 0.6em 0; }
 .instruction-preview :deep(pre code) { background: none; padding: 0; font-size: 0.85em; }
 .instruction-preview :deep(strong) { color: var(--text-primary); font-weight: 600; }
-.instruction-preview :deep(blockquote) { border-left: 2px solid var(--accent); padding-left: 0.75em; margin: 0.5em 0; color: var(--text-secondary); }
+.instruction-preview :deep(blockquote) { border-left: 3px solid var(--accent); background: var(--surface-raised); padding: 0.5em 0.9em; margin: 0.8em 0; border-radius: 0 6px 6px 0; color: var(--text-secondary); }
+.instruction-preview :deep(blockquote p) { margin: 0.25em 0; }
 .instruction-preview :deep(hr) { border: none; border-top: 1px solid var(--border-subtle); margin: 1em 0; }
-.instruction-preview :deep(a) { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
-.instruction-preview :deep(table) { width: 100%; border-collapse: collapse; font-size: 0.9em; margin: 0.6em 0; }
-.instruction-preview :deep(th), .instruction-preview :deep(td) { border: 1px solid var(--border-subtle); padding: 0.4em 0.6em; text-align: left; }
-.instruction-preview :deep(th) { background: var(--surface-raised); font-weight: 600; }
+.instruction-preview :deep(a) { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
+/* Wide tables scroll sideways; cells wrap on words, never mid-word */
+.instruction-preview :deep(table) { display: block; width: max-content; max-width: 100%; overflow-x: auto; border-collapse: separate; border-spacing: 0; font-size: 0.88em; line-height: 1.5; margin: 1em 0; border: 1px solid var(--border-subtle); border-radius: 8px; }
+.instruction-preview :deep(th), .instruction-preview :deep(td) { border-bottom: 1px solid var(--border-subtle); border-right: 1px solid var(--border-subtle); padding: 0.5em 0.75em; text-align: left; vertical-align: top; min-width: 5.5em; max-width: 30em; overflow-wrap: break-word; }
+.instruction-preview :deep(th:last-child), .instruction-preview :deep(td:last-child) { border-right: none; }
+.instruction-preview :deep(tr:last-child td) { border-bottom: none; }
+.instruction-preview :deep(th) { background: var(--surface-raised); font-weight: 600; white-space: nowrap; }
+.instruction-preview :deep(tbody tr:nth-child(even) td) { background: color-mix(in srgb, var(--surface-raised) 45%, transparent); }
 
 /* Shiki styles */
 .instruction-preview :deep(.shiki-wrapper) {
