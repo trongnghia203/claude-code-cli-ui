@@ -395,11 +395,7 @@ const selectedProjectPath = computed(() => {
 })
 
 // Open current session in iTerm2 (focuses existing tab if already running there)
-const ITERM_RESULT_TITLE = {
-  'focused': 'Switched to open iTerm2 session',
-  'opened-tab': 'Opened in new iTerm2 tab',
-  'opened-window': 'Opened in new iTerm2 window',
-} as const
+const iterm = useItermSessions()
 
 const openTerminalSessionId = computed(() => currentSessionId.value || urlSessionId.value)
 
@@ -410,19 +406,11 @@ const showHistoryActions = computed(() =>
 )
 watch(openTerminalSessionId, () => { composerOpen.value = false })
 
-async function launchInIterm() {
+function launchInIterm() {
   const sessionId = openTerminalSessionId.value
   if (!sessionId) return
   const session = history.sessions.value.find(s => s.id === sessionId)
-  try {
-    const { result } = await $fetch<{ result: keyof typeof ITERM_RESULT_TITLE }>(
-      `/api/sessions/${encodeURIComponent(sessionId)}/launch-terminal`,
-      { method: 'POST', body: { cwd: session?.cwd || selectedProjectPath.value, projectPath: selectedProjectPath.value } },
-    )
-    toast.add({ title: ITERM_RESULT_TITLE[result] ?? 'Opened in iTerm2', color: 'success' })
-  } catch (e: any) {
-    toast.add({ title: 'Failed to open iTerm2', description: e?.data?.message || e?.message, color: 'error' })
-  }
+  iterm.launch(sessionId, session?.cwd || selectedProjectPath.value, selectedProjectPath.value)
 }
 
 // ── Config Panel (rendered in main content area) ──

@@ -330,6 +330,15 @@ function openProjectDeleteModal(project: typeof projects.value[0], event: Event)
   showDeleteModal.value = true
 }
 
+// Open session in iTerm2; icon is colored when a terminal is already attached
+const iterm = useItermSessions()
+iterm.startPolling()
+
+function launchInIterm(session: typeof sessions.value[0], event: Event) {
+  event.stopPropagation()
+  iterm.launch(session.id, session.cwd || selectedProject.value?.path, selectedProject.value?.path)
+}
+
 // Start inline editing
 function startEditing(session: typeof sessions.value[0], event: Event) {
   event.stopPropagation()
@@ -697,7 +706,7 @@ function confirmDelete() {
             }"
             @click="handleSessionClick(session)"
           >
-              <div class="flex items-start gap-1 min-w-0">
+              <div class="flex items-center gap-1 min-w-0">
                 <div class="flex-1 min-w-0">
                   <!-- Inline edit mode -->
                   <template v-if="editingSessionId === session.id">
@@ -730,12 +739,33 @@ function confirmDelete() {
                   <!-- Normal title display -->
                   <div
                     v-else
-                    class="text-[12px] font-medium truncate mb-1"
+                    class="flex items-center gap-2 text-[12px] font-medium mb-1"
                     style="color: var(--text-primary);"
                   >
-                    <span class="truncate">{{ stripSystemXml(session.summary) || 'Session' }}</span>
+                    <button
+                      class="flex items-center justify-center size-5 shrink-0 rounded transition-colors hover:bg-black/10 dark:hover:bg-white/10"
+                      :title="iterm.isAttached(session.id) ? 'Running in iTerm2 - switch to it' : 'Open in iTerm2'"
+                      @click="launchInIterm(session, $event)"
+                    >
+                      <UIcon
+                        name="i-lucide-square-terminal"
+                        class="size-3.5"
+                        :style="{ color: iterm.isAttached(session.id) ? 'var(--accent)' : 'var(--text-tertiary)' }"
+                      />
+                    </button>
+                    <span class="truncate min-w-0">{{ stripSystemXml(session.summary) || 'Session' }}</span>
                   </div>
                   <div class="flex flex-wrap items-center gap-2 text-[10px]" style="color: var(--text-tertiary);">
+                    <span class="flex items-center justify-center size-5 shrink-0">
+                      <span
+                        class="size-2 rounded-full shrink-0"
+                        :class="{ 'animate-pulse': isSessionLive(session.lastActivity) }"
+                        :style="isSessionLive(session.lastActivity)
+                          ? 'background: #22c55e; box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);'
+                          : 'background: var(--text-disabled, #9ca3af); opacity: 0.6;'"
+                        :title="isSessionLive(session.lastActivity) ? 'Session is active' : 'Session is idle'"
+                      />
+                    </span>
                     <span>{{ session.messageCount }} messages</span>
                     <span>{{ formatRelativeTime(session.lastActivity) }}</span>
                   </div>
@@ -745,17 +775,6 @@ function confirmDelete() {
                   v-if="editingSessionId !== session.id"
                   class="relative flex items-center shrink-0"
                 >
-                  <!-- Active indicator fades out on hover; buttons fade in — same position -->
-                  <div
-                    v-if="isSessionLive(session.lastActivity)"
-                    class="absolute inset-0 flex items-center justify-center group-hover/session:opacity-0 transition-opacity pointer-events-none"
-                    title="Session is active"
-                  >
-                    <div
-                      class="size-1.5 rounded-full animate-pulse"
-                      style="background: #22c55e; box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);"
-                    />
-                  </div>
                   <!-- Delete button: shown on hover -->
                   <div class="flex items-center gap-0.5 opacity-0 group-hover/session:opacity-100 transition-opacity">
                     <button
