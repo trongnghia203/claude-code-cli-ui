@@ -61,19 +61,34 @@ const recentScopes = [
 const RECENT_KEY = 'agents-ui:dashboard-recent-open'
 const recentOpen = ref(true)
 
-async function loadRecentChats() {
+// Rows visible at once. The first fetch loads two pages so the list always overflows and can scroll
+const RECENT_PAGE_SIZE = 7
+const recentHasMore = ref(false)
+const recentLoadingMore = ref(false)
+
+async function loadRecentChats(append = false) {
+  if (append && (recentLoadingMore.value || !recentHasMore.value)) return
   const onlyProject = recentScope.value === 'project' && workingDir.value
     ? projectSlug(workingDir.value.replace(/\/+$/, ''))
     : undefined
+  if (append) recentLoadingMore.value = true
   try {
-    const res = await $fetch<{ sessions: RecentChat[] }>('/api/v2/claude-code/recent-sessions', {
-      query: { limit: 8, project: onlyProject },
+    const res = await $fetch<{ sessions: RecentChat[]; hasMore: boolean }>('/api/v2/claude-code/recent-sessions', {
+      query: { limit: append ? RECENT_PAGE_SIZE : RECENT_PAGE_SIZE * 2, offset: append ? recentChats.value.length : 0, project: onlyProject },
     })
-    recentChats.value = res.sessions
+    recentChats.value = append ? [...recentChats.value, ...res.sessions] : res.sessions
+    recentHasMore.value = res.hasMore
     loadRecentCosts()
   } catch {
-    recentChats.value = []
+    if (!append) recentChats.value = []
+    recentHasMore.value = false
+  } finally {
+    recentLoadingMore.value = false
   }
+}
+function onRecentScroll(e: Event) {
+  const el = e.target as HTMLElement
+  if (el.scrollTop + el.clientHeight >= el.scrollHeight - 40) loadRecentChats(true)
 }
 onMounted(() => {
   try { recentOpen.value = localStorage.getItem(RECENT_KEY) !== '0' } catch {}
@@ -81,7 +96,7 @@ onMounted(() => {
   if (!workingDir.value) recentScope.value = 'all'
   loadRecentChats()
 })
-watch([recentScope, workingDir], loadRecentChats)
+watch([recentScope, workingDir], () => loadRecentChats())
 function toggleRecent() {
   recentOpen.value = !recentOpen.value
   try { localStorage.setItem(RECENT_KEY, recentOpen.value ? '1' : '0') } catch {}
@@ -540,13 +555,14 @@ const statItems = computed(() => [
           </div>
           <div
             v-if="recentOpen"
-            class="divide-y divide-[var(--border-subtle)]"
+            class="divide-y divide-[var(--border-subtle)] max-h-[286px] overflow-y-auto"
+            @scroll.passive="onRecentScroll"
           >
             <NuxtLink
               v-for="s in recentChats"
               :key="s.id"
               :to="`/cli/project/${encodeURIComponent(s.projectName)}/session/${encodeURIComponent(s.id)}`"
-              class="flex items-center gap-3 px-4 py-2.5 hover-bg group min-w-0"
+              class="flex items-center gap-3 px-4 h-10 hover-bg group min-w-0"
             >
               <span
                 class="size-1.5 rounded-full shrink-0"
@@ -564,6 +580,7 @@ const statItems = computed(() => [
               >{{ fmtRecentCost(recentCosts[recentKey(s)]!.cost) }}</span>
               <span class="text-[11px] shrink-0 text-meta">{{ formatRelativeTime(s.lastActivity) }}</span>
             </NuxtLink>
+            <div v-if="recentLoadingMore" class="px-4 h-8 flex items-center text-[11px] text-meta">Loading…</div>
           </div>
         </div>
         </div>
