@@ -1,4 +1,5 @@
 import { getClaudeCodeProjects, getClaudeCodeSessions, type ClaudeCodeSession } from '../../../utils/claudeCodeHistory'
+import { scheduleCore } from '../../../utils/schedules/core'
 
 interface RecentSession extends ClaudeCodeSession {
   projectName: string
@@ -8,9 +9,26 @@ interface RecentSession extends ClaudeCodeSession {
 
 // Only the most recently active projects can hold the most recent sessions
 const MAX_PROJECTS_SCANNED = 25
+// Extra sessions fetched per project to make up for hidden schedule runs
+const MAX_HIDDEN_HEADROOM = 200
+
+/** Session ids created by schedule runs. They already show on the Schedules page. */
+async function scheduleSessionIds(): Promise<Set<string>> {
+  const ids = new Set<string>()
+  try {
+    const core = await scheduleCore()
+    for (const job of core.readJobs()) {
+      for (const run of core.listRuns(job.id, 500)) {
+        if (run.sessionId) ids.add(run.sessionId)
+      }
+    }
+  } catch {}
+  return ids
+}
 
 /**
  * Most recent chats across projects (or one project), newest first.
+ * Sessions started by schedule runs are left out (they live on the Schedules page).
  * Query: limit (default 8, max 100), offset (default 0), project (project name, optional).
  */
 export default defineEventHandler(async (event) => {
@@ -20,6 +38,8 @@ export default defineEventHandler(async (event) => {
   const onlyProject = typeof query.project === 'string' && query.project ? query.project : null
 
   try {
+    const hidden = await scheduleSessionIds()
+    const headroom = Math.min(hidden.size, MAX_HIDDEN_HEADROOM)
     let projects = await getClaudeCodeProjects()
     if (onlyProject) {
       projects = projects.filter(p => p.name === onlyProject)
@@ -32,8 +52,8 @@ export default defineEventHandler(async (event) => {
 
     const perProject = await Promise.all(
       projects.map(async (p) => {
-        const { sessions } = await getClaudeCodeSessions(p.name, limit + offset, 0)
-        return sessions.map<RecentSession>(s => ({
+        const { sessions } = await getClaudeCodeSessions(p.name, limit + offset + headroom, 0)
+        return sessions.filter(s => !hidden.has(s.id)).map<RecentSession>(s => ({
           ...s,
           projectName: p.name,
           projectDisplayName: p.displayName,
