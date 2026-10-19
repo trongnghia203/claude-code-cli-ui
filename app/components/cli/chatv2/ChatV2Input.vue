@@ -6,12 +6,14 @@ const props = defineProps<{
   disabled?: boolean
   isStreaming?: boolean
   placeholder?: string
+  showEscHint?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void
   (e: 'send', images: string[]): void
   (e: 'abort'): void
+  (e: 'escape'): void
   (e: 'focus'): void
   (e: 'blur'): void
 }>()
@@ -173,6 +175,11 @@ function handleKeydown(e: KeyboardEvent) {
     }
   }
 
+  if (e.key === 'Escape') {
+    emit('escape')
+    return
+  }
+
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault()
     if (!props.disabled && (localValue.value.trim() || attachedImages.value.length > 0)) {
@@ -312,6 +319,10 @@ onMounted(async () => {
         <span class="flex items-center gap-1">
           <kbd class="px-1 py-0.5 rounded text-[9px]" style="background: var(--surface-raised);">Shift+Enter</kbd>
           newline
+        </span>
+        <span v-if="showEscHint" class="flex items-center gap-1">
+          <kbd class="px-1 py-0.5 rounded text-[9px]" style="background: var(--surface-raised);">Esc</kbd>
+          back
         </span>
       </div>
 

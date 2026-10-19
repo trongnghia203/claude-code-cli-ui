@@ -394,6 +394,37 @@ const selectedProjectPath = computed(() => {
   return history.selectedProject.value?.path || localWorkingDir.value || null
 })
 
+// Open current session in iTerm2 (focuses existing tab if already running there)
+const ITERM_RESULT_TITLE = {
+  'focused': 'Switched to open iTerm2 session',
+  'opened-tab': 'Opened in new iTerm2 tab',
+  'opened-window': 'Opened in new iTerm2 window',
+} as const
+
+const openTerminalSessionId = computed(() => currentSessionId.value || urlSessionId.value)
+
+// History view shows the two-button bar until the user picks "Continue chat"
+const composerOpen = ref(false)
+const showHistoryActions = computed(() =>
+  viewMode.value === 'history' && !isContinuingHistory.value && !composerOpen.value && !!openTerminalSessionId.value,
+)
+watch(openTerminalSessionId, () => { composerOpen.value = false })
+
+async function launchInIterm() {
+  const sessionId = openTerminalSessionId.value
+  if (!sessionId) return
+  const session = history.sessions.value.find(s => s.id === sessionId)
+  try {
+    const { result } = await $fetch<{ result: keyof typeof ITERM_RESULT_TITLE }>(
+      `/api/sessions/${encodeURIComponent(sessionId)}/launch-terminal`,
+      { method: 'POST', body: { cwd: session?.cwd || selectedProjectPath.value, projectPath: selectedProjectPath.value } },
+    )
+    toast.add({ title: ITERM_RESULT_TITLE[result] ?? 'Opened in iTerm2', color: 'success' })
+  } catch (e: any) {
+    toast.add({ title: 'Failed to open iTerm2', description: e?.data?.message || e?.message, color: 'error' })
+  }
+}
+
 // ── Config Panel (rendered in main content area) ──
 const activeConfigPanel = ref<string | null>(null)
 
@@ -1943,13 +1974,40 @@ function handleClosePreview() {
 
         <!-- Chat Input - Works in both modes -->
         <!-- No longer requires pre-created session - SDK will create session on first message -->
+        <!-- History session: choose between iTerm2 and continuing here -->
+        <div v-if="showHistoryActions" class="px-2 py-1.5 sm:px-3 sm:py-2">
+          <div
+            class="flex items-center gap-2 px-3 py-2 rounded-xl border"
+            style="background: var(--surface-raised); border-color: var(--border-subtle);"
+          >
+            <button
+              class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-all hover:opacity-90"
+              style="background: var(--accent); color: white;"
+              @click="launchInIterm"
+            >
+              <UIcon name="i-lucide-square-terminal" class="size-4" />
+              Open in iTerm2
+            </button>
+            <button
+              class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-all hover:opacity-80"
+              style="background: var(--surface-hover); color: var(--text-secondary);"
+              @click="composerOpen = true"
+            >
+              <UIcon name="i-lucide-message-circle" class="size-4" />
+              Continue chat
+            </button>
+          </div>
+        </div>
         <ChatV2Input
+          v-else
           v-model="inputText"
           :disabled="isStreaming || isCreatingSession"
           :is-streaming="isStreaming"
           :placeholder="viewMode === 'history' && !isContinuingHistory ? 'Continue this conversation...' : 'Message Claude...'"
           @send="handleSendMessage"
           @abort="abort()"
+          :show-esc-hint="viewMode === 'history' && !isContinuingHistory"
+          @escape="composerOpen = false"
           @focus="isInputFocused = true"
           @blur="isInputFocused = false"
         />
