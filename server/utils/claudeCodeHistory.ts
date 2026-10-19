@@ -235,6 +235,40 @@ function getClaudeProjectsDir(): string {
 }
 
 /**
+ * Claude Code names a project dir after its cwd with every non-alphanumeric char replaced by '-'.
+ */
+function encodeProjectPath(p: string): string {
+  return p.replace(/[^a-zA-Z0-9]/g, '-')
+}
+
+/**
+ * Recover the real directory behind an encoded project name by walking the file system.
+ * The encoding is lossy ('/', '.', '_' and '-' all become '-'), so match each entry's encoded
+ * name against the remaining string. Returns null when no existing directory matches.
+ */
+async function resolveEncodedPath(encodedName: string): Promise<string | null> {
+  async function walk(dir: string, rest: string): Promise<string | null> {
+    if (!rest) return dir
+    let entries
+    try {
+      entries = await fs.readdir(dir, { withFileTypes: true })
+    } catch {
+      return null
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      const enc = encodeProjectPath(entry.name)
+      if (rest === enc || rest.startsWith(enc + '-')) {
+        const found = await walk(join(dir, entry.name), rest.slice(enc.length + 1))
+        if (found) return found
+      }
+    }
+    return null
+  }
+  return walk('/', encodedName.replace(/^-/, ''))
+}
+
+/**
  * Extract the actual project directory from JSONL sessions
  */
 async function extractProjectDirectory(projectName: string): Promise<string> {
@@ -309,6 +343,12 @@ async function extractProjectDirectory(projectName: string): Promise<string> {
       }
     }
 
+    // A cwd recorded in old sessions goes stale when the project dir is moved. Trust it only
+    // if it still maps to this project dir; otherwise resolve the real location on disk.
+    if (encodeProjectPath(extractedPath) !== projectName) {
+      extractedPath = (await resolveEncodedPath(projectName)) ?? extractedPath
+    }
+
     projectDirectoryCache.set(projectName, extractedPath)
     return extractedPath
   } catch (error: any) {
@@ -348,6 +388,27 @@ async function generateDisplayName(projectName: string, actualProjectDir: string
 }
 
 /**
+ * True once the file holds a user/assistant message. Stops at the first one, so real
+ * transcripts return fast; metadata-only stubs are small and read in full.
+ */
+async function hasConversation(filePath: string): Promise<boolean> {
+  const rl = createInterface({ input: createReadStream(filePath), crlfDelay: Infinity })
+  try {
+    for await (const line of rl) {
+      if (!line.includes('"role"')) continue
+      try {
+        if (JSON.parse(line)?.message?.role) return true
+      } catch {
+        // Skip malformed lines
+      }
+    }
+    return false
+  } finally {
+    rl.close()
+  }
+}
+
+/**
  * Get all Claude Code projects
  */
 export async function getClaudeCodeProjects(): Promise<ClaudeCodeProject[]> {
@@ -367,7 +428,11 @@ export async function getClaudeCodeProjects(): Promise<ClaudeCodeProject[]> {
       // Get session count and last activity
       const projectDir = join(claudeDir, entry.name)
       const files = await fs.readdir(projectDir)
-      const jsonlFiles = files.filter(f => f.endsWith('.jsonl') && !f.startsWith('agent-'))
+      const allJsonlFiles = files.filter(f => f.endsWith('.jsonl') && !f.startsWith('agent-'))
+      const hasChat = await Promise.all(allJsonlFiles.map(f => hasConversation(join(projectDir, f))))
+      const jsonlFiles = allJsonlFiles.filter((_, i) => hasChat[i])
+      // Stale dirs left behind by a project move hold only stubs; nothing to show
+      if (jsonlFiles.length === 0) continue
 
       let lastActivity: string | undefined
       if (jsonlFiles.length > 0) {
@@ -432,6 +497,7 @@ async function parseJsonlSessions(filePath: string): Promise<{
   const pendingSummaries = new Map<string, string>()
   const customTitles = new Map<string, string>()
   const aiTitles = new Map<string, string>()
+  const sessionsWithMessages = new Set<string>()
 
   try {
     const fileStream = createReadStream(filePath)
@@ -514,6 +580,8 @@ async function parseJsonlSessions(filePath: string): Promise<{
               }
             }
 
+            if (entry.message?.role) sessionsWithMessages.add(entry.sessionId)
+
             // Count messages and track activity
             session.messageCount++
             if (entry.timestamp) {
@@ -534,6 +602,12 @@ async function parseJsonlSessions(filePath: string): Promise<{
     }
   } catch (error) {
     console.error(`Error parsing JSONL file ${filePath}:`, error)
+  }
+
+  // Metadata-only stubs (title/cost records left behind when a project dir moves) have no
+  // messages to show; the real transcript lives under the new project dir.
+  for (const id of sessions.keys()) {
+    if (!sessionsWithMessages.has(id)) sessions.delete(id)
   }
 
   return { sessions, entries }

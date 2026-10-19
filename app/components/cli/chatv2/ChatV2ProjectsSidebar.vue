@@ -344,7 +344,7 @@ async function launchInIterm(session: typeof sessions.value[0], event: Event) {
   try {
     const { result } = await $fetch<{ result: keyof typeof ITERM_RESULT_TITLE }>(
       `/api/sessions/${encodeURIComponent(session.id)}/launch-terminal`,
-      { method: 'POST', body: { cwd } },
+      { method: 'POST', body: { cwd, projectPath: selectedProject.value?.path } },
     )
     toast.add({ title: ITERM_RESULT_TITLE[result] ?? 'Opened in iTerm2', color: 'success' })
   } catch (e: any) {
