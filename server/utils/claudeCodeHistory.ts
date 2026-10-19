@@ -430,6 +430,8 @@ async function parseJsonlSessions(filePath: string): Promise<{
   const sessions = new Map<string, ClaudeCodeSession>()
   const entries: ClaudeCodeMessage[] = []
   const pendingSummaries = new Map<string, string>()
+  const customTitles = new Map<string, string>()
+  const aiTitles = new Map<string, string>()
 
   try {
     const fileStream = createReadStream(filePath)
@@ -476,6 +478,18 @@ async function parseJsonlSessions(filePath: string): Promise<{
             // Update summary from summary entries
             if (entry.type === 'summary' && (entry as any).summary) {
               session.summary = (entry as any).summary
+            }
+
+            // Title records written by /rename (custom-title) and auto-naming (ai-title).
+            // A custom title wins over an AI title; both win over summary and first message.
+            if (entry.type === 'custom-title' && (entry as any).customTitle) {
+              customTitles.set(entry.sessionId, (entry as any).customTitle)
+            } else if (entry.type === 'ai-title' && (entry as any).aiTitle) {
+              aiTitles.set(entry.sessionId, (entry as any).aiTitle)
+            }
+            const namedTitle = customTitles.get(entry.sessionId) || aiTitles.get(entry.sessionId)
+            if (namedTitle) {
+              session.summary = namedTitle
             }
 
             // Use first user message as summary if still "New Session"
