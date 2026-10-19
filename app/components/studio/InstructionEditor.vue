@@ -239,6 +239,13 @@ function dismissSuggestion() {
 .instruction-preview :deep(h3) { font-size: 1.05em; font-weight: 600; margin: 1.2em 0 0.4em; color: var(--text-primary); }
 .instruction-preview :deep(p) { margin: 0.7em 0; }
 .instruction-preview :deep(ul), .instruction-preview :deep(ol) { padding-left: 1.5em; margin: 0.5em 0; }
+/* Tailwind's reset removes list markers, so restore them */
+.instruction-preview :deep(ul) { list-style: disc outside; }
+.instruction-preview :deep(ol) { list-style: decimal outside; }
+.instruction-preview :deep(ul ul) { list-style-type: circle; }
+.instruction-preview :deep(ul ul ul) { list-style-type: square; }
+.instruction-preview :deep(li::marker) { color: var(--text-tertiary); }
+.instruction-preview :deep(li > p) { margin: 0.2em 0; }
 .instruction-preview :deep(li) { margin: 0.25em 0; }
 .instruction-preview :deep(code) { font-family: var(--font-mono); font-size: 0.9em; background: var(--badge-subtle-bg); padding: 0.15em 0.4em; border-radius: 4px; }
 .instruction-preview :deep(pre) { background: var(--surface-base); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 0.75em 1em; overflow-x: auto; margin: 0.6em 0; }
