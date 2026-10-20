@@ -271,7 +271,7 @@ onMounted(async () => {
       <div class="flex items-center gap-1 shrink-0">
         <!-- Attach button -->
         <button
-          class="p-1.5 rounded-lg transition-all hover:bg-[var(--surface-hover)]"
+          class="size-8 shrink-0 inline-flex items-center justify-center rounded-lg transition-all hover:bg-[var(--surface-hover)]"
           style="color: var(--text-secondary);"
           title="Attach image"
           @click="fileInputRef?.click()"
@@ -283,7 +283,7 @@ onMounted(async () => {
         <!-- Abort button when streaming -->
         <button
           v-if="isStreaming"
-          class="p-1.5 rounded-lg transition-all hover:opacity-80"
+          class="size-8 shrink-0 inline-flex items-center justify-center rounded-lg transition-all hover:opacity-80"
           style="background: rgba(239, 68, 68, 0.1); color: #ef4444;"
           title="Stop generating"
           @click="emit('abort')"
@@ -294,7 +294,7 @@ onMounted(async () => {
         <!-- Send button -->
         <button
           v-else
-          class="p-1.5 rounded-lg transition-all"
+          class="size-8 shrink-0 inline-flex items-center justify-center rounded-lg transition-all"
           :style="{
             background: disabled || (!localValue.trim() && attachedImages.length === 0) ? 'transparent' : 'var(--accent)',
             color: disabled || (!localValue.trim() && attachedImages.length === 0) ? 'var(--text-disabled)' : 'white',
