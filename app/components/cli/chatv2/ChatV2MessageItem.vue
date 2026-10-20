@@ -1427,7 +1427,6 @@ function getTodoStatusBadge(status: string): { bg: string; color: string; label:
   word-break: break-word;
 }
 
-
 /* ----------------------------------------
    Images
    ---------------------------------------- */
