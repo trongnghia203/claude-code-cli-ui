@@ -16,10 +16,21 @@ const { skills } = useSkills()
 const { plugins } = usePlugins()
 const { servers: mcpServers } = useMCP()
 const router = useRouter()
+const { fitView } = useVueFlow()
 
 const relationships = ref<Relationship[]>([])
 const loading = ref(true)
-const showLegend = ref(true)
+const showLegend = ref(false)
+const showOrphans = ref(false)
+const searchQuery = ref('')
+// Empty = all types visible
+const activeTypes = ref<string[]>([])
+
+function toggleType(type: string) {
+  const i = activeTypes.value.indexOf(type)
+  if (i === -1) activeTypes.value.push(type)
+  else activeTypes.value.splice(i, 1)
+}
 
 const { workingDir } = useWorkingDir()
 
@@ -42,9 +53,12 @@ watch(workingDir, () => {
 
 // --- Layout constants ---
 const NODE_WIDTH = 220
-const COL_GAP = NODE_WIDTH + 60
-const Y_GAP = 80
+const SUBCOL_GAP = NODE_WIDTH + 24
+const COL_SPACING = 56
+const Y_GAP = 56
 const HEADER_Y = -20
+// Long columns (e.g. 67 skills) wrap into sub-columns so the graph stays roughly square
+const ROWS_PER_SUBCOL = 12
 
 // --- Column labels ---
 const columnLabels: Record<string, { label: string; icon: string }> = {
@@ -53,6 +67,14 @@ const columnLabels: Record<string, { label: string; icon: string }> = {
   agent: { label: 'Agents', icon: 'cpu' },
   plugin: { label: 'Plugins', icon: 'puzzle' },
   mcp: { label: 'MCP Servers', icon: 'server' },
+}
+
+const typeIcons: Record<string, string> = {
+  agent: 'i-lucide-cpu',
+  skill: 'i-lucide-zap',
+  plugin: 'i-lucide-puzzle',
+  mcp: 'i-lucide-server',
+  command: 'i-lucide-terminal',
 }
 
 // --- Connected node IDs (for orphan detection) ---
@@ -76,100 +98,136 @@ const columns = computed(() => {
   return cols
 })
 
+function nodeIdFor(type: string, item: any) {
+  if (type === 'plugin') return `plugin-${item.id}`
+  if (type === 'mcp') return `mcp-${item.name}`
+  return `${type}-${item.slug}`
+}
+
+function nodeDataFor(type: string, item: any, orphan: boolean) {
+  switch (type) {
+    case 'agent':
+      return {
+        label: item.frontmatter.name,
+        description: item.frontmatter.description,
+        color: getAgentColor(item.frontmatter.color),
+        model: item.frontmatter.model,
+        slug: item.slug,
+        orphan,
+      }
+    case 'command':
+      return {
+        label: item.frontmatter.name,
+        slug: item.slug,
+        directory: item.directory,
+        description: item.frontmatter.description,
+        orphan,
+      }
+    case 'skill':
+      return {
+        label: item.frontmatter.name,
+        description: item.frontmatter.description,
+        slug: item.slug,
+        orphan,
+      }
+    case 'plugin':
+      return {
+        label: item.name,
+        description: item.description,
+        id: item.id,
+        enabled: item.enabled,
+        skillCount: item.skills.length,
+        orphan,
+      }
+    default:
+      return { label: item.name, name: item.name, scope: item.scope, orphan }
+  }
+}
+
+// Nodes whose name matches the search, plus their direct neighbours so links stay visible
+const searchIds = computed<Set<string> | null>(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return null
+  const ids = new Set<string>()
+  for (const col of columns.value) {
+    for (const item of col.items) {
+      const id = nodeIdFor(col.type, item)
+      const label = String(nodeDataFor(col.type, item, false).label ?? '').toLowerCase()
+      if (!label.includes(q)) continue
+      ids.add(id)
+      neighborMap.value.get(id)?.forEach(n => ids.add(n))
+    }
+  }
+  return ids
+})
+
+const orphanCount = computed(() => {
+  let n = 0
+  for (const col of columns.value) {
+    for (const item of col.items) {
+      if (!connectedNodeIds.value.has(nodeIdFor(col.type, item))) n++
+    }
+  }
+  return n
+})
+
+// Keep each plugin's skills together so its edges stay short
+const pluginOrder = computed(() => new Map(plugins.value.map((p, i) => [`plugin-${p.id}`, i])))
+
+function groupRank(type: string, id: string) {
+  if (type !== 'skill') return 0
+  for (const n of neighborMap.value.get(id) ?? []) {
+    const rank = pluginOrder.value.get(n)
+    if (rank !== undefined) return rank
+  }
+  return pluginOrder.value.size
+}
+
 const nodes = computed(() => {
   const result: any[] = []
+  let xCursor = 40
 
-  columns.value.forEach((col, colIndex) => {
-    const x = colIndex * COL_GAP + 40
+  columns.value.forEach((col) => {
+    if (activeTypes.value.length && !activeTypes.value.includes(col.type)) return
 
-    // Column header node (non-interactive)
+    // Connected nodes first, orphans (when shown) after them
+    const entries = col.items
+      .map((item) => {
+        const id = nodeIdFor(col.type, item)
+        return { item, id, orphan: !connectedNodeIds.value.has(id) }
+      })
+      // An active search can surface unlinked nodes too
+      .filter(e => showOrphans.value || !e.orphan || searchIds.value)
+      .filter(e => !searchIds.value || searchIds.value.has(e.id))
+      .sort((a, b) => Number(a.orphan) - Number(b.orphan) || groupRank(col.type, a.id) - groupRank(col.type, b.id))
+
+    if (!entries.length) return
+
     result.push({
       id: `header-${col.type}`,
       type: 'columnHeader',
-      position: { x, y: HEADER_Y },
-      data: { label: columnLabels[col.type]?.label ?? col.type },
+      position: { x: xCursor, y: HEADER_Y },
+      data: { label: columnLabels[col.type]?.label ?? col.type, count: entries.length },
       selectable: false,
       draggable: false,
       connectable: false,
     })
 
-    col.items.forEach((item, i) => {
-      const y = i * Y_GAP + 40
-      const nodeId = col.type === 'plugin' ? `plugin-${item.id}` : (col.type === 'mcp' ? `mcp-${item.name}` : `${col.type}-${item.slug}`)
-      const isOrphan = !connectedNodeIds.value.has(nodeId)
-
-      if (col.type === 'agent') {
-        result.push({
-          id: nodeId,
-          type: 'agent',
-          position: { x, y },
-          class: isOrphan ? 'graph-orphan' : '',
-          data: {
-            label: item.frontmatter.name,
-            description: item.frontmatter.description,
-            color: getAgentColor(item.frontmatter.color),
-            model: item.frontmatter.model,
-            slug: item.slug,
-            orphan: isOrphan,
-          },
-        })
-      } else if (col.type === 'command') {
-        result.push({
-          id: nodeId,
-          type: 'command',
-          position: { x, y },
-          class: isOrphan ? 'graph-orphan' : '',
-          data: {
-            label: item.frontmatter.name,
-            slug: item.slug,
-            directory: item.directory,
-            description: item.frontmatter.description,
-            orphan: isOrphan,
-          },
-        })
-      } else if (col.type === 'skill') {
-        result.push({
-          id: nodeId,
-          type: 'skill',
-          position: { x, y },
-          class: isOrphan ? 'graph-orphan' : '',
-          data: {
-            label: item.frontmatter.name,
-            description: item.frontmatter.description,
-            slug: item.slug,
-            orphan: isOrphan,
-          },
-        })
-      } else if (col.type === 'plugin') {
-        result.push({
-          id: nodeId,
-          type: 'plugin',
-          position: { x, y },
-          class: isOrphan ? 'graph-orphan' : '',
-          data: {
-            label: item.name,
-            description: item.description,
-            id: item.id,
-            enabled: item.enabled,
-            skillCount: item.skills.length,
-            orphan: isOrphan,
-          },
-        })
-      } else if (col.type === 'mcp') {
-        result.push({
-          id: nodeId,
-          type: 'mcp',
-          position: { x, y },
-          class: isOrphan ? 'graph-orphan' : '',
-          data: {
-            label: item.name,
-            name: item.name,
-            scope: item.scope,
-            orphan: isOrphan,
-          },
-        })
-      }
+    entries.forEach((e, i) => {
+      result.push({
+        id: e.id,
+        type: col.type,
+        position: {
+          x: xCursor + Math.floor(i / ROWS_PER_SUBCOL) * SUBCOL_GAP,
+          y: (i % ROWS_PER_SUBCOL) * Y_GAP + 40,
+        },
+        class: e.orphan ? 'graph-orphan' : '',
+        data: nodeDataFor(col.type, e.item, e.orphan),
+      })
     })
+
+    const subCols = Math.ceil(entries.length / ROWS_PER_SUBCOL)
+    xCursor += (subCols - 1) * SUBCOL_GAP + NODE_WIDTH + COL_SPACING
   })
 
   return result
@@ -182,23 +240,30 @@ const edgeRelationshipLabels: Record<string, string> = {
 }
 
 const edges = computed(() => {
-  return relationships.value.map((r, i) => ({
+  const visible = new Set(nodes.value.map(n => n.id))
+  return relationships.value.map((r, i) => ({ r, i })).filter(({ r }) =>
+    visible.has(`${r.sourceType}-${r.sourceSlug}`) && visible.has(`${r.targetType}-${r.targetSlug}`),
+  ).map(({ r, i }) => ({
     id: `edge-${i}`,
     source: `${r.sourceType}-${r.sourceSlug}`,
     target: `${r.targetType}-${r.targetSlug}`,
     type: 'smoothstep',
-    animated: r.type === 'spawns',
+    animated: false,
     label: edgeRelationshipLabels[r.type] ?? r.type,
     labelStyle: { opacity: 0 },
     labelBgStyle: { opacity: 0 },
     data: { relType: r.type },
     style: {
       stroke: r.type === 'spawns' ? 'var(--accent)' : r.type === 'agent-frontmatter' ? 'var(--success)' : 'var(--text-disabled)',
-      strokeWidth: r.type === 'spawns' ? 2 : 1,
-      opacity: r.type === 'spawns' ? 0.7 : 0.4,
+      strokeWidth: r.type === 'spawns' ? 1.5 : 1,
+      opacity: r.type === 'spawns' ? 0.35 : 0.15,
     },
   }))
 })
+
+watch([showOrphans, searchQuery, activeTypes], () => {
+  nextTick(() => fitView({ padding: 0.15, maxZoom: 1.1, duration: 250 }))
+}, { deep: true })
 
 // --- Hover highlighting ---
 const hoveredNodeId = ref<string | null>(null)
@@ -383,24 +448,55 @@ function onNodeClick(first: unknown, second?: unknown) {
 
 <template>
   <div class="relative h-screen flex flex-col">
-    <!-- Floating header -->
+    <!-- Toolbar: its own row so it never covers the graph -->
     <div
-      class="absolute top-0 left-0 right-0 z-10 h-14 flex items-center gap-3 px-6"
-      style="background: color-mix(in srgb, var(--surface-base) 85%, transparent); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border-subtle);"
+      class="shrink-0 flex items-center gap-3 px-4 py-2 overflow-x-auto"
+      style="background: var(--surface-base); border-bottom: 1px solid var(--border-subtle);"
     >
-      <h1 class="text-page-title flex-1"><span class="sr-only">Graph</span></h1>
-      <span class="font-mono text-[11px]" style="color: var(--text-disabled);">
+      <h1 class="sr-only">Graph</h1>
+      <input
+        v-model="searchQuery"
+        placeholder="Search nodes..."
+        class="field-search"
+        style="flex: 1 1 16rem; min-width: 12rem; max-width: 30rem; height: 2.25rem; padding-top: 0; padding-bottom: 0;"
+      />
+      <div class="flex items-center gap-1.5">
+        <button
+          v-for="col in columns"
+          :key="col.type"
+          type="button"
+          class="h-9 px-3 rounded-lg text-[12px] font-medium transition-all focus-ring whitespace-nowrap flex items-center gap-1.5"
+          :style="activeTypes.includes(col.type)
+            ? 'background: var(--accent-muted); color: var(--accent); border: 1px solid var(--accent);'
+            : 'background: var(--surface-raised); color: var(--text-secondary); border: 1px solid var(--border-subtle);'"
+          :aria-pressed="activeTypes.includes(col.type)"
+          @click="toggleType(col.type)"
+        >
+          <UIcon :name="typeIcons[col.type]" class="size-3.5" />
+          {{ columnLabels[col.type]?.label ?? col.type }}
+          <span class="font-mono text-[10px] opacity-60">{{ col.items.length }}</span>
+        </button>
+      </div>
+      <span class="ml-auto font-mono text-[11px] whitespace-nowrap" style="color: var(--text-secondary);">
         {{ nodes.filter(n => n.type !== 'columnHeader').length }} nodes
-      </span>
-      <span class="font-mono text-[11px]" style="color: var(--text-disabled);">
+        <span style="color: var(--text-disabled);">&middot;</span>
         {{ edges.length }} edges
       </span>
+      <label
+        v-if="orphanCount"
+        class="h-9 px-3 rounded-lg text-[12px] font-medium flex items-center gap-2 cursor-pointer select-none whitespace-nowrap"
+        style="background: var(--surface-raised); color: var(--text-primary); border: 1px solid var(--border-subtle);"
+      >
+        <input v-model="showOrphans" type="checkbox" class="accent-[var(--accent)]" />
+        Unlinked ({{ orphanCount }})
+      </label>
       <button
-        class="font-mono text-[11px] px-2 py-1 rounded focus-ring"
-        style="color: var(--text-tertiary); background: var(--surface-raised); border: 1px solid var(--border-default);"
+        class="h-9 px-3 rounded-lg text-[12px] font-medium focus-ring hover-bg whitespace-nowrap flex items-center gap-1.5"
+        style="background: var(--surface-raised); color: var(--text-secondary); border: 1px solid var(--border-subtle);"
         @click="showLegend = !showLegend"
       >
-        {{ showLegend ? 'Hide' : 'Show' }} Legend
+        <UIcon name="i-lucide-info" class="size-3.5" />
+        {{ showLegend ? 'Hide' : 'Show' }} legend
       </button>
     </div>
 
@@ -408,13 +504,14 @@ function onNodeClick(first: unknown, second?: unknown) {
       <UIcon name="i-lucide-loader-2" class="size-6 animate-spin" style="color: var(--text-disabled);" />
     </div>
 
-    <div v-else ref="graphCanvasRef" class="flex-1 graph-canvas">
+    <div v-else ref="graphCanvasRef" class="flex-1 min-h-0 graph-canvas relative">
       <VueFlow
         :nodes="nodes"
         :edges="edges"
         fit-view-on-init
         :default-edge-options="{ type: 'smoothstep' }"
-        :min-zoom="0.3"
+        :fit-view-options="{ padding: 0.15, maxZoom: 1.1 }"
+        :min-zoom="0.2"
         :max-zoom="2"
         @node-click="onNodeClick"
         @node-mouse-enter="handleNodeMouseEnter"
@@ -424,6 +521,7 @@ function onNodeClick(first: unknown, second?: unknown) {
         <template #node-columnHeader="{ data }">
           <div class="graph-col-header">
             {{ data.label }}
+            <span class="opacity-60 ml-1">{{ data.count }}</span>
           </div>
         </template>
 
@@ -525,7 +623,7 @@ function onNodeClick(first: unknown, second?: unknown) {
         </template>
 
         <Controls position="bottom-right" />
-        <MiniMap position="top-right" :style="{ marginTop: '64px' }" />
+        <MiniMap position="bottom-right" :style="{ marginBottom: '8px', marginRight: '56px' }" pannable zoomable />
       </VueFlow>
 
       <!-- Hover tooltip -->
