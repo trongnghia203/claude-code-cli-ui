@@ -134,14 +134,7 @@ useHead({ title: 'Schedules | Agent Manager' })
   <div class="h-full flex min-h-0">
     <!-- Left column: schedules -->
     <aside class="w-[340px] shrink-0 flex flex-col min-h-0" style="border-right: 1px solid var(--border-subtle)">
-      <div class="shrink-0 px-4 min-h-[56px] flex items-center justify-between" style="border-bottom: 1px solid var(--border-subtle)">
-        <h1 class="text-[14px] font-semibold flex items-center gap-2">
-          Schedules <span class="font-mono text-[11px] font-normal text-meta">{{ visibleJobs.length }}</span>
-        </h1>
-        <button class="p-1.5 rounded-lg hover-bg flex items-center justify-center" title="Refresh" style="color: var(--text-tertiary)" @click="refresh">
-          <UIcon name="i-lucide-refresh-cw" class="size-3.5 block" :class="{ 'animate-spin': loading }" />
-        </button>
-      </div>
+      <h1 class="sr-only">Schedules</h1>
 
       <div class="shrink-0 px-3 pt-3">
         <div class="grid grid-cols-2 gap-1 p-1 rounded-lg" style="background: var(--surface-raised); border: 1px solid var(--border-subtle);">
@@ -158,14 +151,17 @@ useHead({ title: 'Schedules | Agent Manager' })
         </div>
       </div>
 
-      <div class="shrink-0 p-3">
+      <div class="shrink-0 p-3 flex items-center gap-2">
         <button
-          class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-[13px] font-semibold disabled:opacity-50"
+          class="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-[13px] font-semibold disabled:opacity-50"
           style="background: var(--accent); color: white;"
           :disabled="!supported"
           @click="newJob"
         >
           <UIcon name="i-lucide-plus" class="size-4" /> New Schedule
+        </button>
+        <button class="p-2 rounded-lg hover-bg flex items-center justify-center shrink-0" title="Refresh" style="color: var(--text-tertiary)" @click="refresh">
+          <UIcon name="i-lucide-refresh-cw" class="size-4 block" :class="{ 'animate-spin': loading }" />
         </button>
       </div>
 

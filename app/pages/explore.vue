@@ -417,13 +417,90 @@ function scrollToMarketplace(name: string) {
 
 <template>
   <div>
-    <PageHeader title="Explore">
-      <template #trailing>
-        <span class="text-[12px] text-meta"
-          >{{ agentTemplates.length + commandTemplates.length }} templates</span
+    <PageHeader title="Explore" hide-title />
+
+    <div class="px-6 py-4 space-y-5">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <!-- Tab switcher -->
+        <div
+          class="flex items-center gap-1 p-0.5 rounded-lg w-fit"
+          style="background: var(--badge-subtle-bg)"
         >
-      </template>
-      <template #right>
+          <button
+            class="px-3 py-1.5 rounded-md text-[12px] font-medium transition-all"
+            :style="{
+              background:
+                activeTab === 'templates' ? 'var(--surface-base)' : 'transparent',
+              color:
+                activeTab === 'templates'
+                  ? 'var(--text-primary)'
+                  : 'var(--text-tertiary)',
+              boxShadow:
+                activeTab === 'templates'
+                  ? '0 1px 3px var(--card-shadow)'
+                  : 'none',
+            }"
+            @click="activeTab = 'templates'"
+          >
+            Templates
+          </button>
+          <button
+            class="px-3 py-1.5 rounded-md text-[12px] font-medium transition-all"
+            :style="{
+              background:
+                activeTab === 'import-agent' ? 'var(--surface-base)' : 'transparent',
+              color:
+                activeTab === 'import-agent'
+                  ? 'var(--text-primary)'
+                  : 'var(--text-tertiary)',
+              boxShadow:
+                activeTab === 'import-agent'
+                  ? '0 1px 3px var(--card-shadow)'
+                  : 'none',
+            }"
+            @click="activeTab = 'import-agent'"
+          >
+            Imported Agents ({{ importedAgentRepos.length }})
+          </button>
+          <button
+            class="px-3 py-1.5 rounded-md text-[12px] font-medium transition-all"
+            :style="{
+              background:
+                activeTab === 'import-skill' ? 'var(--surface-base)' : 'transparent',
+              color:
+                activeTab === 'import-skill'
+                  ? 'var(--text-primary)'
+                  : 'var(--text-tertiary)',
+              boxShadow:
+                activeTab === 'import-skill'
+                  ? '0 1px 3px var(--card-shadow)'
+                  : 'none',
+            }"
+            @click="activeTab = 'import-skill'"
+          >
+            Imported Skills ({{ importedSkillRepos.length }})
+          </button>
+          <button
+            class="px-3 py-1.5 rounded-md text-[12px] font-medium transition-all"
+            :style="{
+              background:
+                activeTab === 'marketplace'
+                  ? 'var(--surface-base)'
+                  : 'transparent',
+              color:
+                activeTab === 'marketplace'
+                  ? 'var(--text-primary)'
+                  : 'var(--text-tertiary)',
+              boxShadow:
+                activeTab === 'marketplace'
+                  ? '0 1px 3px var(--card-shadow)'
+                  : 'none',
+            }"
+            @click="activeTab = 'marketplace'"
+          >
+            Marketplace ({{ marketplaceSources.length }})
+          </button>
+        </div>
         <div class="flex items-center gap-2">
           <UButton
             label="Import Skills"
@@ -440,89 +517,6 @@ function scrollToMarketplace(name: string) {
             @click="showImportAgentsModal = true"
           />
         </div>
-      </template>
-    </PageHeader>
-
-    <div class="px-6 py-4 space-y-5">
-      <!-- Tab switcher -->
-      <div
-        class="flex items-center gap-1 p-0.5 rounded-lg w-fit"
-        style="background: var(--badge-subtle-bg)"
-      >
-        <button
-          class="px-3 py-1.5 rounded-md text-[12px] font-medium transition-all"
-          :style="{
-            background:
-              activeTab === 'templates' ? 'var(--surface-base)' : 'transparent',
-            color:
-              activeTab === 'templates'
-                ? 'var(--text-primary)'
-                : 'var(--text-tertiary)',
-            boxShadow:
-              activeTab === 'templates'
-                ? '0 1px 3px var(--card-shadow)'
-                : 'none',
-          }"
-          @click="activeTab = 'templates'"
-        >
-          Templates
-        </button>
-        <button
-          class="px-3 py-1.5 rounded-md text-[12px] font-medium transition-all"
-          :style="{
-            background:
-              activeTab === 'import-agent' ? 'var(--surface-base)' : 'transparent',
-            color:
-              activeTab === 'import-agent'
-                ? 'var(--text-primary)'
-                : 'var(--text-tertiary)',
-            boxShadow:
-              activeTab === 'import-agent'
-                ? '0 1px 3px var(--card-shadow)'
-                : 'none',
-          }"
-          @click="activeTab = 'import-agent'"
-        >
-          Imported Agents ({{ importedAgentRepos.length }})
-        </button>
-        <button
-          class="px-3 py-1.5 rounded-md text-[12px] font-medium transition-all"
-          :style="{
-            background:
-              activeTab === 'import-skill' ? 'var(--surface-base)' : 'transparent',
-            color:
-              activeTab === 'import-skill'
-                ? 'var(--text-primary)'
-                : 'var(--text-tertiary)',
-            boxShadow:
-              activeTab === 'import-skill'
-                ? '0 1px 3px var(--card-shadow)'
-                : 'none',
-          }"
-          @click="activeTab = 'import-skill'"
-        >
-          Imported Skills ({{ importedSkillRepos.length }})
-        </button>
-        <button
-          class="px-3 py-1.5 rounded-md text-[12px] font-medium transition-all"
-          :style="{
-            background:
-              activeTab === 'marketplace'
-                ? 'var(--surface-base)'
-                : 'transparent',
-            color:
-              activeTab === 'marketplace'
-                ? 'var(--text-primary)'
-                : 'var(--text-tertiary)',
-            boxShadow:
-              activeTab === 'marketplace'
-                ? '0 1px 3px var(--card-shadow)'
-                : 'none',
-          }"
-          @click="activeTab = 'marketplace'"
-        >
-          Marketplace ({{ marketplaceSources.length }})
-        </button>
       </div>
 <!-- Search -->
 <input

@@ -336,34 +336,35 @@ const lineCount = computed(() => rawJson.value.split('\n').length)
 
 <template>
   <div>
-    <PageHeader title="Settings">
-      <template #right>
-        <button
-          class="text-[12px] px-2 py-1 rounded focus-ring text-label"
-          style="background: var(--surface-raised); border: 1px solid var(--border-default);"
-          @click="viewMode = viewMode === 'structured' ? 'raw' : 'structured'"
-        >
-          {{ viewMode === 'structured' ? 'Raw JSON' : 'Structured' }}
-        </button>
-        <UButton v-if="viewMode === 'raw'" label="Save" icon="i-lucide-save" size="sm" :loading="saving" @click="saveRaw" />
-      </template>
-    </PageHeader>
+    <PageHeader title="Settings" hide-title />
 
     <!-- Scope tabs -->
     <div class="px-6 pt-4 space-y-3">
-      <div class="flex items-center gap-1 p-1 rounded-lg w-fit" style="background: var(--surface-raised); border: 1px solid var(--border-subtle);">
-        <button
-          v-for="tab in scopeTabs"
-          :key="tab.value"
-          class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors focus-ring"
-          :style="scope === tab.value
-            ? 'background: var(--accent-muted); color: var(--text-primary);'
-            : 'color: var(--text-secondary);'"
-          @click="scope = tab.value"
-        >
-          <UIcon :name="tab.icon" class="size-3.5" />
-          {{ tab.label }}
-        </button>
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-1 p-1 rounded-lg w-fit" style="background: var(--surface-raised); border: 1px solid var(--border-subtle);">
+          <button
+            v-for="tab in scopeTabs"
+            :key="tab.value"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors focus-ring"
+            :style="scope === tab.value
+              ? 'background: var(--accent-muted); color: var(--text-primary);'
+              : 'color: var(--text-secondary);'"
+            @click="scope = tab.value"
+          >
+            <UIcon :name="tab.icon" class="size-3.5" />
+            {{ tab.label }}
+          </button>
+        </div>
+        <div class="flex items-center gap-2">
+          <button
+            class="text-[12px] px-2 py-1 rounded focus-ring text-label"
+            style="background: var(--surface-raised); border: 1px solid var(--border-default);"
+            @click="viewMode = viewMode === 'structured' ? 'raw' : 'structured'"
+          >
+            {{ viewMode === 'structured' ? 'Raw JSON' : 'Structured' }}
+          </button>
+          <UButton v-if="viewMode === 'raw'" label="Save" icon="i-lucide-save" size="sm" :loading="saving" @click="saveRaw" />
+        </div>
       </div>
 
       <div class="flex flex-wrap items-center gap-3">

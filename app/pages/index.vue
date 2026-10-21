@@ -298,7 +298,7 @@ const statItems = computed(() => [
 
 <template>
   <div class="min-h-full flex flex-col">
-    <PageHeader title="Dashboard" />
+    <PageHeader title="Dashboard" hide-title />
 
     <div class="flex-1 flex flex-col px-6 py-5 stagger-section space-y-5">
       <!-- Hero stat bar -->

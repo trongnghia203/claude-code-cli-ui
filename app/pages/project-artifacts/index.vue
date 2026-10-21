@@ -76,13 +76,13 @@ useHead({
 
 <template>
   <div class="h-full flex flex-col overflow-hidden">
-    <PageHeader title="Project Artifacts">
-      <template #subtitle>
+    <PageHeader title="Artifacts" hide-title />
+
+    <div class="flex-1 overflow-y-auto custom-scrollbar p-6">
+      <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
         <p class="text-[12px] text-label">
           {{ visibleProjects.length }} projects detected
         </p>
-      </template>
-      <template #right>
         <div class="flex items-center gap-3">
           <input
             v-model="searchQuery"
@@ -128,10 +128,8 @@ useHead({
             New Chat
           </NuxtLink>
         </div>
-      </template>
-    </PageHeader>
+      </div>
 
-    <div class="flex-1 overflow-y-auto custom-scrollbar p-6">
       <div v-if="isLoadingProjects && projects.length === 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         <div v-for="i in 8" :key="i" class="h-[140px] rounded-xl animate-pulse" style="background: var(--surface-raised);" />
       </div>

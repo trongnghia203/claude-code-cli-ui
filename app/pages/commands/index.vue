@@ -36,14 +36,7 @@ const filteredCount = computed(() =>
 
 <template>
   <div>
-    <PageHeader title="Commands">
-      <template #trailing>
-        <span class="font-mono text-[12px] text-meta">{{ commands.length }}</span>
-      </template>
-      <template #right>
-        <UButton label="New Command" icon="i-lucide-plus" size="sm" @click="showCreateModal = true" />
-      </template>
-    </PageHeader>
+    <PageHeader title="Commands" hide-title />
 
     <div class="px-6 py-4">
       <p class="text-[13px] mb-4 leading-relaxed text-label">
@@ -51,12 +44,15 @@ const filteredCount = computed(() =>
       </p>
 
       <!-- Search -->
-      <div class="mb-4">
+      <div class="mb-4 flex flex-wrap items-center gap-3">
         <input
           v-model="searchQuery"
           placeholder="Search commands..."
           class="field-search max-w-xs"
         />
+        <div class="ml-auto flex items-center gap-2">
+          <UButton label="New Command" icon="i-lucide-plus" size="sm" @click="showCreateModal = true" />
+        </div>
       </div>
 
       <div

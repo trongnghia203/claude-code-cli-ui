@@ -61,17 +61,7 @@ onMounted(() => {
 
 <template>
   <div>
-    <PageHeader title="Skills">
-      <template #trailing>
-        <span class="font-mono text-[12px] text-meta">
-          {{ filteredSkills.length === skills.length ? skills.length : `${filteredSkills.length} / ${skills.length}` }}
-        </span>
-      </template>
-      <template #right>
-        <UButton label="Import" icon="i-lucide-upload" size="sm" variant="soft" @click="showImportModal = true" />
-        <UButton label="New Skill" icon="i-lucide-plus" size="sm" @click="showCreateModal = true" />
-      </template>
-    </PageHeader>
+    <PageHeader title="Skills" hide-title />
 
     <div class="px-6 py-4">
       <p class="text-[13px] mb-4 leading-relaxed text-label">
@@ -110,6 +100,10 @@ onMounted(() => {
           >
             Clear
           </button>
+        </div>
+        <div class="ml-auto flex items-center gap-2">
+          <UButton label="Import" icon="i-lucide-upload" size="sm" variant="soft" @click="showImportModal = true" />
+          <UButton label="New Skill" icon="i-lucide-plus" size="sm" @click="showCreateModal = true" />
         </div>
       </div>
 

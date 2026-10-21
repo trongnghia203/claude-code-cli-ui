@@ -1601,10 +1601,10 @@ function handleClosePreview() {
       <!-- Header - Fixed height for consistent alignment -->
       <div
         :key="urlSessionId || 'live'"
-        class="shrink-0 border-b relative z-20"
+        class="shrink-0 border-b relative z-20 h-14"
         style="border-color: var(--border-subtle); background: var(--surface-base);"
       >
-        <div class="flex items-center justify-between px-4 h-14">
+        <div class="flex items-center justify-between px-4 h-full">
           <div class="flex items-center gap-2 min-w-0 flex-1">
           <!-- History Mode - Session Info -->
           <template v-if="viewMode === 'history'">

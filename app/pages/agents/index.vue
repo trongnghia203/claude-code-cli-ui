@@ -67,15 +67,7 @@ async function useTemplate(templateId: string) {
 
 <template>
   <div>
-    <PageHeader title="Agents">
-      <template #trailing>
-        <span class="text-[12px] text-meta">{{ agents.length }}</span>
-      </template>
-      <template #right>
-        <UButton label="Import" icon="i-lucide-upload" size="sm" variant="soft" @click="showImportModal = true" />
-        <UButton label="New Agent" icon="i-lucide-plus" size="sm" @click="showCreateModal = true" />
-      </template>
-    </PageHeader>
+    <PageHeader title="Agents" hide-title />
 
     <div class="px-6 py-4">
       <p class="text-[13px] mb-4 leading-relaxed text-label">
@@ -83,12 +75,16 @@ async function useTemplate(templateId: string) {
       </p>
 
       <!-- Search -->
-      <div class="mb-5">
+      <div class="mb-5 flex flex-wrap items-center gap-3">
         <input
           v-model="searchQuery"
           placeholder="Search agents..."
           class="field-search max-w-xs"
         />
+        <div class="ml-auto flex items-center gap-2">
+          <UButton label="Import" icon="i-lucide-upload" size="sm" variant="soft" @click="showImportModal = true" />
+          <UButton label="New Agent" icon="i-lucide-plus" size="sm" @click="showCreateModal = true" />
+        </div>
       </div>
 
       <!-- Error state -->

@@ -52,20 +52,7 @@ function onPluginInstalled() {
 
 <template>
   <div>
-    <PageHeader title="Plugins">
-      <template #trailing>
-        <span class="font-mono text-[12px] text-meta">{{ plugins.length }}</span>
-      </template>
-      <template #right>
-        <UButton
-          label="Add Plugin"
-          icon="i-lucide-plus"
-          size="sm"
-          variant="soft"
-          @click="showAddPluginModal = true"
-        />
-      </template>
-    </PageHeader>
+    <PageHeader title="Plugins" hide-title />
 
     <div class="px-6 py-4">
       <p class="text-[13px] mb-4 leading-relaxed text-label">
@@ -73,12 +60,21 @@ function onPluginInstalled() {
       </p>
 
       <!-- Search -->
-      <div class="mb-4">
+      <div class="mb-4 flex flex-wrap items-center gap-3">
         <input
           v-model="searchQuery"
           placeholder="Search plugins..."
           class="field-search max-w-xs"
         />
+        <div class="ml-auto flex items-center gap-2">
+          <UButton
+            label="Add Plugin"
+            icon="i-lucide-plus"
+            size="sm"
+            variant="soft"
+            @click="showAddPluginModal = true"
+          />
+        </div>
       </div>
 
       <div

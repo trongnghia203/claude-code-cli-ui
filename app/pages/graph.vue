@@ -388,7 +388,7 @@ function onNodeClick(first: unknown, second?: unknown) {
       class="absolute top-0 left-0 right-0 z-10 h-14 flex items-center gap-3 px-6"
       style="background: color-mix(in srgb, var(--surface-base) 85%, transparent); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border-subtle);"
     >
-      <h1 class="text-page-title flex-1">Graph</h1>
+      <h1 class="text-page-title flex-1"><span class="sr-only">Graph</span></h1>
       <span class="font-mono text-[11px]" style="color: var(--text-disabled);">
         {{ nodes.filter(n => n.type !== 'columnHeader').length }} nodes
       </span>

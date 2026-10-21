@@ -108,20 +108,18 @@ function testServer(name: string) {
 
 <template>
   <div class="flex flex-col">
-    <PageHeader title="MCP Servers">
-      <template #trailing>
-        <span class="font-mono text-[12px] text-meta mr-4">{{ servers.length }}</span>
-      </template>
-      <template #right>
-        <UButton label="Import" icon="i-lucide-upload" size="sm" variant="soft" @click="showImportModal = true" />
-        <UButton label="New MCP Server" icon="i-lucide-plus" size="sm" @click="openAdd('global')" />
-      </template>
-    </PageHeader>
+    <PageHeader title="MCP Servers" hide-title />
 
     <div class="px-6 py-4 flex-1">
-      <p class="text-[13px] mb-6 leading-relaxed text-label max-w-2xl">
-        Manage Model Context Protocol (MCP) servers. Global servers are available across all your projects, while project servers are scoped to your current working directory.
-      </p>
+      <div class="mb-6 flex items-start justify-between gap-4 flex-wrap">
+        <p class="text-[13px] leading-relaxed text-label max-w-2xl">
+          Manage Model Context Protocol (MCP) servers. Global servers are available across all your projects, while project servers are scoped to your current working directory.
+        </p>
+        <div class="flex items-center gap-2 shrink-0">
+          <UButton label="Import" icon="i-lucide-upload" size="sm" variant="soft" @click="showImportModal = true" />
+          <UButton label="New MCP Server" icon="i-lucide-plus" size="sm" @click="openAdd('global')" />
+        </div>
+      </div>
 
       <!-- Strict switch (client-only: depends on the project saved in this browser) -->
       <ClientOnly>

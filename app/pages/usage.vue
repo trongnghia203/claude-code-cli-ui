@@ -84,7 +84,7 @@ function exportCsv() {
     <!-- Header -->
     <div class="flex items-start justify-between gap-4 flex-wrap">
       <div>
-        <h1 class="text-xl font-bold" style="color: var(--text-primary);">Token Usage</h1>
+        <h1 class="sr-only">Token Usage</h1>
         <p class="text-[13px] mt-0.5" style="color: var(--text-tertiary);">Spending and token consumption across projects</p>
       </div>
       <div class="flex items-center gap-2 flex-wrap">

@@ -37,19 +37,17 @@ async function onDeleteStyle(id: string, scope: 'global' | 'project') {
 
 <template>
   <div class="flex flex-col">
-    <PageHeader title="Output Styles">
-      <template #trailing>
-        <span class="font-mono text-[12px] text-meta mr-4">{{ styles.length }}</span>
-      </template>
-      <template #right>
-        <UButton label="New Output Style" icon="i-lucide-plus" size="sm" @click="onNewStyle" />
-      </template>
-    </PageHeader>
+    <PageHeader title="Output Styles" hide-title />
 
     <div class="px-6 py-4 flex-1">
-      <p class="text-[13px] mb-6 leading-relaxed text-label max-w-2xl">
-        Output styles allow you to adapt Claude Code for different roles while maintaining its core capabilities. They modify the system prompt and define the fundamental behavior, tone, and formatting.
-      </p>
+      <div class="mb-6 flex items-start justify-between gap-4 flex-wrap">
+        <p class="text-[13px] leading-relaxed text-label max-w-2xl">
+          Output styles allow you to adapt Claude Code for different roles while maintaining its core capabilities. They modify the system prompt and define the fundamental behavior, tone, and formatting.
+        </p>
+        <div class="flex items-center gap-2 shrink-0">
+          <UButton label="New Output Style" icon="i-lucide-plus" size="sm" @click="onNewStyle" />
+        </div>
+      </div>
 
       <div v-if="error" class="rounded-xl px-4 py-3 mb-6 flex items-start gap-3 border-error bg-error-subtle">
         <UIcon name="i-lucide-alert-circle" class="size-4 shrink-0 mt-0.5 text-error" />

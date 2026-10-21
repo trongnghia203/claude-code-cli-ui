@@ -127,7 +127,7 @@ onUnmounted(() => { es?.close(); es = null })
       style="border-color: var(--border-subtle); background: var(--surface-base);"
     >
       <div class="flex items-center gap-2 mr-1">
-        <h1 class="text-[15px] font-semibold" style="color: var(--text-primary);">Logs</h1>
+        <h1 class="sr-only">Logs</h1>
         <span
           class="size-2 rounded-full shrink-0"
           :style="connected ? 'background: #22c55e;' : 'background: #ef4444;'"
