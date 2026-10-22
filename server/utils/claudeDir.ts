@@ -6,7 +6,7 @@ let currentClaudeDir: string | null = null
 
 export function getClaudeDir(): string {
   if (!currentClaudeDir) {
-    const envDir = process.env.CLAUDE_DIR
+    const envDir = process.env.CLAUDE_DIR || process.env.CLAUDE_CONFIG_DIR
     currentClaudeDir = envDir || join(homedir(), '.claude')
   }
   return currentClaudeDir
