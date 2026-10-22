@@ -556,11 +556,11 @@ useHead({ title: 'Memory | Agent Manager' })
                 @click="toggleDir(row, group.name)"
               >
                 <UIcon name="i-lucide-chevron-right" class="size-3 shrink-0 transition-transform duration-150" :class="row.open ? 'rotate-90' : ''" style="color: var(--text-secondary);" />
-                <span class="text-[12px] truncate" style="color: var(--text-primary);">{{ row.label }}</span>
+                <span class="text-[13px] truncate" style="color: var(--text-primary);">{{ row.label }}</span>
               </button>
               <div
                 v-else-if="row.kind === 'empty'"
-                class="py-1 pr-2 text-[11px] italic"
+                class="py-1 pr-2 text-[12px] italic"
                 :style="{ paddingLeft: `${8 + row.depth * 16 + 16}px`, color: 'var(--text-disabled)' }"
               >
                 No markdown files
@@ -578,7 +578,7 @@ useHead({ title: 'Memory | Agent Manager' })
                   class="size-3.5 shrink-0"
                   :style="{ color: row.file.exists ? 'var(--accent)' : 'var(--text-disabled)' }"
                 />
-                <span class="text-[12px] truncate" :style="{ color: row.file.exists ? 'var(--text-primary)' : 'var(--text-tertiary)' }">{{ row.label }}</span>
+                <span class="text-[13px] truncate" :style="{ color: row.file.exists ? 'var(--text-primary)' : 'var(--text-tertiary)' }">{{ row.label }}</span>
                 <span
                   v-if="fileStatus.get(row.file.path)"
                   class="ml-auto text-[11px] font-semibold font-mono"
