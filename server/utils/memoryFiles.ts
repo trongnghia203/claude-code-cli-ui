@@ -1,6 +1,7 @@
-import { readdir } from 'node:fs/promises'
+import { readdir, realpath } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
-import { join, relative, sep } from 'node:path'
+import { spawn } from 'node:child_process'
+import { isAbsolute, join, relative, sep } from 'node:path'
 import { getClaudeDir } from './claudeDir'
 import { resolveHome } from './path'
 
@@ -94,6 +95,9 @@ async function collectKnowledge(dir: string, group: string, out: MemoryFile[]) {
   await walk(dir, 0)
 }
 
+// Dependency, build and tooling folders: never hold docs worth listing
+const SKIPPED_DIRS = new Set(['node_modules', 'vendor', 'dist', 'build', 'out', 'target', 'coverage', '__pycache__', 'site-packages'])
+
 export async function listMemoryFiles(scope: MemoryScope, projectPath?: string): Promise<MemoryFile[]> {
   const out: MemoryFile[] = []
   const claudeDir = getClaudeDir()
@@ -118,9 +122,102 @@ export async function listMemoryFiles(scope: MemoryScope, projectPath?: string):
   return out
 }
 
+function scopeRoot(scope: MemoryScope, projectPath?: string): string | undefined {
+  if (scope === 'global') return getClaudeDir()
+  return projectPath ? resolveHome(projectPath) : undefined
+}
+
+function scopeGroup(scope: MemoryScope): string {
+  return scope === 'global' ? '~/.claude' : 'Project root'
+}
+
+// Local notes are usually gitignored on purpose but are exactly what this page edits
+const ALWAYS_SHOWN = /\.local\.md$/i
+
+/** Names (dirs get a trailing "/") that git ignores in `dir`: .gitignore files, .git/info/exclude and the global excludes file. Empty when `dir` is not in a git repo. */
+function gitIgnored(dir: string, names: string[]): Promise<Set<string>> {
+  return new Promise((resolve) => {
+    if (!names.length) return resolve(new Set())
+    const child = spawn('git', ['check-ignore', '--stdin', '-z'], { cwd: dir, stdio: ['pipe', 'pipe', 'ignore'] })
+    let out = ''
+    child.stdout.on('data', d => { out += d })
+    child.on('error', () => resolve(new Set()))
+    // Exit 1 = nothing ignored, 128 = not a repo: both leave `out` empty
+    child.on('close', () => resolve(new Set(out.split('\0').filter(Boolean))))
+    child.stdin.on('error', () => {})
+    child.stdin.end(names.join('\0'))
+  })
+}
+
+export interface MemoryDirListing {
+  /** Sub-folders, relative to the project root with "/" separators */
+  dirs: string[]
+  /** Markdown files directly in the folder (none for the root itself: those come from listMemoryFiles) */
+  files: MemoryFile[]
+}
+
+/** List one folder of a scope (project root or ~/.claude): its sub-folders and *.md files. `dir` is relative to that root ("" = root). */
+export async function listMemoryDir(scope: MemoryScope, projectPath: string | undefined, dir: string): Promise<MemoryDirListing | undefined> {
+  const root = scopeRoot(scope, projectPath)
+  if (!root) return undefined
+  const group = scopeGroup(scope)
+  const abs = join(root, dir)
+  const rel = relative(root, abs)
+  if (rel.startsWith('..') || isAbsolute(rel)) return undefined
+  const parts = rel ? rel.split(sep) : []
+  if (parts.some(p => p.startsWith('.') || SKIPPED_DIRS.has(p))) return undefined
+  try {
+    const [realRoot, realAbs] = await Promise.all([realpath(root), realpath(abs)])
+    if (relative(realRoot, realAbs).startsWith('..')) return undefined
+  } catch {
+    return undefined
+  }
+  let entries
+  try {
+    entries = await readdir(abs, { withFileTypes: true })
+  } catch {
+    return undefined
+  }
+  entries.sort((a, b) => a.name.localeCompare(b.name))
+  const candidates = entries.filter(e => !e.name.startsWith('.') && !SKIPPED_DIRS.has(e.name) && !ALWAYS_SHOWN.test(e.name))
+  const ignored = await gitIgnored(abs, candidates.map(e => (e.isDirectory() ? `${e.name}/` : e.name)))
+  const dirs: string[] = []
+  const files: MemoryFile[] = []
+  for (const e of entries) {
+    if (e.name.startsWith('.') || SKIPPED_DIRS.has(e.name)) continue
+    if (ignored.has(e.isDirectory() ? `${e.name}/` : e.name)) continue
+    const p = join(abs, e.name)
+    if (e.isDirectory()) {
+      dirs.push([...parts, e.name].join('/'))
+    } else if (rel && e.isFile() && e.name.toLowerCase().endsWith('.md')) {
+      files.push({ path: p, name: [...parts, e.name].join('/'), group, exists: true, suggested: false })
+    }
+  }
+  return { dirs, files }
+}
+
+/** True when `path` is a *.md inside `root` that the folder listing would show (no hidden or skipped folder, real path stays in root). */
+async function isNestedMarkdown(root: string, path: string): Promise<boolean> {
+  const rel = relative(root, path)
+  if (!rel || rel.startsWith('..') || isAbsolute(rel) || !path.toLowerCase().endsWith('.md')) return false
+  const parts = rel.split(sep)
+  if (parts.length < 2 || parts.some(p => p.startsWith('.') || SKIPPED_DIRS.has(p))) return false
+  try {
+    const real = await realpath(path)
+    const realRoot = await realpath(root)
+    return !relative(realRoot, real).startsWith('..')
+  } catch {
+    return false
+  }
+}
+
 /** Only paths produced by listMemoryFiles may be read or written. */
 export async function resolveAllowedMemoryFile(scope: MemoryScope, projectPath: string | undefined, path: string): Promise<MemoryFile | undefined> {
+  // Fast path: nested docs, avoids re-walking the whole tree on every open/save
+  const root = scopeRoot(scope, projectPath)
+  if (root && await isNestedMarkdown(root, path)) {
+    return { path, name: relative(root, path).split(sep).join('/'), group: scopeGroup(scope), exists: true, suggested: false }
+  }
   const files = await listMemoryFiles(scope, projectPath)
   return files.find(f => f.path === path)
 }
-

@@ -19,6 +19,17 @@ const scopeTabs: { value: Scope; label: string; icon: string }[] = [
 ]
 
 const files = ref<MemoryFile[]>([])
+// Project folders are listed lazily, one level per expand: folders seen so far and the files loaded from them
+const knownDirs = ref<string[]>([])
+const extraFiles = ref<MemoryFile[]>([])
+const loadedDirs = reactive(new Set<string>())
+// Group name of the lazily browsed root: the project folder, or ~/.claude for Global
+/** Title shown for a group: the project group is labelled with the project's own path ("~/ataccama") */
+function groupLabel(name: string): string {
+  if (name !== rootGroup.value || scope.value !== 'project' || !workingDir.value) return name
+  return workingDir.value.replace(/^\/(?:Users|home)\/[^/]+/, '~')
+}
+const rootGroup = computed(() => (scope.value === 'global' ? '~/.claude' : 'Project root'))
 const loadingList = ref(false)
 const selectedPath = ref('')
 const content = ref('')
@@ -202,7 +213,7 @@ async function pushRepo(repo: RepoState) {
 const gitBase = ref<string | null>(null)
 
 async function openChange(change: RepoChange, repo: RepoState) {
-  if (!files.value.some(f => f.path === change.path)) return
+  if (![...files.value, ...extraFiles.value].some(f => f.path === change.path)) return
   if (dirty.value && selectedPath.value !== change.path && !window.confirm('Discard unsaved changes?')) return
   let base = ''
   if (change.status !== 'U') {
@@ -236,6 +247,7 @@ interface TreeNode { label: string; key: string; dirs: Map<string, TreeNode>; fi
 type Row =
   | { kind: 'dir'; key: string; label: string; depth: number; open: boolean }
   | { kind: 'file'; file: MemoryFile; label: string; depth: number }
+  | { kind: 'empty'; key: string; depth: number }
 
 /** Flatten a group into visible rows. Folders holding a single folder are merged ("a/b/c") like VS Code. */
 function treeRows(group: { name: string; items: MemoryFile[] }): Row[] {
@@ -253,9 +265,23 @@ function treeRows(group: { name: string; items: MemoryFile[] }): Row[] {
     }
     node.files.push(f)
   }
+  if (group.name === rootGroup.value) {
+    for (const rel of knownDirs.value) {
+      let node = root
+      for (const part of rel.split('/')) {
+        let next = node.dirs.get(part)
+        if (!next) {
+          next = { label: part, key: `${node.key}/${part}`, dirs: new Map(), files: [] }
+          node.dirs.set(part, next)
+        }
+        node = next
+      }
+    }
+  }
   const rows: Row[] = []
   const walk = (node: TreeNode, depth: number) => {
-    for (const d of node.dirs.values()) {
+    // Alphabetical like a file explorer; insertion order would move a folder once its files load
+    for (const d of [...node.dirs.values()].sort((a, b) => a.label.localeCompare(b.label))) {
       let cur = d
       let label = d.label
       while (cur.files.length === 0 && cur.dirs.size === 1) {
@@ -264,7 +290,12 @@ function treeRows(group: { name: string; items: MemoryFile[] }): Row[] {
       }
       const open = !!openDirs[cur.key]
       rows.push({ kind: 'dir', key: cur.key, label, depth, open })
-      if (open) walk(cur, depth + 1)
+      if (open) {
+        walk(cur, depth + 1)
+        // Folder loaded and nothing to show: say so instead of leaving a bare chevron
+        const loaded = group.name === rootGroup.value && loadedDirs.has(cur.key.slice(group.name.length + 1))
+        if (loaded && cur.dirs.size === 0 && cur.files.length === 0) rows.push({ kind: 'empty', key: cur.key, depth: depth + 1 })
+      }
     }
     for (const f of node.files) rows.push({ kind: 'file', file: f, label: f.name.split('/').pop()!, depth })
   }
@@ -277,9 +308,35 @@ function groupRows(group: { name: string; items: MemoryFile[] }): Row[] {
   return treeRows(group)
 }
 
+/** Fetch one project folder's sub-folders and markdown files, once */
+async function loadDir(rel: string) {
+  if (needsProject.value || loadedDirs.has(rel)) return
+  loadedDirs.add(rel)
+  try {
+    const res = await $fetch<{ dirs: string[]; files: MemoryFile[] }>('/api/memory/dir', {
+      query: { scope: scope.value, projectPath: scope.value === 'project' ? workingDir.value : undefined, dir: rel },
+    })
+    knownDirs.value = [...new Set([...knownDirs.value, ...res.dirs])]
+    mergeFiles(res.files)
+  } catch {
+    loadedDirs.delete(rel)
+  }
+}
+
+function mergeFiles(list: MemoryFile[]) {
+  const have = new Set([...files.value, ...extraFiles.value].map(f => f.path))
+  const fresh = list.filter(f => !have.has(f.path))
+  if (fresh.length) extraFiles.value = [...extraFiles.value, ...fresh]
+}
+
+function toggleDir(row: { key: string; open: boolean }, groupName: string) {
+  openDirs[row.key] = !row.open
+  if (!row.open && groupName === rootGroup.value) loadDir(row.key.slice(groupName.length + 1))
+}
+
 /** Expand every folder above the file so it is visible in the tree */
 function revealInTree(path: string) {
-  const f = files.value.find(x => x.path === path)
+  const f = [...files.value, ...extraFiles.value].find(x => x.path === path)
   if (!f) return
   const parts = f.name.split('/').slice(0, -1)
   let key = f.group
@@ -298,12 +355,12 @@ async function revealFile(path: string) {
 }
 
 const needsProject = computed(() => scope.value === 'project' && !workingDir.value)
-const selected = computed(() => files.value.find(f => f.path === selectedPath.value))
+const selected = computed(() => [...files.value, ...extraFiles.value].find(f => f.path === selectedPath.value))
 const dirty = computed(() => content.value !== original.value)
 
 const groups = computed(() => {
   const map = new Map<string, MemoryFile[]>()
-  for (const f of files.value) {
+  for (const f of [...files.value, ...extraFiles.value]) {
     if (!map.has(f.group)) map.set(f.group, [])
     map.get(f.group)!.push(f)
   }
@@ -326,6 +383,9 @@ async function loadList() {
   selectedPath.value = ''
   content.value = ''
   original.value = ''
+  extraFiles.value = []
+  knownDirs.value = []
+  loadedDirs.clear()
   if (needsProject.value) {
     files.value = []
     return
@@ -336,6 +396,7 @@ async function loadList() {
       query: { scope: scope.value, path: scope.value === 'project' ? workingDir.value : undefined },
     })
     files.value = res.files
+    await loadDir('')
     // Open the first file that exists
     const first = files.value.find(f => f.exists) ?? files.value[0]
     if (first) await selectFile(first.path, true)
@@ -450,7 +511,19 @@ useHead({ title: 'Memory | Agent Manager' })
               {{ tab.label }}
             </button>
           </div>
-          <div class="flex items-center justify-end gap-1 mt-2">
+          <div class="flex items-center justify-between gap-1 mt-2">
+            <!-- First group's title shares the row with the view toggle -->
+            <div
+              v-if="!loadingList && groups[0]"
+              class="px-2 text-[11px] font-semibold tracking-wider truncate"
+              :class="groupLabel(groups[0].name).startsWith('~') ? '' : 'uppercase'"
+              style="color: var(--text-secondary);"
+              :title="groupLabel(groups[0].name)"
+            >
+              {{ groupLabel(groups[0].name) }}
+            </div>
+            <span v-else />
+            <div class="flex items-center gap-1 shrink-0">
             <button
               v-for="m in ([{ v: 'list', icon: 'i-lucide-list', t: 'View as List' }, { v: 'tree', icon: 'i-lucide-list-tree', t: 'View as Tree' }] as const)"
               :key="m.v"
@@ -462,6 +535,7 @@ useHead({ title: 'Memory | Agent Manager' })
             >
               <UIcon :name="m.icon" class="size-3.5" />
             </button>
+            </div>
           </div>
         </div>
         <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-3 pb-3 space-y-4">
@@ -469,26 +543,33 @@ useHead({ title: 'Memory | Agent Manager' })
           <UIcon name="i-lucide-loader-2" class="size-5 animate-spin text-meta" />
         </div>
         <template v-else>
-          <div v-for="group in groups" :key="group.name" class="space-y-1">
-            <div class="px-2 text-[10px] font-semibold uppercase tracking-wider truncate" style="color: var(--text-secondary);" :title="group.name">
-              {{ group.name }}
+          <div v-for="(group, gi) in groups" :key="group.name" class="space-y-1">
+            <div v-if="gi > 0" class="px-2 text-[11px] font-semibold tracking-wider truncate" :class="groupLabel(group.name).startsWith('~') ? '' : 'uppercase'" style="color: var(--text-secondary);" :title="groupLabel(group.name)">
+              {{ groupLabel(group.name) }}
             </div>
-            <template v-for="row in groupRows(group)" :key="row.kind === 'dir' ? 'd:' + row.key : row.file.path">
+            <template v-for="row in groupRows(group)" :key="row.kind === 'file' ? row.file.path : `${row.kind}:${row.key}`">
               <button
                 v-if="row.kind === 'dir'"
-                class="w-full flex items-center gap-1.5 py-1 pr-2 rounded-lg text-left transition-colors hover-bg focus-ring"
-                :style="{ paddingLeft: `${8 + row.depth * 12}px` }"
+                class="w-full flex items-center gap-1.5 py-1.5 pr-2 rounded-lg text-left transition-colors hover-bg focus-ring"
+                :style="{ paddingLeft: `${8 + row.depth * 16}px` }"
                 :title="row.key"
-                @click="openDirs[row.key] = !row.open"
+                @click="toggleDir(row, group.name)"
               >
                 <UIcon name="i-lucide-chevron-right" class="size-3 shrink-0 transition-transform duration-150" :class="row.open ? 'rotate-90' : ''" style="color: var(--text-secondary);" />
-                <span class="text-[12px] truncate" style="color: var(--text-secondary);">{{ row.label }}</span>
+                <span class="text-[12px] truncate" style="color: var(--text-primary);">{{ row.label }}</span>
               </button>
+              <div
+                v-else-if="row.kind === 'empty'"
+                class="py-1 pr-2 text-[11px] italic"
+                :style="{ paddingLeft: `${8 + row.depth * 16 + 16}px`, color: 'var(--text-disabled)' }"
+              >
+                No markdown files
+              </div>
               <button
                 v-else
                 :data-memory-path="row.file.path"
                 class="w-full flex items-center gap-2 py-1.5 pr-2 rounded-lg text-left transition-colors hover-bg focus-ring"
-                :style="{ paddingLeft: `${8 + row.depth * 12 + (viewMode === 'tree' && row.depth > 0 ? 4 : 0)}px`, background: row.file.path === selectedPath ? 'var(--accent-muted)' : '' }"
+                :style="{ paddingLeft: `${8 + row.depth * 16}px`, background: row.file.path === selectedPath ? 'var(--accent-muted)' : '' }"
                 :title="row.file.path"
                 @click="selectFile(row.file.path)"
               >
@@ -515,7 +596,7 @@ useHead({ title: 'Memory | Agent Manager' })
           <!-- Fixed height so the title does not shift when the refresh button appears -->
           <div class="flex items-center justify-between h-6">
             <button
-              class="flex items-center gap-1 px-2 text-[10px] font-semibold uppercase tracking-wider"
+              class="flex items-center gap-1.5 px-2 text-[11px] font-semibold uppercase tracking-wider"
               style="color: var(--text-secondary);"
               :aria-expanded="scmOpen"
               @click="toggleScm"
