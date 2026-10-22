@@ -12,6 +12,8 @@
    ============================================ */
 
 :root {
+  /* Base size for all rendered markdown: chat, schedules, editor previews */
+  --md-font-size: 15px;
   /* ---- Light mode (default) ---- */
 
   /* Surfaces */
@@ -1411,7 +1413,7 @@ details summary::-webkit-details-marker {
    ============================================ */
 .md-prose {
   max-width: 100%;
-  font-size: 13px;
+  font-size: var(--md-font-size);
   line-height: 1.625;
   overflow-wrap: break-word;
 }

@@ -218,7 +218,7 @@ function dismissSuggestion() {
     >
       <div
         v-if="renderedHtml"
-        class="text-[13px] leading-[1.7]"
+        class="text-[length:var(--md-font-size)] leading-[1.7]"
         v-html="renderedHtml"
       />
       <p v-else-if="!modelValue.trim()" class="text-[13px]" style="color: var(--text-disabled);">Nothing to preview yet.</p>
