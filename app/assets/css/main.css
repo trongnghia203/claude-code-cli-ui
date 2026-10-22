@@ -1527,37 +1527,53 @@ details summary::-webkit-details-marker {
 /* ----------------------------------------
    Tables
    ---------------------------------------- */
-.md-prose table {
-  border-collapse: collapse;
-  margin: 1rem 0;
-  font-size: 0.9em;
+/* Shared by chat/schedule output (.md-prose) and editor previews (.instruction-preview).
+   Wide tables scroll sideways; cells wrap on words, never mid-word. */
+:is(.md-prose, .instruction-preview) table {
   display: block;
-  overflow-x: auto;
+  width: max-content;
   max-width: 100%;
+  overflow-x: auto;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.88em;
+  line-height: 1.5;
+  margin: 1em 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
 }
 
-.md-prose th,
-.md-prose td {
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--border-default);
+:is(.md-prose, .instruction-preview) :is(th, td) {
+  border-bottom: 1px solid var(--border-subtle);
+  border-right: 1px solid var(--border-subtle);
+  padding: 0.5em 0.75em;
   text-align: left;
-  color: var(--text-primary);
-  word-wrap: break-word;
+  vertical-align: top;
+  min-width: 5.5em;
   overflow-wrap: break-word;
-}
-
-.md-prose th {
-  background: var(--surface-hover);
-  font-weight: 600;
   color: var(--text-primary);
 }
 
-.md-prose tr:nth-child(even) {
-  background: var(--surface-hover);
+:is(.md-prose, .instruction-preview) :is(th, td):last-child {
+  border-right: none;
 }
 
-.md-prose tr:nth-child(odd) {
-  background: transparent;
+:is(.md-prose, .instruction-preview) tr:last-child td {
+  border-bottom: none;
+}
+
+:is(.md-prose, .instruction-preview) td:first-child > code:only-child {
+  white-space: nowrap;
+}
+
+:is(.md-prose, .instruction-preview) th {
+  background: var(--surface-raised);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+:is(.md-prose, .instruction-preview) tbody tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--surface-raised) 45%, transparent);
 }
 
 /* ----------------------------------------

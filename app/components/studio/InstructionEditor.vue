@@ -255,13 +255,6 @@ function dismissSuggestion() {
 .instruction-preview :deep(blockquote p) { margin: 0.25em 0; }
 .instruction-preview :deep(hr) { border: none; border-top: 1px solid var(--border-subtle); margin: 1em 0; }
 .instruction-preview :deep(a) { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
-/* Wide tables scroll sideways; cells wrap on words, never mid-word */
-.instruction-preview :deep(table) { display: block; width: max-content; max-width: 100%; overflow-x: auto; border-collapse: separate; border-spacing: 0; font-size: 0.88em; line-height: 1.5; margin: 1em 0; border: 1px solid var(--border-subtle); border-radius: 8px; }
-.instruction-preview :deep(th), .instruction-preview :deep(td) { border-bottom: 1px solid var(--border-subtle); border-right: 1px solid var(--border-subtle); padding: 0.5em 0.75em; text-align: left; vertical-align: top; min-width: 5.5em; max-width: 30em; overflow-wrap: break-word; }
-.instruction-preview :deep(th:last-child), .instruction-preview :deep(td:last-child) { border-right: none; }
-.instruction-preview :deep(tr:last-child td) { border-bottom: none; }
-.instruction-preview :deep(th) { background: var(--surface-raised); font-weight: 600; white-space: nowrap; }
-.instruction-preview :deep(tbody tr:nth-child(even) td) { background: color-mix(in srgb, var(--surface-raised) 45%, transparent); }
 
 /* Shiki styles */
 .instruction-preview :deep(.shiki-wrapper) {
