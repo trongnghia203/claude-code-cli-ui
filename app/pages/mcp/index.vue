@@ -8,14 +8,41 @@ const { workingDir } = useWorkingDir()
 const { isStrict, setStrict } = useStrictMcp()
 
 // Where servers come from beyond the two scopes listed below (plugins, local) and whether the project has a .mcp.json
-interface McpSourceServer { name: string; transport?: string }
+// status: whether Claude Code can use the server in this project (deniedMcpServers, disabled in ~/.claude.json, .mcp.json approval)
+type McpStatus = 'active' | 'denied' | 'disabled' | 'rejected' | 'pending'
+interface McpSourceServer { name: string; transport?: string; status: McpStatus; reason?: string }
 interface McpSources {
   project: { path: string; exists: boolean; servers: McpSourceServer[] }
   global: McpSourceServer[]
   local: McpSourceServer[]
   plugins: { plugin: string; servers: McpSourceServer[] }[]
+  connectors: McpSourceServer[]
 }
 const sources = ref<McpSources | null>(null)
+
+const STATUS_LABEL: Record<McpStatus, string> = {
+  active: '',
+  denied: 'Denied',
+  disabled: 'Off',
+  rejected: 'Rejected',
+  pending: 'Needs approval',
+}
+
+// The server list (/api/mcp) has no status; look it up in the sources by scope and name
+function blockedStatus(server: { name: string; scope: string }): McpSourceServer | null {
+  const s = sources.value
+  if (!s) return null
+  const list = server.scope === 'project' ? s.project.servers : s.global
+  const found = list.find(x => x.name === server.name)
+  return found && found.status !== 'active' ? found : null
+}
+
+const blockedCount = computed(() => {
+  const s = sources.value
+  if (!s) return 0
+  const all = [...s.project.servers, ...s.global, ...s.local, ...s.plugins.flatMap(p => p.servers), ...s.connectors]
+  return all.filter(x => x.status === 'denied').length
+})
 
 async function loadSources() {
   try {
@@ -48,7 +75,20 @@ const extraGroups = computed(() => {
       hint: 'read-only, private to you in this project',
       servers: s.local.map(x => ({ ...x, tag: '' })),
     },
-  ].filter(g => g.servers.length)
+    {
+      key: 'connectors',
+      label: 'claude.ai connectors',
+      hint: 'account-level, not in any config file; blocked ones come from deniedMcpServers',
+      servers: s.connectors.map(x => ({ ...x, tag: '' })),
+    },
+  ]
+    // Usable servers first, then blocked ones, each part sorted by name
+    .map(g => ({
+      ...g,
+      servers: [...g.servers].sort((a, b) =>
+        Number(a.status !== 'active') - Number(b.status !== 'active') || a.name.localeCompare(b.name)),
+    }))
+    .filter(g => g.servers.length)
 })
 
 const isAddModalOpen = ref(false)
@@ -59,13 +99,18 @@ function openAdd(scope: 'global' | 'project' = 'global') {
   isAddModalOpen.value = true
 }
 
+// Enabled servers first, then disabled or blocked ones, each part sorted by name
+const isOff = (s: { name: string; scope: string; disabled?: boolean }) => !!s.disabled || !!blockedStatus(s)
+const enabledFirst = <T extends { name: string; scope: string; disabled?: boolean }>(list: T[]) =>
+  [...list].sort((a, b) => Number(isOff(a)) - Number(isOff(b)) || a.name.localeCompare(b.name))
+
 // Project first: it is the context you work in, and a project server wins over a global one with the same name
 const sections = computed(() => [
   {
     key: 'project',
     label: 'Project MCPs',
     hint: '.mcp.json',
-    servers: servers.value.filter(s => s.scope === 'project'),
+    servers: enabledFirst(servers.value.filter(s => s.scope === 'project')),
     emptyHint: !workingDir.value
       ? 'Select a project in the sidebar to see its servers.'
       : sources.value && !sources.value.project.exists
@@ -76,7 +121,7 @@ const sections = computed(() => [
     key: 'global',
     label: 'Global MCPs',
     hint: '~/.claude.json',
-    servers: servers.value.filter(s => s.scope === 'global'),
+    servers: enabledFirst(servers.value.filter(s => s.scope === 'global')),
     emptyHint: 'No global MCP servers configured.',
   },
 ])
@@ -147,6 +192,11 @@ function testServer(name: string) {
       </div>
       </ClientOnly>
 
+      <div v-if="blockedCount" class="mb-6 text-[12px] text-secondary opacity-80 max-w-3xl">
+        {{ blockedCount }} server{{ blockedCount === 1 ? '' : 's' }} blocked by <code class="font-mono text-[11px]">deniedMcpServers</code> for this project.
+        See the Effective tab in Settings for the merged files.
+      </div>
+
       <div v-if="error" class="rounded-xl px-4 py-3 mb-6 flex items-start gap-3 border-error bg-error-subtle">
         <UIcon name="i-lucide-alert-circle" class="size-4 shrink-0 mt-0.5 text-error" />
         <span class="text-[12px] text-error">{{ error }}</span>
@@ -189,7 +239,7 @@ function testServer(name: string) {
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0 flex-1">
                   <div class="flex items-center gap-2 mb-1">
-                    <h3 class="text-[14px] font-semibold text-primary truncate" :class="{ 'opacity-50': server.disabled }">{{ server.name }}</h3>
+                    <h3 class="text-[14px] font-semibold text-primary truncate" :class="{ 'opacity-50': server.disabled || blockedStatus(server) }">{{ server.name }}</h3>
                     <span v-if="server.transport" class="text-[10px] px-1.5 py-0.5 rounded font-medium tracking-wide uppercase bg-surface-raised text-meta border border-subtle">
                       {{ server.transport }}
                     </span>
@@ -198,6 +248,13 @@ function testServer(name: string) {
                     </span>
                     <span v-if="server.disabled" class="text-[10px] px-1.5 py-0.5 rounded font-medium tracking-wide uppercase bg-error/10 text-error border border-error/20">
                       Disabled
+                    </span>
+                    <span
+                      v-if="blockedStatus(server)"
+                      class="text-[10px] px-1.5 py-0.5 rounded font-medium tracking-wide uppercase bg-error/10 text-error border border-error/20"
+                      :title="blockedStatus(server)?.reason"
+                    >
+                      {{ STATUS_LABEL[blockedStatus(server)!.status] }}
                     </span>
                   </div>
                   <div v-if="server.transport === 'stdio'" class="text-[12px] font-mono text-meta truncate" :title="server.command + ' ' + (server.args?.join(' ') || '')" :class="{ 'opacity-50': server.disabled }">
@@ -249,9 +306,11 @@ function testServer(name: string) {
           <span
             v-for="s in group.servers"
             :key="group.key + s.tag + s.name"
-            class="text-[12px] font-mono px-2.5 py-1 rounded-lg bg-surface-raised border border-subtle text-secondary"
+            class="text-[12px] px-2.5 py-1 rounded-lg border"
+            :class="s.status === 'active' ? 'chip-active' : 'chip-blocked'"
+            :title="s.reason"
           >
-            {{ s.name }}<span v-if="s.transport" class="text-meta"> · {{ s.transport }}</span><span v-if="s.tag" class="text-meta"> ({{ s.tag }})</span>
+            {{ s.name }}<span v-if="s.transport"> · {{ s.transport }}</span><span v-if="s.tag"> ({{ s.tag }})</span><span v-if="s.status !== 'active'"> · {{ STATUS_LABEL[s.status] }}</span>
           </span>
         </div>
       </div>
@@ -299,6 +358,16 @@ function testServer(name: string) {
 .border-error { border-color: rgba(248, 113, 113, 0.2); }
 .bg-error-subtle { background: rgba(248, 113, 113, 0.05); }
 .text-error { color: var(--error); }
+.chip-active {
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.25);
+  color: var(--success, #22c55e);
+}
+.chip-blocked {
+  background: rgba(248, 113, 113, 0.1);
+  border-color: rgba(248, 113, 113, 0.25);
+  color: var(--error);
+}
 .font-display { font-family: var(--font-display); }
 
 .btn-primary {

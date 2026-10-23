@@ -1,15 +1,19 @@
-import type { Plugin, PluginDetail, SkillFrontmatter } from '~/types'
+import type { Plugin, PluginDetail, SkillFrontmatter, Settings } from '~/types'
 
 export function usePlugins() {
   const plugins = useState<Plugin[]>('plugins', () => [])
   const loading = useState('pluginsLoading', () => false)
   const error = useState<string | null>('pluginsError', () => null)
+  const { workingDir } = useWorkingDir()
+
+  // The enabled state is per project: project and local settings override the global enabledPlugins entry
+  const projectQuery = () => ({ workingDir: workingDir.value || undefined })
 
   async function fetchAll() {
     loading.value = true
     error.value = null
     try {
-      plugins.value = await $fetch<Plugin[]>('/api/plugins')
+      plugins.value = await $fetch<Plugin[]>('/api/plugins', { query: projectQuery() })
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Failed to load plugins'
       error.value = msg
@@ -20,21 +24,34 @@ export function usePlugins() {
   }
 
   async function fetchOne(id: string) {
-    return await $fetch<PluginDetail>(`/api/plugins/${encodeURIComponent(id)}`)
+    return await $fetch<PluginDetail>(`/api/plugins/${encodeURIComponent(id)}`, { query: projectQuery() })
   }
 
-  async function toggleEnabled(id: string, enabled: boolean) {
-    const { save, settings } = useSettings()
-    if (!settings.value) return
+  /** Write enabledPlugins[id] to the settings file that currently decides it (project or local), else the global one. */
+  async function toggleEnabled(id: string, enabled: boolean, source?: Plugin['enabledSource']) {
+    if (source && source !== 'user' && workingDir.value) {
+      const scope = source === 'project' ? 'project' : 'local'
+      const current = await $fetch<Settings>('/api/projects/settings', { query: { path: workingDir.value, scope } })
+      await $fetch('/api/projects/settings', {
+        method: 'PUT',
+        body: {
+          path: workingDir.value,
+          scope,
+          settings: { ...current, enabledPlugins: { ...(current.enabledPlugins as Record<string, boolean> | undefined), [id]: enabled } },
+        },
+      })
+    } else {
+      const { save, settings } = useSettings()
+      if (!settings.value) return
 
-    const updated = {
-      ...settings.value,
-      enabledPlugins: {
-        ...(settings.value.enabledPlugins as Record<string, boolean> | undefined),
-        [id]: enabled,
-      },
+      await save({
+        ...settings.value,
+        enabledPlugins: {
+          ...(settings.value.enabledPlugins as Record<string, boolean> | undefined),
+          [id]: enabled,
+        },
+      })
     }
-    await save(updated)
 
     const idx = plugins.value.findIndex(p => p.id === id)
     if (idx >= 0) {

@@ -35,6 +35,7 @@ Nuxt 3 + Vue 3 frontend (`app/`) and Nitro server API (`server/`). There is no d
 - `server/api/` mirrors the pages. CRUD routes are REST (`GET/POST /api/agents`, `GET/PUT/DELETE /api/agents/[slug]`, same for commands, skills, workflows). Other groups: `chat`, `chat-ws`, `cli`, `github`, `marketplace`, `mcp`, `memory`, `plugins`, `schedules`, `sessions`, `usage`, `v2`, plus `relationships.get.ts`.
 - `server/utils/` holds the logic. Notable files:
   - `claudeDir.ts`, `frontmatter.ts` - locate `~/.claude`, parse and serialize YAML frontmatter plus markdown body.
+  - `effectiveSettings.ts` - reads the user, project and local settings files and merges them like Claude Code (objects key by key, arrays joined without duplicates, scalars from the highest file: local > project > user). Pass `workingDir` to make a view project-aware. Used by `mcpSources.ts` (a server is `denied`, `disabled`, `rejected` or `pending`), the plugins and skills APIs (`enabledPlugins`, `skillOverrides` per project) and `GET /api/projects/settings-effective` (the Settings "Effective" tab).
   - `relationships.ts` - builds the agent/command/skill graph from the `agent:` frontmatter field, `subagent_type: "name"` patterns, `/command-name` references and direct slug mentions.
   - `claudeSdk.ts`, `messageNormalizer.ts`, `chatSessionStorage.ts`, `providers/` - chat on top of `@anthropic-ai/claude-agent-sdk`.
   - `cliSession.ts`, `contextMonitor.ts` - PTY sessions (node-pty) and token, cost and file-change monitoring (chokidar).

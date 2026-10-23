@@ -5,7 +5,8 @@ import { resolveClaudePath } from '../../utils/claudeDir'
 import { parseFrontmatter } from '../../utils/frontmatter'
 import { resolvePluginInstallPath } from '../../utils/marketplace'
 import { getPreloadingAgents, getMcpServerForSkill } from '../../utils/skillRelationships'
-import type { Skill, SkillFrontmatter } from '~/types'
+import { loadSettingsLayers, mergeLayers, resolveEntry } from '../../utils/effectiveSettings'
+import type { Skill, SkillFrontmatter, SkillOverride } from '~/types'
 
 interface InstalledEntry {
   installPath: string
@@ -294,6 +295,25 @@ export default defineEventHandler(async (event) => {
         await attachMetadata(skill)
         skills.push(skill)
       }
+    }
+  }
+
+  // Per-project state from settings: `skillOverrides` hides or shortens personal skills (not plugin skills),
+  // and a plugin turned off by project or local `enabledPlugins` takes its skills with it
+  const layers = await loadSettingsLayers(workingDir)
+  const enabledPlugins = (mergeLayers(layers).enabledPlugins ?? {}) as Record<string, boolean>
+  for (const skill of skills) {
+    if (skill.source === 'plugin') {
+      const prefix = `${skill.pluginName}@`
+      skill.pluginDisabled = Object.entries(enabledPlugins).some(([id, on]) => id.startsWith(prefix) && on === false)
+      continue
+    }
+    const key = skill.slug.replace(/^project:/, '')
+    const override = resolveEntry<SkillOverride>(layers, 'skillOverrides', key)
+      ?? resolveEntry<SkillOverride>(layers, 'skillOverrides', skill.frontmatter.name)
+    if (override) {
+      skill.override = override.value
+      skill.overrideSource = override.source
     }
   }
 

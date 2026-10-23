@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { resolveClaudePath } from '../../utils/claudeDir'
 import { resolvePluginInstallPath } from '../../utils/marketplace'
+import { loadSettingsLayers, resolveEntry } from '../../utils/effectiveSettings'
 import type { Plugin } from '~/types'
 
 interface InstalledEntry {
@@ -42,15 +43,15 @@ async function findSkills(installPath: string): Promise<string[]> {
   }
 }
 
-export default defineEventHandler(async () => {
+export default defineEventHandler(async (event) => {
+  const { workingDir } = getQuery(event) as { workingDir?: string }
   const installedPath = resolveClaudePath('plugins', 'installed_plugins.json')
-  const settingsPath = resolveClaudePath('settings.json')
 
   const installed = await readJson<{ plugins: Record<string, InstalledEntry[]> }>(installedPath)
   if (!installed?.plugins) return []
 
-  const settings = await readJson<{ enabledPlugins?: Record<string, boolean> }>(settingsPath)
-  const enabledMap = settings?.enabledPlugins ?? {}
+  // Effective state: project and local settings override the global enabledPlugins entry for the same plugin
+  const layers = await loadSettingsLayers(workingDir)
 
   const plugins: Plugin[] = await Promise.all(
     Object.entries(installed.plugins).map(async ([id, entries]) => {
@@ -62,6 +63,7 @@ export default defineEventHandler(async () => {
       const pluginJsonPath = join(installPath, '.claude-plugin', 'plugin.json')
       const meta = await readJson<PluginJson>(pluginJsonPath)
       const skills = await findSkills(installPath)
+      const setting = resolveEntry<boolean>(layers, 'enabledPlugins', id)
 
       return {
         id,
@@ -69,7 +71,8 @@ export default defineEventHandler(async () => {
         marketplace: marketplace ?? 'unknown',
         description: meta?.description ?? '',
         version: entry.version,
-        enabled: enabledMap[id] ?? false,
+        enabled: setting?.value ?? false,
+        enabledSource: setting?.source,
         installedAt: entry.installedAt,
         lastUpdated: entry.lastUpdated,
         installPath: entry.installPath,

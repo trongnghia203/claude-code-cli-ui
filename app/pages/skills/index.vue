@@ -161,6 +161,22 @@ onMounted(() => {
             plugin: {{ skill.pluginName }}
           </span>
 
+          <!-- Turned off or shortened by the selected project's settings -->
+          <span
+            v-if="skill.pluginDisabled"
+            class="text-[10px] font-mono px-1.5 py-px rounded-full shrink-0 badge badge-subtle"
+            title="Plugin disabled by enabledPlugins for this project"
+          >
+            plugin off
+          </span>
+          <span
+            v-else-if="skill.override && skill.override !== 'on'"
+            class="text-[10px] font-mono px-1.5 py-px rounded-full shrink-0 badge badge-subtle"
+            :title="`skillOverrides in ${skill.overrideSource} settings`"
+          >
+            {{ skill.override }}
+          </span>
+
           <!-- MCP badge -->
           <span
             v-if="skill.mcpServer"

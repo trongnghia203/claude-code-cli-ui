@@ -2,6 +2,7 @@
 const { plugins, loading, error, fetchAll, toggleEnabled } = usePlugins()
 const { fetchAvailable } = useMarketplace()
 const toast = useToast()
+const { workingDir } = useWorkingDir()
 
 const searchQuery = ref('')
 const showAddPluginModal = ref(false)
@@ -10,6 +11,8 @@ onMounted(() => {
   fetchAll()
   fetchAvailable()
 })
+// Enabled state is per project (project and local settings override the global entry)
+watch(workingDir, () => fetchAll())
 
 const filteredPlugins = computed(() => {
   if (!searchQuery.value) return plugins.value
@@ -31,9 +34,9 @@ const groupedByMarketplace = computed(() => {
   return groups
 })
 
-async function onToggle(id: string, enabled: boolean) {
+async function onToggle(id: string, enabled: boolean, source?: 'user' | 'project' | 'local') {
   try {
-    await toggleEnabled(id, enabled)
+    await toggleEnabled(id, enabled, source)
     toast.add({ title: `Plugin ${enabled ? 'enabled' : 'disabled'}`, color: 'success' })
   } catch {
     toast.add({ title: 'Failed to update', color: 'error' })
@@ -111,12 +114,21 @@ function onPluginInstalled() {
                 <input
                   type="checkbox"
                   :checked="plugin.enabled"
-                  @change="onToggle(plugin.id, ($event.target as HTMLInputElement).checked)"
+                  @change="onToggle(plugin.id, ($event.target as HTMLInputElement).checked, plugin.enabledSource)"
                 />
                 <span class="field-toggle__track">
                   <span class="field-toggle__thumb" />
                 </span>
               </label>
+
+              <!-- Set by the selected project's settings, not the global file -->
+              <span
+                v-if="plugin.enabledSource && plugin.enabledSource !== 'user'"
+                class="text-[10px] font-mono px-1.5 py-px rounded-full shrink-0 badge badge-subtle"
+                :title="`Decided by this project's ${plugin.enabledSource === 'project' ? '.claude/settings.json' : '.claude/settings.local.json'}`"
+              >
+                {{ plugin.enabledSource }}
+              </span>
 
               <!-- Clickable area for navigation -->
               <NuxtLink

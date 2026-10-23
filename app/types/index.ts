@@ -81,7 +81,10 @@ export interface Plugin {
   marketplace: string
   description: string
   version: string
+  /** Effective state for the selected project (project and local settings override the global entry) */
   enabled: boolean
+  /** Settings file that decides `enabled`; undefined when no file mentions the plugin */
+  enabledSource?: 'user' | 'project' | 'local'
   installedAt: string
   lastUpdated: string
   installPath: string
@@ -97,6 +100,9 @@ export interface SkillFrontmatter {
   [key: string]: unknown
 }
 
+/** `skillOverrides` values in settings: `on` is the default, `off` hides the skill from Claude and the `/` menu */
+export type SkillOverride = 'on' | 'name-only' | 'user-invocable-only' | 'off'
+
 export interface Skill {
   slug: string
   frontmatter: SkillFrontmatter
@@ -105,6 +111,11 @@ export interface Skill {
   source?: 'local' | 'github' | 'plugin' | 'project'
   githubRepo?: string
   pluginName?: string
+  /** Project-aware state from settings (set when a `skillOverrides` entry matches this skill) */
+  override?: SkillOverride
+  overrideSource?: 'user' | 'project' | 'local'
+  /** Plugin skill whose plugin is turned off by `enabledPlugins` for the selected project */
+  pluginDisabled?: boolean
   mcpServer?: { name: string; scope: string }
   agents?: { name: string; slug: string }[]
 }

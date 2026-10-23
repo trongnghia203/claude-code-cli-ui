@@ -58,7 +58,7 @@ async function saveSkill(slug: string) {
 
 async function onToggle(enabled: boolean) {
   try {
-    await toggleEnabled(id, enabled)
+    await toggleEnabled(id, enabled, plugin.value?.enabledSource)
     if (plugin.value) plugin.value.enabled = enabled
     toast.add({ title: `Plugin ${enabled ? 'enabled' : 'disabled'}`, color: 'success' })
   } catch {
@@ -169,7 +169,7 @@ if (import.meta.client) {
                   class="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full shrink-0 badge"
                   :class="plugin.enabled ? 'badge-success' : 'badge-subtle'"
                 >
-                  {{ plugin.enabled ? 'enabled' : 'disabled' }}
+                  {{ plugin.enabled ? 'enabled' : 'disabled' }}<template v-if="plugin.enabledSource && plugin.enabledSource !== 'user'"> ({{ plugin.enabledSource }})</template>
                 </span>
               </div>
               <p v-if="plugin.description" class="text-[12px] mt-1 leading-relaxed text-label">

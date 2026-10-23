@@ -5,14 +5,27 @@ const globalSettings = useSettings()
 const { workingDir } = useWorkingDir()
 
 // ---- Scope: global (~/.claude/settings.json), project (<dir>/.claude/settings.json), local (<dir>/.claude/settings.local.json) ----
-type SettingsScope = 'global' | 'project' | 'local'
+// 'effective' is a read-only merge of the other three, as Claude Code sees them for the selected project
+type SettingsScope = 'global' | 'project' | 'local' | 'effective'
 const scope = ref<SettingsScope>('global')
 const scopeTabs: { value: SettingsScope; label: string; icon: string }[] = [
   { value: 'global', label: 'Global', icon: 'i-lucide-globe' },
   { value: 'project', label: 'Project', icon: 'i-lucide-folder' },
   { value: 'local', label: 'Local', icon: 'i-lucide-user' },
+  { value: 'effective', label: 'Effective', icon: 'i-lucide-layers' },
 ]
 const isGlobal = computed(() => scope.value === 'global')
+const isEffective = computed(() => scope.value === 'effective')
+
+type SettingsLayerName = 'user' | 'project' | 'local'
+interface EffectiveSettings {
+  files: Record<SettingsLayerName, string>
+  layers: Record<SettingsLayerName, Record<string, unknown>>
+  merged: Record<string, unknown>
+  keys: { key: string; sources: SettingsLayerName[] }[]
+}
+const effective = ref<EffectiveSettings | null>(null)
+const effectiveLoading = ref(false)
 
 const projectList = ref<{ name: string; path: string; displayName: string }[]>([])
 const projectPath = ref(workingDir.value || '')
@@ -20,15 +33,40 @@ const scopedSettings = ref<Settings | null>(null)
 const scopedLoading = ref(false)
 
 const settings = computed(() => (isGlobal.value ? globalSettings.settings.value : scopedSettings.value))
-const loading = computed(() => (isGlobal.value ? globalSettings.loading.value : scopedLoading.value))
+const loading = computed(() => {
+  if (isEffective.value) return effectiveLoading.value
+  return isGlobal.value ? globalSettings.loading.value : scopedLoading.value
+})
 
 const scopeFilePath = computed(() => {
+  if (isEffective.value) return ''
   if (isGlobal.value) return '~/.claude/settings.json'
   if (!projectPath.value) return ''
   return `${projectPath.value.replace(/\/+$/, '')}/.claude/${scope.value === 'project' ? 'settings.json' : 'settings.local.json'}`
 })
 
+const LAYER_LABEL: Record<SettingsLayerName, string> = { user: 'global', project: 'project', local: 'local' }
+
+function formatValue(value: unknown) {
+  return JSON.stringify(value, null, 2)
+}
+
+async function loadEffective() {
+  effectiveLoading.value = true
+  try {
+    effective.value = await $fetch<EffectiveSettings>('/api/projects/settings-effective', {
+      query: { path: projectPath.value || undefined },
+    })
+  } catch (e: any) {
+    effective.value = null
+    toast.add({ title: 'Failed to load effective settings', description: e.message, color: 'error' })
+  } finally {
+    effectiveLoading.value = false
+  }
+}
+
 async function load() {
+  if (isEffective.value) return loadEffective()
   if (isGlobal.value) return globalSettings.load()
   if (!projectPath.value) {
     scopedSettings.value = null
@@ -355,7 +393,7 @@ const lineCount = computed(() => rawJson.value.split('\n').length)
             {{ tab.label }}
           </button>
         </div>
-        <div class="flex items-center gap-2">
+        <div v-if="!isEffective" class="flex items-center gap-2">
           <button
             class="text-[12px] px-2 py-1 rounded focus-ring text-label"
             style="background: var(--surface-raised); border: 1px solid var(--border-default);"
@@ -386,6 +424,46 @@ const lineCount = computed(() => rawJson.value.split('\n').length)
 
     <div v-if="loading" class="flex justify-center py-16">
       <UIcon name="i-lucide-loader-2" class="size-6 animate-spin text-meta" />
+    </div>
+
+    <!-- Effective view: read-only merge of global, project and local settings -->
+    <div v-else-if="isEffective" class="px-6 py-4 space-y-4">
+      <p class="text-[12px] leading-relaxed text-label max-w-3xl">
+        What Claude Code sees for this project. Objects are merged key by key, arrays are joined without duplicates,
+        and a single value comes from the highest file: local, then project, then global.
+        Edit the values in the Global, Project and Local tabs.
+      </p>
+
+      <div v-if="effective" class="space-y-1">
+        <div v-for="layer in (['user', 'project', 'local'] as SettingsLayerName[])" :key="layer" class="flex items-baseline gap-2">
+          <span class="text-[10px] font-mono px-1.5 py-px rounded-full badge badge-subtle w-16 text-center">{{ LAYER_LABEL[layer] }}</span>
+          <code class="text-[11px] text-meta">{{ effective.files[layer] || '(select a project)' }}</code>
+          <span class="text-[11px] text-meta">{{ Object.keys(effective.layers[layer]).length }} keys</span>
+        </div>
+      </div>
+
+      <div v-if="effective && effective.keys.length" class="space-y-3">
+        <div
+          v-for="item in effective.keys"
+          :key="item.key"
+          class="rounded-xl p-4 bg-card space-y-2"
+        >
+          <div class="flex flex-wrap items-center gap-2">
+            <h3 class="text-[13px] font-semibold font-mono">{{ item.key }}</h3>
+            <span
+              v-for="source in item.sources"
+              :key="source"
+              class="text-[10px] font-mono px-1.5 py-px rounded-full badge badge-subtle"
+            >
+              {{ LAYER_LABEL[source] }}
+            </span>
+          </div>
+          <pre class="text-[11px] font-mono leading-relaxed max-h-48 overflow-auto text-secondary">{{ formatValue(effective.merged[item.key]) }}</pre>
+        </div>
+      </div>
+      <div v-else class="rounded-xl border border-dashed px-4 py-5 text-[12px] text-meta" style="border-color: var(--border-subtle);">
+        No settings found.
+      </div>
     </div>
 
     <!-- Structured view -->

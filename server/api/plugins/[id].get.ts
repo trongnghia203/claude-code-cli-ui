@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { resolveClaudePath } from '../../utils/claudeDir'
 import { parseFrontmatter } from '../../utils/frontmatter'
 import { resolvePluginInstallPath } from '../../utils/marketplace'
+import { loadSettingsLayers, resolveEntry } from '../../utils/effectiveSettings'
 import type { PluginDetail, SkillFrontmatter } from '~/types'
 
 interface InstalledEntry {
@@ -33,8 +34,8 @@ async function readJson<T>(path: string): Promise<T | null> {
 
 export default defineEventHandler(async (event) => {
   const id = decodeURIComponent(getRouterParam(event, 'id')!)
+  const { workingDir } = getQuery(event) as { workingDir?: string }
   const installedPath = resolveClaudePath('plugins', 'installed_plugins.json')
-  const settingsPath = resolveClaudePath('settings.json')
 
   const installed = await readJson<{ plugins: Record<string, InstalledEntry[]> }>(installedPath)
   const entries = installed?.plugins?.[id]
@@ -48,7 +49,8 @@ export default defineEventHandler(async (event) => {
   const pluginJsonPath = join(installPath, '.claude-plugin', 'plugin.json')
   const meta = await readJson<PluginJson>(pluginJsonPath)
 
-  const settings = await readJson<{ enabledPlugins?: Record<string, boolean> }>(settingsPath)
+  // Effective state for the selected project (project and local settings override the global entry)
+  const setting = resolveEntry<boolean>(await loadSettingsLayers(workingDir), 'enabledPlugins', id)
 
   // Load skills
   const skillDetails = []
@@ -76,7 +78,8 @@ export default defineEventHandler(async (event) => {
     marketplace: marketplace ?? 'unknown',
     description: meta?.description ?? '',
     version: entry.version,
-    enabled: settings?.enabledPlugins?.[id] ?? false,
+    enabled: setting?.value ?? false,
+    enabledSource: setting?.source,
     installedAt: entry.installedAt,
     lastUpdated: entry.lastUpdated,
     installPath: entry.installPath,
