@@ -820,8 +820,18 @@ export async function deleteClaudeCodeSession(projectName: string, sessionId: st
 
     let deleted = false
 
-    // Process all JSONL files to find and remove messages for this session
+    // Claude Code stores a session as <sessionId>.jsonl (plus an optional <sessionId>/ dir for
+    // subagents and tool results). /resume lists by file, so the file itself must go.
+    const ownFile = `${sessionId}.jsonl`
+    if (jsonlFiles.includes(ownFile)) {
+      await fs.unlink(join(projectDir, ownFile))
+      await fs.rm(join(projectDir, sessionId), { recursive: true, force: true })
+      deleted = true
+    }
+
+    // Forked or resumed sessions can carry lines of this session in other files: strip those
     for (const file of jsonlFiles) {
+      if (file === ownFile) continue
       const jsonlFile = join(projectDir, file)
       const content = await fs.readFile(jsonlFile, 'utf8')
       const lines = content.split('\n').filter(line => line.trim())
