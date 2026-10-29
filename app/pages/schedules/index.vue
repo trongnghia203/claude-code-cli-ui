@@ -39,6 +39,13 @@ function select(jobId: string | null, runId: string | null = null) {
   router.push({ path: '/schedules', query: { ...(jobId ? { job: jobId } : {}), ...(runId ? { run: runId } : {}) } })
 }
 
+// Runs panel collapse state survives reloads
+const runsCollapsedCookie = useCookie<boolean>('schedules-runs-collapsed', { default: () => false, maxAge: 60 * 60 * 24 * 365 })
+const runsCollapsed = computed({
+  get: () => !!runsCollapsedCookie.value,
+  set: (v: boolean) => { runsCollapsedCookie.value = v },
+})
+
 const runs = ref<ScheduleRunItem[]>([])
 async function loadRuns() {
   runs.value = selectedJob.value ? await fetchRuns(selectedJob.value) : []
@@ -309,13 +316,31 @@ useHead({ title: 'Schedules | Agent Manager' })
     </section>
 
     <!-- Right column: runs of the selected schedule -->
-    <aside v-if="selectedJob" class="w-[320px] shrink-0 flex flex-col min-h-0" style="border-left: 1px solid var(--border-subtle)">
-      <div class="shrink-0 px-4 min-h-[56px] flex items-center" style="border-bottom: 1px solid var(--border-subtle)">
-        <h2 class="text-[14px] font-semibold flex items-center gap-2">
+    <aside
+      v-if="selectedJob"
+      class="shrink-0 flex flex-col min-h-0 transition-[width] duration-150"
+      :class="runsCollapsed ? 'w-[48px]' : 'w-[320px]'"
+      style="border-left: 1px solid var(--border-subtle)"
+    >
+      <div
+        class="shrink-0 min-h-[56px] flex items-center"
+        :class="runsCollapsed ? 'justify-center' : 'justify-between px-4'"
+        style="border-bottom: 1px solid var(--border-subtle)"
+      >
+        <h2 v-if="!runsCollapsed" class="text-[14px] font-semibold flex items-center gap-2">
           Runs <span class="font-mono text-[11px] font-normal text-meta">{{ runs.length }}</span>
         </h2>
+        <UButton
+          :icon="runsCollapsed ? 'i-lucide-panel-right-open' : 'i-lucide-panel-right-close'"
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          :aria-label="runsCollapsed ? 'Expand runs' : 'Collapse runs'"
+          :title="runsCollapsed ? 'Expand runs' : 'Collapse runs'"
+          @click="runsCollapsed = !runsCollapsed"
+        />
       </div>
-      <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-3 space-y-0.5">
+      <div v-show="!runsCollapsed" class="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-3 space-y-0.5">
         <p v-if="!runs.length" class="text-[11px] text-meta px-2 py-2">No runs yet. Use Run now.</p>
         <button
           v-for="run in runs"
