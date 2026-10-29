@@ -1564,7 +1564,7 @@ details summary::-webkit-details-marker {
   border-bottom: none;
 }
 
-:is(.md-prose, .instruction-preview) td:first-child > code:only-child {
+:is(.md-prose, .instruction-preview) td:first-child > :is(code, a):only-child {
   white-space: nowrap;
 }
 
