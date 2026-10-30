@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { DisplayChatMessage } from '~/types'
-import { parseUserMessage, extractImageSources, getLoadedSkillName } from '~/utils/messageFormatting'
+import { parseUserMessage, extractImageSources, getLoadedSkillName, getAgentReport, splitBashMessage } from '~/utils/messageFormatting'
 
 const props = defineProps<{
   messages: DisplayChatMessage[]
@@ -23,10 +23,22 @@ function toggleSkill(id: string) {
   next.has(id) ? next.delete(id) : next.add(id)
   expandedSkills.value = next
 }
+const expandedAgents = ref<Set<string>>(new Set())
+function toggleAgent(id: string) {
+  const next = new Set(expandedAgents.value)
+  next.has(id) ? next.delete(id) : next.add(id)
+  expandedAgents.value = next
+}
 function toggleStdout(id: string) {
   const s = new Set(expandedStdout.value)
   s.has(id) ? s.delete(id) : s.add(id)
   expandedStdout.value = s
+}
+
+/** Time of day, or '' when the message has no usable timestamp */
+function formatTime(timestamp: string | undefined): string {
+  const date = new Date(timestamp ?? '')
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
 // Lightbox
@@ -51,7 +63,7 @@ async function copyUserMessage(messageId: string, content: string) {
 
 interface MessageGroup {
   id: string
-  role: 'user' | 'assistant' | 'shell' | 'skill'
+  role: 'user' | 'assistant' | 'shell' | 'skill' | 'agent'
   timestamp: string
   messages: DisplayChatMessage[]
   skillName?: string
@@ -62,7 +74,12 @@ const messageGroups = computed<MessageGroup[]>(() => {
   let currentGroup: MessageGroup | null = null
   let lastSkillInvocation: string | null = null
 
-  for (const message of props.messages) {
+  const messages = props.messages.flatMap((m): DisplayChatMessage[] => {
+    const parts = m.role === 'user' ? splitBashMessage(m.content) : null
+    return parts ? parts.map((content, i) => ({ ...m, id: `${m.id}-bash-${i}`, content })) : [m]
+  })
+
+  for (const message of messages) {
     const parsed = parseUserMessage(message.content)
     if (parsed.kind === 'system') continue
 
@@ -72,16 +89,20 @@ const messageGroups = computed<MessageGroup[]>(() => {
       : null
     if (message.role === 'user' && !loadedSkill) lastSkillInvocation = invocation
 
+    const isAgentReport = message.role === 'user' && !loadedSkill && !!getAgentReport(message.content)
+
     const messageRole: MessageGroup['role'] =
       loadedSkill
         ? 'skill'
+        : isAgentReport
+        ? 'agent'
         : parsed.kind === 'bash-input' || parsed.kind === 'bash-stdout'
         ? 'shell'
         : message.role === 'user'
           ? 'user'
           : 'assistant'
 
-    if (messageRole !== 'skill' && currentGroup && currentGroup.role === messageRole) {
+    if (messageRole !== 'skill' && messageRole !== 'agent' && currentGroup && currentGroup.role === messageRole) {
       currentGroup.messages.push(message)
     } else {
       if (currentGroup) groups.push(currentGroup)
@@ -156,8 +177,8 @@ function handleOpenFile(filePath: string) {
               </div>
             </template>
             <ClientOnly>
-              <div class="text-[9px] md:text-[10px] px-1" style="color: var(--text-tertiary);">
-                {{ new Date(group.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
+              <div v-if="formatTime(group.timestamp)" class="text-[9px] md:text-[10px] px-1" style="color: var(--text-tertiary);">
+                {{ formatTime(group.timestamp) }}
               </div>
             </ClientOnly>
           </div>
@@ -190,6 +211,27 @@ function handleOpenFile(filePath: string) {
             class="mt-2 p-3 rounded-lg text-[11px] whitespace-pre-wrap break-words max-h-80 overflow-y-auto"
             style="background: var(--surface-raised); color: var(--text-secondary);"
           >{{ msg.content }}</pre>
+        </div>
+      </div>
+
+      <!-- Subagent hand-back logged as a user message; shown as a collapsible report, not a user bubble -->
+      <div v-else-if="group.role === 'agent'" class="flex flex-col gap-2 min-w-0 pl-9 md:pl-11">
+        <div v-for="msg in group.messages" :key="msg.id" class="min-w-0">
+          <button
+            class="inline-flex items-center gap-1.5 text-[12px] font-medium text-left"
+            style="color: var(--text-secondary);"
+            :aria-expanded="expandedAgents.has(msg.id)"
+            @click="toggleAgent(msg.id)"
+          >
+            <UIcon :name="expandedAgents.has(msg.id) ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'" class="size-3 shrink-0" />
+            <span>Agent report</span>
+            <span class="font-mono text-[11px]" style="color: var(--text-tertiary);">{{ getAgentReport(msg.content)?.from.slice(0, 8) }}</span>
+          </button>
+          <pre
+            v-if="expandedAgents.has(msg.id)"
+            class="mt-2 p-3 rounded-lg text-[11px] whitespace-pre-wrap break-words max-h-80 overflow-y-auto"
+            style="background: var(--surface-raised); color: var(--text-secondary);"
+          >{{ getAgentReport(msg.content)?.body }}</pre>
         </div>
       </div>
 
@@ -252,8 +294,8 @@ function handleOpenFile(filePath: string) {
             </template>
             <!-- Single timestamp for the group -->
             <ClientOnly>
-              <div class="text-[9px] md:text-[10px] px-1" style="color: var(--text-tertiary);">
-                {{ new Date(group.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
+              <div v-if="formatTime(group.timestamp)" class="text-[9px] md:text-[10px] px-1" style="color: var(--text-tertiary);">
+                {{ formatTime(group.timestamp) }}
               </div>
             </ClientOnly>
           </div>
@@ -284,8 +326,8 @@ function handleOpenFile(filePath: string) {
           <div class="flex items-center gap-2 mb-1.5 md:mb-2">
             <span class="text-[12px] md:text-[13px] font-semibold" style="color: var(--text-primary);">Claude</span>
             <ClientOnly>
-              <span class="text-[9px] md:text-[10px]" style="color: var(--text-tertiary);">
-                {{ new Date(group.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
+              <span v-if="formatTime(group.timestamp)" class="text-[9px] md:text-[10px]" style="color: var(--text-tertiary);">
+                {{ formatTime(group.timestamp) }}
               </span>
             </ClientOnly>
           </div>

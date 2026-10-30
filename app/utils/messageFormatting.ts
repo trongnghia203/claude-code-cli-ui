@@ -185,6 +185,26 @@ export function getLoadedSkillName(text: string | null | undefined): string | nu
   return path.match(/(?:^|\/)skills\/([^/\s]+)$/)?.[1] || null
 }
 
+export interface AgentReport {
+  from: string
+  body: string
+}
+
+/**
+ * A subagent hand-back is logged as a user message wrapping the report in <agent-message from="...">.
+ * Returns the sender and the report with the harness frame, boilerplate and indentation removed.
+ */
+export function getAgentReport(text: string | null | undefined): AgentReport | null {
+  if (!text) return null
+  const match = text.match(/<agent-message\s+from="([^"]*)"\s*>([\s\S]*?)<\/agent-message>/)
+  if (!match) return null
+  const inner = (match[2] ?? '').replace(/^[\s\S]*?The report follows:\s*\r?\n/, '')
+  const lines = inner.replace(/\s+$/, '').split(/\r?\n/)
+  const indents = lines.filter(l => l.trim()).map(l => (l.match(/^ */)?.[0] ?? '').length)
+  const strip = indents.length ? Math.min(...indents) : 0
+  return { from: match[1] ?? '', body: lines.map(l => l.slice(strip)).join('\n').trim() }
+}
+
 /**
  * Parse a user message into its display kind and inner content.
  */
@@ -201,6 +221,19 @@ export function parseUserMessage(text: string | null | undefined): ParsedUserMes
   const stripped = stripSystemXml(t)
   if (!stripped) return { kind: 'system', content: '' }
   return { kind: 'text', content: stripped }
+}
+
+/**
+ * A `!` shell command can be logged as one message holding <bash-input> then <bash-stdout>.
+ * Returns the parts so each parses as its own kind, or null when the text is not that shape.
+ * A trailing "[Request interrupted ...]" marker is dropped; any other trailing text is kept as its own part.
+ */
+export function splitBashMessage(text: string | null | undefined): string[] | null {
+  if (!text) return null
+  const match = text.trim().match(/^(<bash-input>[\s\S]*?<\/bash-input>)\s*(<bash-stdout>[\s\S]*?<\/bash-stdout>(?:\s*<bash-stderr>[\s\S]*?<\/bash-stderr>)?)\s*([\s\S]*)$/)
+  if (!match?.[1] || !match[2]) return null
+  const rest = (match[3] ?? '').trim()
+  return rest && !rest.startsWith('[Request interrupted') ? [match[1], match[2], rest] : [match[1], match[2]]
 }
 
 /**
