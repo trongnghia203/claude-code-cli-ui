@@ -69,10 +69,10 @@ export function normalizeDraft(raw: any, agents: DraftAgent[], request: string):
   return { title, description: String(raw?.description ?? ''), priority, assignee, labels }
 }
 
-/** Ask claude (no tools, plan mode, small model) to draft the issue from a one-line request. */
+/** Ask claude (no tools, plan mode, small model, no saved session) to draft the issue from a one-line request. */
 export function draftIssue(request: string, agents: DraftAgent[], cwd: string): Promise<IssueDraft> {
   return new Promise((resolve, reject) => {
-    const args = ['-p', '--output-format', 'json', '--permission-mode', 'plan', '--model', MODEL_ALIAS_KEY.HAIKU, '--max-budget-usd', '0.5']
+    const args = ['-p', '--output-format', 'json', '--permission-mode', 'plan', '--model', MODEL_ALIAS_KEY.HAIKU, '--max-budget-usd', '0.5', '--no-session-persistence']
     let stdout = ''
     let stderr = ''
     const child = spawn('claude', args, { cwd, env: process.env, stdio: ['pipe', 'pipe', 'pipe'] })
