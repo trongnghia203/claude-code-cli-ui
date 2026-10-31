@@ -22,6 +22,18 @@ Design decisions are in `docs/adr/0001-issues-management.md`.
 | `done` | done | Finished |
 | `cancelled` | closed | Stopped. Record is kept |
 
+## Create with agent
+
+The New issue dialog opens in **Create with agent** mode. Type one line, press Create (or Cmd+Enter), and an agent files the issue.
+
+1. A small model (`haiku`, no tools, plan mode) reads your line plus the list of your agents.
+2. It returns a title, a markdown description, a priority, optional labels and an assignee.
+   It only adds what you wrote. Name an agent in the line ("let code-reviewer look at...") to assign it.
+3. The issue is created as `todo`. If an agent was assigned, it starts working at once, same as manual create.
+4. If drafting fails, you get an error and your text stays. **Switch to Manual** keeps it as the title.
+
+**Create another** keeps the dialog open with a fresh form. The last used mode is remembered.
+
 ## Assigning to an agent
 
 1. Pick an agent in the assignee field. Agents come from `~/.claude/agents`.
@@ -57,6 +69,7 @@ Fixed: budget $5, timeout 30 minutes.
 | GET | `/api/issues/:id` | Detail with timeline |
 | PUT | `/api/issues/:id` | Update fields. May start a run |
 | DELETE | `/api/issues/:id` | Delete. Cancels an active run |
+| POST | `/api/issues/agent-create` | One-line request in, filed issue out. Body `{ prompt, projectDir, agents }` |
 | POST | `/api/issues/:id/comments` | Add comment. Body `{ body, run?: boolean }` |
 | POST | `/api/issues/:id/run` | Start a run now |
 | POST | `/api/issues/:id/cancel` | Stop the active run |

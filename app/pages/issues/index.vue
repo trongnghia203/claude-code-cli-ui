@@ -3,7 +3,7 @@ import type { IssueInput, IssueStatus, IssueSummary } from '~/composables/useIss
 import { ISSUE_PRIORITY_META, ISSUE_STATUS_META, ISSUE_STATUSES } from '~/composables/useIssues'
 import { formatRelativeTime } from '~/utils/messageFormatting'
 
-const { issues, loading, load, create, update } = useIssues()
+const { issues, loading, load, create, createWithAgent, update } = useIssues()
 const { workingDir } = useWorkingDir()
 const { agents, fetchAll: fetchAgents } = useAgents()
 const router = useRouter()
@@ -29,12 +29,24 @@ const byStatus = (s: IssueStatus) => filtered.value
   .filter(i => i.status === s)
   .sort((a, b) => ISSUE_PRIORITY_META[a.priority].rank - ISSUE_PRIORITY_META[b.priority].rank || b.updatedAt.localeCompare(a.updatedAt))
 
-async function onCreate(input: IssueInput) {
-  const issue = await create(input)
-  if (!issue) return
-  showForm.value = false
+const busy = ref(false)
+const formKey = ref(0)
+
+async function afterCreate(issue: { id: string } | null, another: boolean) {
+  busy.value = false
+  if (!issue) return // the composable already toasted the error; the form keeps what was typed
   toast.add({ title: `${issue.id} created`, color: 'success', duration: 2000 })
+  if (another) { formKey.value++; refresh(); return } // fresh form, modal stays open
+  showForm.value = false
   router.push(`/issues/${issue.id}`)
+}
+async function onCreate(input: IssueInput, another: boolean) {
+  busy.value = true
+  await afterCreate(await create(input), another)
+}
+async function onAgentCreate(prompt: string, another: boolean) {
+  busy.value = true
+  await afterCreate(await createWithAgent(prompt, workingDir.value, agents.value.map(a => ({ slug: a.slug, name: a.frontmatter.name || a.slug, description: a.frontmatter.description || '' }))), another)
 }
 
 // Drag a card to another column
@@ -144,9 +156,9 @@ useHead({ title: 'Issues | Agent Manager' })
       </section>
     </div>
 
-    <UModal v-model:open="showForm">
+    <UModal v-model:open="showForm" :dismissible="!busy">
       <template #content>
-        <IssueForm :project-dir="workingDir" :agents="agentOptions" @save="onCreate" @cancel="showForm = false" />
+        <IssueForm :key="formKey" :project-dir="workingDir" :agents="agentOptions" :busy="busy" @save="onCreate" @agent-create="onAgentCreate" @cancel="showForm = false" />
       </template>
     </UModal>
   </div>

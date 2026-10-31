@@ -69,6 +69,15 @@ and the edit changed the assignee or the status, and no run is active.
 System status changes (run start, finish) never trigger a run, so there is no loop.
 A manual Run button and "comment and run" cover re-runs.
 
+### Create with agent
+
+Like Multica's "Create with agent": one line in, issue out. `POST /api/issues/agent-create` runs `claude -p` once with the
+`haiku` alias, plan mode and a prompt that forbids tools, and asks for a JSON object.
+The reply is parsed leniently and normalized: unknown assignees, priorities and empty titles fall back to safe defaults.
+The user text is wrapped as data in the prompt, and the agent may not invent requirements.
+The call is synchronous (a few seconds) with a spinner in the dialog. On failure nothing is created and the text is kept.
+The client sends its agent list, so the server does not rescan `~/.claude/agents`.
+
 ### Scope
 
 An issue has a `projectDir`, the working directory the agent runs in. The UI lists issues for the selected project,

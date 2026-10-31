@@ -71,6 +71,8 @@ async function doDelete() {
   if (await remove(id.value)) router.push('/issues')
 }
 
+/** Agents write line-per-line replies. Markdown folds single newlines, so keep them as hard breaks (not inside code fences). */
+const withBreaks = (t: string) => (t.includes('```') ? t : t.replace(/([^\n])\n(?!\n)/g, '$1  \n'))
 const agentName = (slug: string | null) => (slug ? agents.value.find(a => a.slug === slug)?.frontmatter.name ?? slug : 'Me')
 const runById = (runId: string) => issue.value?.runs.find(r => r.id === runId)
 const when = (iso?: string) => (iso ? new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '')
@@ -94,7 +96,7 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
           <template v-if="editing">
             <input v-model="draftTitle" class="w-full px-3 py-2 rounded-lg text-[18px] font-semibold" style="background: var(--surface-base); border: 1px solid var(--border-subtle)" />
             <textarea v-model="draftDesc" rows="10" class="w-full px-3 py-2 rounded-lg text-[13px] font-mono" style="background: var(--surface-base); border: 1px solid var(--border-subtle)" />
-            <div class="flex gap-2"><UButton label="Save" size="sm" @click="saveEdit" /><UButton label="Cancel" size="sm" variant="ghost" color="neutral" @click="editing = false" /></div>
+            <div class="flex gap-2"><UButton label="Save" size="sm" @click="saveEdit" /><UButton label="Cancel" size="sm" variant="ghost" color="neutral" @click="() => { editing = false }" /></div>
           </template>
           <template v-else>
             <div class="flex items-start gap-3">
@@ -116,7 +118,7 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
                   <UIcon :name="e.author === 'agent' ? 'i-lucide-cpu' : 'i-lucide-user'" class="size-3.5" />
                   {{ e.author === 'agent' ? agentName(issue.assignee) : 'You' }} &middot; {{ when(e.at) }}
                 </div>
-                <div class="text-[13px] prose-sm" v-html="renderMarkdown(e.body)" />
+                <div class="text-[13px] prose-sm" v-html="renderMarkdown(withBreaks(e.body))" />
               </div>
               <!-- status -->
               <div v-else-if="e.type === 'status'" class="flex items-center gap-2 text-[12px] text-label">
@@ -136,7 +138,7 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
                   <b>Run {{ ISSUE_RUN_META[runById(e.runId)!.status].label.toLowerCase() }}</b>
                   <span class="text-label">{{ agentName(runById(e.runId)!.agent) }} &middot; {{ when(e.at) }}</span>
                   <span class="ml-auto text-meta">
-                    {{ duration(runById(e.runId)!.durationMs) }}<template v-if="runById(e.runId)!.costUsd != null"> &middot; ${{ runById(e.runId)!.costUsd!.toFixed(2) }}</template><template v-if="runById(e.runId)!.numTurns"> &middot; {{ runById(e.runId)!.numTurns }} turns</template>
+                    {{ duration(runById(e.runId)!.durationMs) }}<template v-if="runById(e.runId)!.costUsd != null"> &middot; ${{ runById(e.runId)!.costUsd!.toFixed(2) }}</template><template v-if="runById(e.runId)!.numTurns"> &middot; {{ runById(e.runId)!.numTurns }} {{ runById(e.runId)!.numTurns === 1 ? 'turn' : 'turns' }}</template>
                   </span>
                 </div>
                 <p v-if="runById(e.runId)!.error" class="mt-1.5" style="color: #ef4444">{{ runById(e.runId)!.error }}</p>
@@ -198,7 +200,7 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
         <div class="p-6 space-y-4 w-[420px] max-w-full" style="background: var(--surface-raised)">
           <h3 class="text-page-title">Delete {{ id }}?</h3>
           <p class="text-[13px] text-label">This removes the issue and its history for good and stops an active run. To keep the record, set the status to Cancelled instead.</p>
-          <div class="flex justify-end gap-2"><UButton label="Cancel" variant="ghost" color="neutral" size="sm" @click="confirmDelete = false" /><UButton label="Delete" color="error" size="sm" @click="doDelete" /></div>
+          <div class="flex justify-end gap-2"><UButton label="Cancel" variant="ghost" color="neutral" size="sm" @click="() => { confirmDelete = false }" /><UButton label="Delete" color="error" size="sm" @click="doDelete" /></div>
         </div>
       </template>
     </UModal>
