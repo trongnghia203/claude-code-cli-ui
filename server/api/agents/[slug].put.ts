@@ -2,7 +2,7 @@ import { writeFile, rename, mkdir, stat } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { resolveClaudePath } from '../../utils/claudeDir'
 import { serializeFrontmatter } from '../../utils/frontmatter'
-import { decodeAgentSlug, encodeAgentSlug, resolveAgentFilePath } from '../../utils/agentUtils'
+import { cleanAgentFrontmatter, decodeAgentSlug, encodeAgentSlug, resolveAgentFilePath } from '../../utils/agentUtils'
 import type { AgentPayload } from '~/types'
 
 export default defineEventHandler(async (event) => {
@@ -36,7 +36,7 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  const content = serializeFrontmatter(payload.frontmatter, payload.body)
+  const content = serializeFrontmatter(cleanAgentFrontmatter(payload.frontmatter), payload.body)
   await writeFile(newFilePath, content, 'utf-8')
 
   // Remove old file if path changed

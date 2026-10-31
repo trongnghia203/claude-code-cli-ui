@@ -39,3 +39,16 @@ export function resolveAgentFilePath(slug: string): string {
   }
   return resolveClaudePath('agents', `${name}.md`)
 }
+
+/**
+ * Drop an empty `tools` list before writing an agent file. Claude Code reads `tools: []` on the main thread
+ * (`claude --agent x`) as "no tools at all", while a missing `tools` means "all tools". The editor defaults to
+ * `[]` when no tool is ticked, so without this every untouched agent became toolless.
+ */
+export function cleanAgentFrontmatter<T extends object>(frontmatter: T): T {
+  const fm = { ...frontmatter } as Record<string, unknown>
+  for (const key of ['tools', 'disallowedTools']) {
+    if (Array.isArray(fm[key]) && (fm[key] as unknown[]).length === 0) delete fm[key]
+  }
+  return fm as T
+}

@@ -2,7 +2,7 @@ import { writeFile, mkdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { resolveClaudePath } from '../../utils/claudeDir'
 import { serializeFrontmatter } from '../../utils/frontmatter'
-import { encodeAgentSlug, resolveAgentFilePath } from '../../utils/agentUtils'
+import { cleanAgentFrontmatter, encodeAgentSlug, resolveAgentFilePath } from '../../utils/agentUtils'
 import type { AgentPayload } from '~/types'
 
 export default defineEventHandler(async (event) => {
@@ -24,7 +24,7 @@ export default defineEventHandler(async (event) => {
     await mkdir(targetDir, { recursive: true })
   }
 
-  const content = serializeFrontmatter(payload.frontmatter, payload.body)
+  const content = serializeFrontmatter(cleanAgentFrontmatter(payload.frontmatter), payload.body)
   await writeFile(filePath, content, 'utf-8')
 
   // Create memory directory if memory is enabled
