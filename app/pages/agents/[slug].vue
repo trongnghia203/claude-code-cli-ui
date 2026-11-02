@@ -84,10 +84,41 @@ async function loadSkills() {
 }
 
 onMounted(() => {
-  loadAgent()
+  loadAgent().then(() => refreshGit())
   loadSkills()
   clearStudioChat()
 })
+
+// Commit the agent file (shown only when it lives in a git repo)
+interface AgentGit { available: boolean; branch?: string; dirty?: boolean; hasUpstream?: boolean }
+const git = ref<AgentGit>({ available: false })
+const showCommit = ref(false)
+const commitMessage = ref('')
+const committing = ref(false)
+async function refreshGit() {
+  try { git.value = await $fetch<AgentGit>(`/api/agents/${slug}/git`, { query: queryWorkingDir ? { workingDir: queryWorkingDir } : {} }) } catch { git.value = { available: false } }
+}
+function openCommit() {
+  commitMessage.value = `feat: update ${frontmatter.value.name || slug} agent`
+  showCommit.value = true
+}
+async function doCommit(push: boolean) {
+  if (!commitMessage.value.trim() || committing.value) return
+  committing.value = true
+  try {
+    const res = await $fetch<{ pushed: boolean; pushError?: string }>(`/api/agents/${slug}/git`, {
+      method: 'POST', body: { message: commitMessage.value, push, ...(queryWorkingDir ? { workingDir: queryWorkingDir } : {}) },
+    })
+    showCommit.value = false
+    if (res.pushError) toast.add({ title: 'Committed, push failed', description: res.pushError, color: 'warning', duration: 8000 })
+    else toast.add({ title: res.pushed ? 'Committed and pushed' : 'Committed', color: 'success' })
+  } catch (e: any) {
+    toast.add({ title: 'Commit failed', description: e.data?.message || e.message, color: 'error', duration: 8000 })
+  } finally {
+    committing.value = false
+    await refreshGit()
+  }
+}
 
 async function save() {
   saving.value = true
@@ -105,6 +136,7 @@ async function save() {
     savedBody.value = body.value
     lastModified.value = result.lastModified || null
     clearDraft()
+    refreshGit()
 
     toast.add({
       title: 'Agent saved successfully',
@@ -191,6 +223,17 @@ useUnsavedChanges(isDirty)
           @click="showDeleteConfirm = true"
         />
         <UButton
+          v-if="git.available"
+          label="Commit"
+          icon="i-lucide-git-commit-horizontal"
+          size="sm"
+          variant="soft"
+          color="neutral"
+          :disabled="!git.dirty || isDirty"
+          :title="isDirty ? 'Save first' : git.dirty ? `Commit on ${git.branch}` : 'No changes to commit'"
+          @click="openCommit"
+        />
+        <UButton
           :label="saving ? 'Saving...' : 'Save'"
           icon="i-lucide-save"
           size="sm"
@@ -253,6 +296,22 @@ useUnsavedChanges(isDirty)
         <ExecutionInspector :tool-calls="toolCalls" :is-streaming="studioStreaming" />
       </div>
     </div>
+
+    <!-- Commit -->
+    <UModal v-model:open="showCommit">
+      <template #content>
+        <div class="p-6 space-y-3 w-[460px] max-w-full" style="background: var(--surface-raised)">
+          <h3 class="text-page-title">Commit {{ frontmatter.name || slug }}</h3>
+          <p class="text-[12px] text-label">Commits only this agent file on <b>{{ git.branch }}</b>.</p>
+          <textarea v-model="commitMessage" rows="3" class="w-full px-3 py-2 rounded-lg text-[13px] font-mono" style="background: var(--surface-base); border: 1px solid var(--border-subtle)" />
+          <div class="flex justify-end gap-2">
+            <UButton label="Cancel" variant="ghost" color="neutral" size="sm" @click="() => { showCommit = false }" />
+            <UButton label="Commit" variant="soft" color="neutral" size="sm" :loading="committing" :disabled="!commitMessage.trim()" @click="doCommit(false)" />
+            <UButton v-if="git.hasUpstream" label="Commit and push" size="sm" :loading="committing" :disabled="!commitMessage.trim()" @click="doCommit(true)" />
+          </div>
+        </div>
+      </template>
+    </UModal>
 
     <!-- Delete confirmation -->
     <Teleport to="body">

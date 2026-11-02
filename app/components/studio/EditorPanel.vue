@@ -79,7 +79,7 @@ const currentColor = computed(() => getAgentColor(props.frontmatter.color))
     </div>
 
     <div v-if="activeTab === 'instructions'" class="flex-1 min-h-0 flex flex-col">
-      <InstructionEditor :model-value="body" :agent-name="frontmatter.name" :agent-description="frontmatter.description" @update:model-value="emit('update:body', $event)" />
+      <InstructionEditor default-mode="preview" :model-value="body" :agent-name="frontmatter.name" :agent-description="frontmatter.description" @update:model-value="emit('update:body', $event)" />
     </div>
 
     <div v-if="activeTab === 'settings'" class="flex-1 overflow-y-auto p-4 space-y-4">
