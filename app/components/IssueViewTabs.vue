@@ -4,7 +4,7 @@ import type { IssueViewDef } from '~/composables/useIssueConfig'
 const props = defineProps<{ views: IssueViewDef[]; activeId: string | null; dirty: boolean }>()
 const emit = defineEmits<{
   select: [view: IssueViewDef | null]
-  create: [name: string]
+  new: []
   save: []
   discard: []
   rename: [id: string, name: string]
@@ -13,15 +13,11 @@ const emit = defineEmits<{
   move: [id: string, dir: -1 | 1]
 }>()
 
-const naming = ref(false)
-const newName = ref('')
 const manage = ref(false)
 const renaming = ref<{ id: string; name: string } | null>(null)
 const confirmDelete = ref<IssueViewDef | null>(null)
 const menuOpen = ref(false)
 
-function startNew() { newName.value = ''; naming.value = true; menuOpen.value = false }
-function submitNew() { if (!newName.value.trim()) return; emit('create', newName.value.trim()); naming.value = false }
 function submitRename() { if (renaming.value?.name.trim()) emit('rename', renaming.value.id, renaming.value.name.trim()); renaming.value = null }
 const tab = (on: boolean) => on ? 'background: var(--accent-muted); color: var(--text-primary); border: 1px solid var(--border-subtle)' : 'color: var(--text-secondary); border: 1px solid var(--border-subtle)'
 const active = computed(() => props.views.find(v => v.id === props.activeId))
@@ -39,22 +35,11 @@ const active = computed(() => props.views.find(v => v.id === props.activeId))
       <button class="shrink-0 p-1.5 rounded-md hover-bg" title="Views"><UIcon name="i-lucide-layers" class="size-4 block text-meta" /></button>
       <template #content>
         <div class="w-[180px] p-1 text-[13px]" style="background: var(--surface-raised)">
-          <button class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-left hover-bg" @click="startNew"><UIcon name="i-lucide-plus" class="size-4" />New view</button>
+          <button class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-left hover-bg" @click="() => { emit('new'); menuOpen = false }"><UIcon name="i-lucide-plus" class="size-4" />New view</button>
           <button class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-left hover-bg" @click="() => { manage = true; menuOpen = false }"><UIcon name="i-lucide-sliders-horizontal" class="size-4" />Manage views</button>
         </div>
       </template>
     </UPopover>
-
-    <UModal v-model:open="naming">
-      <template #content>
-        <form class="p-6 space-y-4 w-[400px] max-w-full" style="background: var(--surface-raised)" @submit.prevent="submitNew">
-          <h3 class="text-page-title">New view</h3>
-          <p class="text-[12px] text-label">Saves the current filters, grouping, ordering and card properties.</p>
-          <input v-model="newName" maxlength="40" autofocus placeholder="View name" class="w-full px-3 py-2 rounded-lg text-[13px]" style="background: var(--surface-base); border: 1px solid var(--border-subtle)" />
-          <div class="flex justify-end gap-2"><UButton label="Cancel" variant="ghost" color="neutral" size="sm" @click="() => { naming = false }" /><UButton type="submit" label="Save view" size="sm" :disabled="!newName.trim()" /></div>
-        </form>
-      </template>
-    </UModal>
 
     <UModal v-model:open="manage">
       <template #content>

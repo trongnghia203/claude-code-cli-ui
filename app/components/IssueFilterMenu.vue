@@ -5,7 +5,7 @@ import { DATE_OP_LABEL, dateProps, filterCount } from '~/composables/useIssueVie
 import { ISSUE_PRIORITIES, ISSUE_PRIORITY_META, ISSUE_STATUSES, ISSUE_STATUS_META } from '~/composables/useIssues'
 
 const filters = defineModel<IssueFilters>({ required: true })
-const props = defineProps<{ config: IssueConfig; agents: { slug: string; name: string }[]; projects: string[]; showProject: boolean }>()
+const props = defineProps<{ config: IssueConfig; agents: { slug: string; name: string }[]; projects: string[]; showProject: boolean; add?: boolean }>()
 
 const open = ref(false)
 const field = ref<string | null>(null)
@@ -67,7 +67,8 @@ const usedIn = (key: string) => (key === 'date' ? (filters.value.date ? 1 : 0) :
 
 <template>
   <UPopover v-model:open="open" :content="{ align: 'end' }">
-    <button class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)">
+    <button v-if="add" type="button" class="flex items-center gap-1 px-2.5 py-1 rounded-full text-[12px] text-label hover-bg" style="border: 1px dashed var(--border-subtle)"><UIcon name="i-lucide-plus" class="size-3.5" /> Add filter</button>
+    <button v-else class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)">
       <UIcon name="i-lucide-list-filter" class="size-3.5" /> Filter
       <span v-if="count" class="px-1.5 rounded-full text-[10px]" style="background: var(--accent); color: white">{{ count }}</span>
     </button>

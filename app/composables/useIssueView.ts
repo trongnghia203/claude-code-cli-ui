@@ -101,6 +101,33 @@ export const filterCount = (f: IssueFilters) =>
   (['status', 'priority', 'assignee', 'project', 'label'] as const).filter(k => f[k]?.length).length
   + (f.date ? 1 : 0) + Object.values(f.props ?? {}).filter(v => v.length).length
 
+export interface FilterChip { key: string; text: string; /** the filters with this one removed */ without: IssueFilters }
+
+/** The active filters as readable chips, each knowing how to drop itself. Shared by the page and the Save as view dialog. */
+export function filterChips(f: IssueFilters, config: IssueConfig, agentName: (slug: string) => string): FilterChip[] {
+  const out: FilterChip[] = []
+  const list = (k: 'status' | 'priority' | 'assignee' | 'project' | 'label', title: string, name: (v: string) => string) => {
+    if (f[k]?.length) out.push({ key: k, text: `${title}: ${f[k]!.map(name).join(', ')}`, without: { ...f, [k]: undefined } })
+  }
+  list('status', 'Status', v => v.replace('_', ' '))
+  list('priority', 'Priority', v => ISSUE_PRIORITY_META[v as keyof typeof ISSUE_PRIORITY_META]?.label ?? v)
+  list('assignee', 'Assignee', v => (v ? agentName(v) : 'Unassigned'))
+  list('project', 'Project', v => v.split('/').filter(Boolean).pop() ?? v)
+  list('label', 'Label', v => (v ? config.labels.find(l => l.id === v)?.name ?? 'removed' : 'No label'))
+  if (f.date) {
+    const field = f.date.field === 'createdAt' ? 'Created' : f.date.field === 'updatedAt' ? 'Updated' : config.properties.find(p => p.id === f.date!.field)?.name ?? 'removed'
+    out.push({ key: 'date', text: `${field}: ${DATE_OP_LABEL[f.date.op]}`, without: { ...f, date: undefined } })
+  }
+  for (const [id, want] of Object.entries(f.props ?? {})) {
+    const def = config.properties.find(p => p.id === id)
+    const names = want.map(v => def?.type === 'select' ? (v ? def.options.find(o => o.id === v)?.name ?? 'removed' : `No ${def.name}`) : def?.type === 'checkbox' ? (v === 'true' ? 'Yes' : 'No') : v)
+    const rest = { ...f.props }
+    delete rest[id]
+    out.push({ key: `prop:${id}`, text: `${def?.name ?? 'removed property'}: ${names.join(', ')}`, without: { ...f, props: Object.keys(rest).length ? rest : undefined } })
+  }
+  return out
+}
+
 export const groupableProps = (config: IssueConfig) => config.properties.filter(p => !p.archived && (p.type === 'select' || p.type === 'checkbox'))
 export const dateProps = (config: IssueConfig) => config.properties.filter(p => !p.archived && p.type === 'date')
 

@@ -3,8 +3,8 @@ import type { IssueInput, IssueSummary } from '~/composables/useIssues'
 import { ISSUE_PRIORITY_META } from '~/composables/useIssues'
 import type { IssueViewDef } from '~/composables/useIssueConfig'
 import { propertyColor } from '~/composables/useIssueConfig'
-import type { Column, IssueFilters } from '~/composables/useIssueView'
-import { DATE_OP_LABEL, columnsFor, defaultDisplay, keysOf, matchesFilters, propText, sortIssues, subProgress, useIssueViewState, visibleIssues } from '~/composables/useIssueView'
+import type { Column } from '~/composables/useIssueView'
+import { columnsFor, filterChips, defaultDisplay, keysOf, matchesFilters, propText, sortIssues, subProgress, useIssueViewState, visibleIssues } from '~/composables/useIssueView'
 import { formatRelativeTime } from '~/utils/messageFormatting'
 
 const { issues, loading, load, create, createWithAgent, update } = useIssues()
@@ -51,28 +51,7 @@ const customProps = computed(() => config.value.properties.filter(p => !p.archiv
 const plain = (md: string) => md.replace(/[#*`>_\[\]]/g, '').replace(/\s+/g, ' ').trim().slice(0, 160)
 
 // Active filters as removable chips
-const chips = computed(() => {
-  const f = filters.value
-  const out: { key: string; text: string; remove: () => void }[] = []
-  const list = (k: 'status' | 'priority' | 'assignee' | 'project' | 'label', title: string, name: (v: string) => string) => {
-    if (f[k]?.length) out.push({ key: k, text: `${title}: ${f[k]!.map(name).join(', ')}`, remove: () => { filters.value = { ...f, [k]: undefined } } })
-  }
-  list('status', 'Status', v => v.replace('_', ' '))
-  list('priority', 'Priority', v => ISSUE_PRIORITY_META[v as keyof typeof ISSUE_PRIORITY_META]?.label ?? v)
-  list('assignee', 'Assignee', v => (v ? agentName(v) : 'Unassigned'))
-  list('project', 'Project', v => v.split('/').filter(Boolean).pop() ?? v)
-  list('label', 'Label', v => (v ? config.value.labels.find(l => l.id === v)?.name ?? 'removed' : 'No label'))
-  if (f.date) {
-    const field = f.date.field === 'createdAt' ? 'Created' : f.date.field === 'updatedAt' ? 'Updated' : config.value.properties.find(p => p.id === f.date!.field)?.name ?? 'removed'
-    out.push({ key: 'date', text: `${field}: ${DATE_OP_LABEL[f.date.op]}`, remove: () => { filters.value = { ...f, date: undefined } } })
-  }
-  for (const [id, want] of Object.entries(f.props ?? {})) {
-    const def = config.value.properties.find(p => p.id === id)
-    const names = want.map(v => def?.type === 'select' ? (v ? def.options.find(o => o.id === v)?.name ?? 'removed' : `No ${def.name}`) : def?.type === 'checkbox' ? (v === 'true' ? 'Yes' : 'No') : v)
-    out.push({ key: `prop:${id}`, text: `${def?.name ?? 'removed property'}: ${names.join(', ')}`, remove: () => { const p = { ...f.props }; delete p[id]; filters.value = { ...f, props: Object.keys(p).length ? p : undefined } } })
-  }
-  return out
-})
+const chips = computed(() => filterChips(filters.value, config.value, agentName))
 
 // ---- Saved views ----
 const stable = (v: unknown): string => JSON.stringify(v, (_k, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x))
@@ -108,8 +87,15 @@ const uniqueName = (base: string) => {
   while (taken.has(n.toLowerCase())) n = `${base} ${i++}`
   return n.slice(0, 40)
 }
-const createView = (name: string) => withOwnConfig(async () => {
-  if (await ic.createView(scopeDir.value, { name, ...body() })) viewId.value = views.value.find(v => v.name === name)?.id ?? null
+const createView = (v: { name: string; layout: 'board' | 'list'; filters: unknown; display: unknown }) => withOwnConfig(async () => {
+  newViewBusy.value = true
+  const ok = await ic.createView(scopeDir.value, v)
+  newViewBusy.value = false
+  if (!ok) return
+  showNewView.value = false
+  // Open the new view: the page now shows exactly what was saved
+  const created = views.value.find(x => x.name === v.name)
+  if (created) apply(created)
 })
 const saveView = () => { if (viewId.value) void withOwnConfig(async () => { await ic.updateView(scopeDir.value, viewId.value!, body()) }) }
 const discardView = () => { if (activeView.value) apply(activeView.value) }
@@ -124,6 +110,16 @@ const moveView = (id: string, dir: -1 | 1) => {
   ;[ids[i], ids[j]] = [ids[j]!, ids[i]!]
   void ic.orderViews(scopeDir.value, ids)
 }
+
+// Save on the filter bar: update the open view when it changed, else save the filters as a new view
+const canSave = computed(() => (activeView.value ? dirty.value : true))
+const onSave = () => (activeView.value ? saveView() : openNewView())
+
+// Save as view dialog, prefilled from the page
+const showNewView = ref(false)
+const newViewKey = ref(0)
+const newViewBusy = ref(false)
+const openNewView = () => { newViewKey.value++; showNewView.value = true }
 
 const busy = ref(false)
 const formKey = ref(0)
@@ -202,13 +198,16 @@ useHead({ title: 'Issues | Agent Manager' })
     </div>
 
     <div class="shrink-0 px-6 py-2 flex items-center gap-3" style="border-bottom: 1px solid var(--border-subtle)">
-      <IssueViewTabs :views="views" :active-id="viewId" :dirty="dirty" @select="apply" @create="createView" @save="saveView" @discard="discardView"
+      <IssueViewTabs :views="views" :active-id="viewId" :dirty="dirty" @select="apply" @new="openNewView" @save="saveView" @discard="discardView"
         @rename="renameView" @duplicate="duplicateView" @remove="removeView" @move="moveView" />
     </div>
     <div v-if="chips.length" class="shrink-0 px-6 py-2 flex flex-wrap items-center gap-1.5" style="border-bottom: 1px solid var(--border-subtle)">
       <span v-for="c in chips" :key="c.key" class="flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full text-[11px]" style="background: var(--accent-muted)">{{ c.text }}
-        <button class="p-0.5 rounded-full hover-bg" title="Remove filter" @click="c.remove"><UIcon name="i-lucide-x" class="size-3 block" /></button></span>
-      <button class="text-[11px] text-meta underline ml-1" @click="filters = {}">Clear</button>
+        <button class="p-0.5 rounded-full hover-bg" title="Remove filter" @click="filters = c.without"><UIcon name="i-lucide-x" class="size-3 block" /></button></span>
+      <div class="flex-1" />
+      <button class="px-2.5 py-1 rounded-md text-[12px] text-label hover-bg" @click="filters = {}">Clear</button>
+      <button v-if="canSave" class="px-2.5 py-1 rounded-md text-[12px] font-medium" style="background: var(--surface-base); border: 1px solid var(--border-subtle)"
+        :title="activeView ? `Save the changes to ${activeView.name}` : 'Save these filters as a view'" @click="onSave">{{ activeView ? 'Save' : 'Save as view' }}</button>
     </div>
 
     <p v-if="!workingDir" class="px-6 pt-3 text-[12px] text-meta">Select a project to create issues. Agents run in that folder.</p>
@@ -218,36 +217,36 @@ useHead({ title: 'Issues | Agent Manager' })
       <section v-for="c in columns" :key="c.key" class="w-[270px] shrink-0 flex flex-col min-h-0 rounded-xl"
         :style="{ background: 'var(--surface-raised)', border: '1px solid ' + (overKey === c.key && canDrag ? 'var(--accent)' : 'var(--border-subtle)') }"
         @dragover.prevent="canDrag && (overKey = c.key)" @dragleave="overKey === c.key && (overKey = null)" @drop.prevent="onDrop(c.key)">
-        <header class="shrink-0 px-3 py-2 flex items-center gap-2 text-[12px] font-semibold">
+        <header class="shrink-0 px-3 py-2.5 flex items-center gap-2 text-[13px] font-semibold">
           <UIcon v-if="c.icon" :name="c.icon" class="size-4" :style="{ color: c.color }" />
           <span v-else-if="c.color" class="size-2.5 rounded-full" :style="{ background: c.color }" />
           {{ c.label }}
           <span class="text-meta font-normal">{{ cardsIn(c).length }}</span>
         </header>
         <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 pb-2 space-y-2">
-          <article v-for="i in cardsIn(c)" :key="i.id" :draggable="canDrag" class="rounded-lg p-2.5 cursor-pointer"
+          <article v-for="i in cardsIn(c)" :key="i.id" :draggable="canDrag" class="rounded-lg p-3 cursor-pointer"
             style="background: var(--surface-base); border: 1px solid var(--border-subtle)"
             @dragstart="dragId = i.id" @dragend="dragId = overKey = null" @click="open(i)">
-            <div class="flex items-center gap-3 text-[11px] text-meta font-mono">
+            <div class="flex items-center gap-3 text-[12px] text-meta font-mono">
               <template v-if="shows('id')">{{ i.id }}</template>
-              <span v-if="shows('assignee')" class="flex items-center gap-1 min-w-0 font-sans text-label" :title="agentName(i.assignee)"><UIcon name="i-lucide-cpu" class="size-3 shrink-0" /><span class="truncate">{{ agentName(i.assignee) }}</span></span>
+              <span v-if="shows('assignee')" class="flex items-center gap-1.5 min-w-0 font-sans text-[12px] text-label" :title="agentName(i.assignee)"><UIcon name="i-lucide-cpu" class="size-3.5 shrink-0" /><span class="truncate">{{ agentName(i.assignee) }}</span></span>
               <UIcon v-if="i.running || i.drafting" name="i-lucide-loader-2" class="size-3 animate-spin" style="color: #3b82f6" :title="i.drafting ? 'Agent is reading sources' : undefined" />
               <span class="ml-auto flex items-center gap-2 shrink-0">
-                <span v-if="shows('comments') && i.commentCount" class="flex items-center gap-0.5 font-sans text-label" title="Comments"><UIcon name="i-lucide-message-square" class="size-3" />{{ i.commentCount }}</span>
-                <span v-if="shows('priority')" class="size-2 rounded-full" :title="ISSUE_PRIORITY_META[i.priority].label" :style="{ background: ISSUE_PRIORITY_META[i.priority].color }" />
+                <span v-if="shows('comments') && i.commentCount" class="flex items-center gap-1 font-sans text-[12px] text-label" title="Comments"><UIcon name="i-lucide-message-square" class="size-3.5" />{{ i.commentCount }}</span>
+                <span v-if="shows('priority')" class="size-2.5 rounded-full" :title="ISSUE_PRIORITY_META[i.priority].label" :style="{ background: ISSUE_PRIORITY_META[i.priority].color }" />
               </span>
             </div>
-            <div class="text-[13px] font-medium mt-0.5 line-clamp-2">{{ i.title }}</div>
-            <p v-if="shows('description') && i.description.trim()" class="mt-1 text-[11px] text-meta line-clamp-2">{{ plain(i.description) }}</p>
-            <div v-if="shows('project') || (shows('subProgress') && subProgress(i.id, issues))" class="mt-1.5 flex items-center gap-2 text-[11px] text-label">
+            <div class="text-[14px] leading-snug font-semibold mt-1.5 line-clamp-3" style="color: var(--text-primary)">{{ i.title }}</div>
+            <p v-if="shows('description') && i.description.trim()" class="mt-1.5 text-[12px] leading-snug text-label line-clamp-2">{{ plain(i.description) }}</p>
+            <div v-if="shows('project') || (shows('subProgress') && subProgress(i.id, issues))" class="mt-2 flex items-center gap-3 text-[12px] text-label">
               <span v-if="shows('project')" class="flex items-center gap-0.5 min-w-0"><UIcon name="i-lucide-folder" class="size-3" /><span class="truncate">{{ i.projectDir.split('/').filter(Boolean).pop() }}</span></span>
               <span v-if="shows('subProgress') && subProgress(i.id, issues)" class="flex items-center gap-0.5" title="Closed sub-issues"><UIcon name="i-lucide-git-branch" class="size-3" />{{ subProgress(i.id, issues)!.done }}/{{ subProgress(i.id, issues)!.total }}</span>
             </div>
-            <div v-if="customProps.some(p => propText(i, p))" class="mt-1.5 flex flex-wrap gap-1">
-              <template v-for="p in customProps" :key="p.id"><span v-if="propText(i, p)" class="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px]" :style="{ border: '1px solid ' + propertyColor(p) + '66' }"><span class="size-1.5 rounded-full" :style="{ background: propertyColor(p) }" /><span class="text-meta">{{ p.name }}</span> {{ propText(i, p) }}</span></template>
+            <div v-if="customProps.some(p => propText(i, p))" class="mt-2 flex flex-wrap gap-1.5">
+              <template v-for="p in customProps" :key="p.id"><span v-if="propText(i, p)" class="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px]" :style="{ background: propertyColor(p) + '26', border: '1px solid ' + propertyColor(p) + '55', color: 'var(--text-primary)' }"><span class="font-semibold" :style="{ color: propertyColor(p) }">{{ p.name }}</span><span class="font-medium">{{ propText(i, p) }}</span></span></template>
             </div>
-            <div v-if="shows('labels') && labelsOf(i).length" class="mt-1.5 flex flex-wrap gap-1">
-              <span v-for="l in labelsOf(i)" :key="l.id" class="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px]" style="background: var(--accent-muted)"><span class="size-1.5 rounded-full" :style="{ background: l.color }" />{{ l.name }}</span>
+            <div v-if="shows('labels') && labelsOf(i).length" class="mt-2 flex flex-wrap gap-1.5">
+              <span v-for="l in labelsOf(i)" :key="l.id" class="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[12px]" style="background: var(--accent-muted)"><span class="size-1.5 rounded-full" :style="{ background: l.color }" />{{ l.name }}</span>
             </div>
           </article>
         </div>
@@ -271,7 +270,7 @@ useHead({ title: 'Issues | Agent Manager' })
               <span class="flex-1 truncate">{{ i.title }}</span>
               <UIcon v-if="i.running || i.drafting" name="i-lucide-loader-2" class="size-3.5 animate-spin" style="color: #3b82f6" :title="i.drafting ? 'Agent is reading sources' : undefined" />
               <span v-if="shows('subProgress') && subProgress(i.id, issues)" class="text-[11px] text-label">{{ subProgress(i.id, issues)!.done }}/{{ subProgress(i.id, issues)!.total }}</span>
-              <span v-for="p in customProps.filter(p => propText(i, p))" :key="p.id" class="flex items-center gap-1 text-[11px] text-label"><span class="size-1.5 rounded-full" :style="{ background: propertyColor(p) }" /><span class="text-meta">{{ p.name }}</span> {{ propText(i, p) }}</span>
+              <span v-for="p in customProps.filter(p => propText(i, p))" :key="p.id" class="flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px]" :style="{ background: propertyColor(p) + '26', border: '1px solid ' + propertyColor(p) + '55', color: 'var(--text-primary)' }"><span class="font-semibold" :style="{ color: propertyColor(p) }">{{ p.name }}</span><span class="font-medium">{{ propText(i, p) }}</span></span>
               <span v-if="shows('assignee')" class="text-[11px] text-label w-32 truncate">{{ agentName(i.assignee) }}</span>
               <span class="text-[11px] text-meta w-20 text-right">{{ formatRelativeTime(i.updatedAt) }}</span>
             </button>
@@ -279,6 +278,13 @@ useHead({ title: 'Issues | Agent Manager' })
         </template>
       </section>
     </div>
+
+    <UModal v-model:open="showNewView" :dismissible="!newViewBusy">
+      <template #content>
+        <IssueViewDialog :key="newViewKey" :config="config" :agents="agentOptions" :projects="projects" :show-project="scope === 'all'" :busy="newViewBusy"
+          :initial="{ filters, display, layout: view }" :existing-names="views.map(v => v.name)" @create="createView" @cancel="showNewView = false" />
+      </template>
+    </UModal>
 
     <UModal v-model:open="askOwn">
       <template #content>
