@@ -190,8 +190,8 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
         <section class="space-y-3">
           <div class="text-[11px] font-mono text-meta">{{ issue.id }}<template v-if="issue.parentId"> &middot; sub-issue of <NuxtLink :to="`/issues/${issue.parentId}`" class="underline">{{ issue.parentId }}</NuxtLink></template></div>
           <template v-if="editing">
-            <input v-model="draftTitle" class="w-full px-3 py-2 rounded-lg text-[18px] font-semibold" style="background: var(--surface-base); border: 1px solid var(--border-subtle)" />
-            <textarea v-model="draftDesc" rows="10" class="w-full px-3 py-2 rounded-lg text-[13px] font-mono" style="background: var(--surface-base); border: 1px solid var(--border-subtle)" />
+            <input v-model="draftTitle" class="w-full px-3 py-2 rounded-lg text-[18px] font-semibold" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)" />
+            <textarea v-model="draftDesc" rows="10" class="w-full px-3 py-2 rounded-lg text-[13px] font-mono" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)" />
             <div class="flex gap-2"><UButton label="Save" size="sm" @click="saveEdit" /><UButton label="Cancel" size="sm" variant="ghost" color="neutral" @click="() => { editing = false }" /></div>
           </template>
           <template v-else>
@@ -284,7 +284,7 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
                   <span class="text-meta truncate min-w-0 flex-1">{{ a.frontmatter.description }}</span>
                 </button>
               </div>
-              <textarea ref="commentEl" spellcheck="false" v-model="newComment" rows="3" placeholder="Leave a comment. Type @ to hand the next run to an agent" class="w-full px-2 py-1.5 rounded-lg text-[13px]" style="background: var(--surface-base); border: 1px solid var(--border-subtle)" @input="updateMention" @click="updateMention" @keydown="onCommentKey" @blur="mentionQuery = null" />
+              <textarea ref="commentEl" spellcheck="false" v-model="newComment" rows="3" placeholder="Leave a comment. Type @ to hand the next run to an agent" class="w-full px-2 py-1.5 rounded-lg text-[13px]" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)" @input="updateMention" @click="updateMention" @keydown="onCommentKey" @blur="mentionQuery = null" />
             </div>
             <div class="flex justify-end gap-2">
               <UButton label="Comment" size="sm" variant="soft" color="neutral" :disabled="!newComment.trim() || busy" @click="send(false)" />
