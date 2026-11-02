@@ -29,21 +29,22 @@ const running = ref(false)
 type Entry = IssueDetail['timeline'][number]
 /** Comments stay visible. Everything between two comments (assign, run, status moves) folds into one row. */
 const blocks = computed(() => {
-  const out: { key: string; comment?: Extract<Entry, { type: 'comment' }>; group: Entry[]; run?: IssueRun; fold?: Extract<Entry, { type: 'distill' }>; foldOf?: string }[] = []
-  // Comments a distill folded: one header row at the first of them, the comments follow and show when it is open
+  const out: { key: string; comment?: Extract<Entry, { type: 'comment' }>; group: Entry[]; run?: IssueRun; fold?: Extract<Entry, { type: 'distill' }>; foldOf?: string; foldKind?: string }[] = []
+  // Everything a distill or clear covered folds under one header row, placed at the first covered entry.
+  // Comments: the ones in its foldedIds. Runs, status moves and assigns: those between its first folded comment and the entry.
   const timeline = issue.value?.timeline ?? []
-  const foldOf = new Map<string, Extract<Entry, { type: 'distill' }>>()
-  for (const e of timeline) if (e.type === 'distill') for (const id of e.foldedIds) foldOf.set(id, e)
+  const marks = timeline.flatMap((e, idx) => (e.type === 'distill' ? [{ m: e, end: idx, start: timeline.findIndex(c => c.type === 'comment' && e.foldedIds.includes(c.id)) }] : []))
+  const claimOf = (e: Entry, idx: number) => {
+    if (e.type === 'comment') return marks.find(x => x.m.foldedIds.includes(e.id))?.m
+    return marks.find(x => x.start >= 0 && idx >= x.start && idx <= x.end)?.m
+  }
   const headed = new Set<string>()
-  for (const e of timeline) {
-    if (e.type === 'comment') {
-      const f = foldOf.get(e.id)
-      if (f && !headed.has(f.id)) { headed.add(f.id); out.push({ key: `fold-${f.id}`, group: [], fold: f }) }
-      out.push({ key: e.id, comment: e, group: [], foldOf: f?.id })
-      continue
-    }
+  for (const [idx, e] of timeline.entries()) {
+    const f = claimOf(e, idx)
+    if (f && !headed.has(f.id)) { headed.add(f.id); out.push({ key: `fold-${f.id}`, group: [], fold: f }) }
+    if (e.type === 'comment') { out.push({ key: e.id, comment: e, group: [], foldOf: f?.id, foldKind: f?.kind }); continue }
     let last = out[out.length - 1]
-    if (!last || last.comment || last.fold) out.push(last = { key: e.id, group: [] })
+    if (!last || last.comment || last.fold || last.foldOf !== f?.id) out.push(last = { key: e.id, group: [], foldOf: f?.id, foldKind: f?.kind })
     last.group.push(e)
     if (e.type === 'run') { const r = runById(e.runId); if (r) last.run = r }
   }
@@ -57,7 +58,20 @@ const visibleBlock = (b: { foldOf?: string }) => !b.foldOf || openGroups.value.h
 // Not counted: the command comment itself, and for a distill the run's summary comment
 const foldCount = (f: { foldedIds: string[]; kind?: string }) =>
   Math.max(0, f.foldedIds.filter(id => issue.value?.timeline.some(e => e.id === id && e.type === 'comment')).length - (f.kind === 'clear' ? 1 : 2))
-const foldStamp = (f: { at: string; kind?: string }) => `${f.kind === 'clear' ? 'clear' : 'distill'}-${f.at.slice(0, 16)}`
+/** Violet for a distill, gray for a clear: blue is taken by agent replies */
+const foldColor = (kind?: string) => (kind === 'clear' ? '#6b7280' : '#8b5cf6')
+/** What is folded sits indented under its header, with a line in the same color */
+const foldLine = (kind?: string) => ({ borderLeft: `2px solid color-mix(in srgb, ${foldColor(kind)} 35%, var(--border-subtle))` })
+const foldTint = (f: { kind?: string }) => {
+  const c = foldColor(f.kind)
+  return { background: `color-mix(in srgb, ${c} 10%, var(--surface-raised))`, border: `1px solid color-mix(in srgb, ${c} 25%, var(--border-subtle))` }
+}
+const pad = (n: number) => String(n).padStart(2, '0')
+/** Local time, like every other time on the page */
+const foldStamp = (f: { at: string; kind?: string }) => {
+  const d = new Date(f.at)
+  return `${f.kind === 'clear' ? 'clear' : 'distill'}-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
 const foldText = (f: { kind?: string; note?: string }) => (f.kind === 'clear'
   ? `folded, description unchanged${f.note ? `: ${f.note.length > 80 ? `${f.note.slice(0, 80)}...` : f.note}` : ''}`
   : 'folded into the description')
@@ -375,9 +389,9 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
         <section class="space-y-3">
           <h2 class="text-[13px] font-semibold">Activity</h2>
           <ol class="space-y-3">
-            <li v-for="b in blocks" v-show="visibleBlock(b)" :key="b.key">
+            <li v-for="b in blocks" v-show="visibleBlock(b)" :key="b.key" :class="b.foldOf ? '!mb-0 pb-3 ml-4 pl-3' : ''" :style="b.foldOf ? foldLine(b.foldKind) : undefined">
               <!-- distill header: the comments below it are folded into the description -->
-              <button v-if="b.fold" class="w-full flex items-center gap-2 text-[12px] text-label rounded-lg px-0 py-1.5 text-left" @click="toggleGroup(b.key)">
+              <button v-if="b.fold" class="w-full flex items-center gap-2 text-[12px] text-label rounded-xl px-3 py-2 text-left" :style="foldTint(b.fold)" @click="toggleGroup(b.key)">
                 <UIcon name="i-lucide-chevron-right" class="size-3.5 shrink-0 transition-transform" :class="{ 'rotate-90': groupOpen(b) }" />
                 <UIcon :name="b.fold.kind === 'clear' ? 'i-lucide-eraser' : 'i-lucide-flask-conical'" class="size-3.5 shrink-0" />
                 <b style="color: var(--text-primary)">{{ foldStamp(b.fold) }}</b>
