@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # claude-ui - start/stop/open claude-code-agents-ui dev server in background.
 # Usage: claude-ui [start|stop|restart|status|logs|open] [--no-open]
+#        claude-ui issue <list|get|create|update|move|comment> ...   (claude-ui issue help)
 set -u
 
 # Resolve real path of this script (works when called via symlink from ~/.local/bin)
@@ -81,7 +82,8 @@ case "${1:-start}" in
   restart)         cmd_stop; cmd_start "${2:-}" ;;
   status)          cmd_status ;;
   logs|log)        exec tail -n 100 -f "$LOG" ;;
+  issue)           shift; exec node "$(dirname "$SELF")/claude-ui-issue.mjs" "$@" ;;
   open)            is_up || { cmd_start; exit $?; }; open_browser ;;
   -h|--help|help)  sed -n '2,3p' "$0" ;;
-  *)               echo "unknown: $1 (start|stop|restart|status|logs|open)" >&2; exit 2 ;;
+  *)               echo "unknown: $1 (start|stop|restart|status|logs|open|issue)" >&2; exit 2 ;;
 esac
