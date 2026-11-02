@@ -26,16 +26,13 @@ const blocks = computed(() => {
   }
   return out
 })
+// Folded by default, running or not: the summary row already shows the live status
 const openGroups = ref<Set<string>>(new Set())
-const closedGroups = ref<Set<string>>(new Set())
-// A group with a live run stays open unless the user closed it
-const groupOpen = (b: { key: string; run?: IssueRun }) => openGroups.value.has(b.key) || (b.run?.status === 'running' && !closedGroups.value.has(b.key))
+const groupOpen = (b: { key: string }) => openGroups.value.has(b.key)
 const toggleGroup = (key: string) => {
-  const b = blocks.value.find(x => x.key === key)
-  const open = b ? groupOpen(b) : false
-  const o = new Set(openGroups.value); const c = new Set(closedGroups.value)
-  if (open) { o.delete(key); c.add(key) } else { o.add(key); c.delete(key) }
-  openGroups.value = o; closedGroups.value = c
+  const o = new Set(openGroups.value)
+  o.has(key) ? o.delete(key) : o.add(key)
+  openGroups.value = o
 }
 const openTranscripts = ref<Set<string>>(new Set())
 const toggleTranscript = (runId: string) => {
