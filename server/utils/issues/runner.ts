@@ -80,7 +80,9 @@ export function startRun(issueId: string): string | null {
   // background, and a one-shot run starts before they are up, so the agent reports "no Slack tool". Streaming lets us
   // wait until every server has left "pending" and only then send the prompt.
   const args = ['-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose',
-    '--permission-mode', issue.permissionMode || 'acceptEdits', '--max-budget-usd', String(BUDGET_USD)]
+    '--permission-mode', issue.permissionMode || 'acceptEdits', '--max-budget-usd', String(BUDGET_USD),
+    // No saved session: the issue description and comments are the only context a run gets, so every run starts fresh
+    '--no-session-persistence']
   if (issue.assignee) args.push('--agent', issue.assignee)
 
   let buf = ''
@@ -148,7 +150,6 @@ export function startRun(issueId: string): string | null {
       const result = String(resultMsg.result ?? '').slice(0, MAX_RESULT_CHARS)
       finish({
         status: failed ? 'error' : 'success',
-        sessionId: resultMsg.session_id,
         costUsd: resultMsg.total_cost_usd,
         numTurns: resultMsg.num_turns,
         permissionDenials: (resultMsg.permission_denials || []).map((d: any) => d.tool_name || String(d)),
