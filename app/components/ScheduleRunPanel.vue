@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { renderMarkdown } from '~/utils/markdown'
+import { linkify } from '~/utils/linkify'
 import type { RunStatus, ScheduleItem, ScheduleRunItem } from '~/composables/useSchedules'
 
 const props = defineProps<{ job: ScheduleItem; runId: string }>()
@@ -58,7 +59,7 @@ const sessionLink = computed(() =>
 // Open result links (Jira tickets etc.) in a new tab
 const resultHtml = computed(() =>
   run.value?.result
-    ? renderMarkdown(run.value.result).replace(/<a href=/g, '<a target="_blank" rel="noopener noreferrer" href=')
+    ? renderMarkdown(linkify(run.value.result)).replace(/<a href=/g, '<a target="_blank" rel="noopener noreferrer" href=')
     : '',
 )
 </script>

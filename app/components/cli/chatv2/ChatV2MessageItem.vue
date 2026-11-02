@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { DisplayChatMessage } from '~/types'
 import { renderMarkdownWithHighlighting } from '~/utils/markdown'
+import { linkify } from '~/utils/linkify'
 import { formatContent } from '~/utils/messageFormatting'
 
 const props = defineProps<{
@@ -29,7 +30,7 @@ watchEffect(async () => {
     return
   }
   const formatted = formatContent(props.message.content)
-  renderedContent.value = await renderMarkdownWithHighlighting(formatted)
+  renderedContent.value = await renderMarkdownWithHighlighting(linkify(formatted))
 })
 
 // Extract filename from tool input
@@ -365,7 +366,7 @@ watchEffect(async () => {
     renderedAgentPrompt.value = ''
     return
   }
-  renderedAgentPrompt.value = await renderMarkdownWithHighlighting(agentPrompt.value)
+  renderedAgentPrompt.value = await renderMarkdownWithHighlighting(linkify(agentPrompt.value))
 })
 
 // Check if this is a Task tool (TaskCreate, TaskUpdate, TaskGet, TaskList)
@@ -558,7 +559,7 @@ watchEffect(async () => {
     renderedPlan.value = ''
     return
   }
-  renderedPlan.value = await renderMarkdownWithHighlighting(planContent.value)
+  renderedPlan.value = await renderMarkdownWithHighlighting(linkify(planContent.value))
 })
 
 // Parse todo items from TodoWrite input

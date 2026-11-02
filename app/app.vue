@@ -281,6 +281,7 @@ function badgeFor(to: string) {
 
 <template>
   <UApp>
+    <LocalMdPreview />
     <div class="flex h-screen overflow-hidden" style="background: var(--surface-base);">
       <!-- Sidebar -->
       <aside

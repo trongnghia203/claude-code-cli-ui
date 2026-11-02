@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { renderMarkdown } from '~/utils/markdown'
+import { linkify } from '~/utils/linkify'
 
 interface Item { kind: 'prompt' | 'text' | 'tool' | 'tool_result' | 'result'; text?: string; id?: string; name?: string; input?: any; isError?: boolean }
 
@@ -26,7 +27,7 @@ const detail = (i: any) => String(i?.command ?? i?.file_path ?? i?.path ?? i?.ur
     <p v-if="loaded && !context" class="text-meta">No context saved for this run.</p>
     <div v-if="context" class="rounded-lg p-3 max-h-[420px] overflow-y-auto custom-scrollbar" style="background: var(--surface-base); border: 1px solid var(--border-subtle)">
       <div class="text-[11px] text-meta mb-1.5">Context the agent received</div>
-      <div class="md-prose issue-prose" v-html="renderMarkdown(context)" />
+      <div class="md-prose issue-prose" v-html="renderMarkdown(linkify(context))" />
     </div>
     <details v-if="tools.length" class="px-1">
       <summary class="cursor-pointer text-label">{{ tools.length }} tool {{ tools.length === 1 ? 'call' : 'calls' }}</summary>
