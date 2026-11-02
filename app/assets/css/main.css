@@ -1649,3 +1649,20 @@ details summary::-webkit-details-marker {
   border-top: 1px solid var(--border-default);
   margin: 1.25rem 0;
 }
+
+/* Issue page: description and comments */
+.issue-prose {
+  --md-font-size: 14px;
+  line-height: 1.7;
+}
+.issue-prose p { margin: 0.65rem 0; line-height: 1.7; }
+.issue-prose p:first-child { margin-top: 0; }
+.issue-prose p:last-child { margin-bottom: 0; }
+.issue-prose li { margin: 0.2rem 0; line-height: 1.65; }
+.issue-prose code {
+  font-size: 0.86em;
+  padding: 0.1em 0.35em;
+  border-radius: 5px;
+  background: var(--surface-base);
+  border: 1px solid var(--border-subtle);
+}

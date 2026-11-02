@@ -111,8 +111,8 @@ export function useIssues() {
   async function remove(id: string): Promise<boolean> {
     try { await $fetch(`/api/issues/${id}`, { method: 'DELETE' }); return true } catch (e) { fail(e); return false }
   }
-  async function comment(id: string, body: string, run = false): Promise<IssueDetail | null> {
-    try { return (await $fetch<{ issue: IssueDetail }>(`/api/issues/${id}/comments`, { method: 'POST', body: { body, run } })).issue } catch (e) { return fail(e) }
+  async function comment(id: string, body: string, run = false, agent?: string): Promise<IssueDetail | null> {
+    try { return (await $fetch<{ issue: IssueDetail }>(`/api/issues/${id}/comments`, { method: 'POST', body: { body, run, agent } })).issue } catch (e) { return fail(e) }
   }
   async function run(id: string): Promise<boolean> {
     try { await $fetch(`/api/issues/${id}/run`, { method: 'POST' }); return true } catch (e) { fail(e); return false }

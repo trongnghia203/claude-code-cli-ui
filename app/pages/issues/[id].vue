@@ -56,10 +56,52 @@ async function send(andRun: boolean) {
   const body = newComment.value.trim()
   if (!body) return
   busy.value = true
-  const res = await comment(id.value, body, andRun)
+  const res = await comment(id.value, body, andRun, andRun ? mentionedAgent.value ?? undefined : undefined)
   busy.value = false
   if (res) { issue.value = res; newComment.value = ''; running.value = res.runs.some(r => r.status === 'running') }
 }
+// @agent mentions in the comment box
+const commentEl = ref<HTMLTextAreaElement | null>(null)
+const mentionQuery = ref<string | null>(null)
+const mentionIdx = ref(0)
+const mentionOptions = computed(() => {
+  const q = mentionQuery.value
+  if (q === null) return []
+  return agents.value.filter(a => a.slug.toLowerCase().includes(q) || (a.frontmatter.name || '').toLowerCase().includes(q)).slice(0, 6)
+})
+const mentionedAgent = computed(() => {
+  for (const m of newComment.value.matchAll(/(^|\s)@([\w-]+)/g)) {
+    if (agents.value.some(a => a.slug === m[2])) return m[2]
+  }
+  return null
+})
+function updateMention() {
+  const el = commentEl.value
+  if (!el) return
+  const m = /(^|\s)@([\w-]*)$/.exec(newComment.value.slice(0, el.selectionStart))
+  mentionQuery.value = m ? (m[2] ?? '').toLowerCase() : null
+  mentionIdx.value = 0
+}
+function pickMention(slug: string) {
+  const el = commentEl.value
+  if (!el) return
+  const pos = el.selectionStart
+  const before = newComment.value.slice(0, pos).replace(/@[\w-]*$/, `@${slug} `)
+  newComment.value = before + newComment.value.slice(pos)
+  mentionQuery.value = null
+  nextTick(() => { el.focus(); el.setSelectionRange(before.length, before.length) })
+}
+function onCommentKey(e: KeyboardEvent) {
+  const opts = mentionOptions.value
+  if (opts.length) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); mentionIdx.value = (mentionIdx.value + 1) % opts.length; return }
+    if (e.key === 'ArrowUp') { e.preventDefault(); mentionIdx.value = (mentionIdx.value - 1 + opts.length) % opts.length; return }
+    if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); pickMention(opts[mentionIdx.value]!.slug); return }
+    if (e.key === 'Escape') { mentionQuery.value = null; return }
+  }
+  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && newComment.value.trim() && !busy.value && !running.value && (issue.value?.assignee || mentionedAgent.value)) { e.preventDefault(); send(true) }
+}
+
 async function onRun() {
   if (await run(id.value)) { toast.add({ title: 'Run started', color: 'success', duration: 2000 }); await load() }
 }
@@ -72,7 +114,17 @@ async function doDelete() {
 }
 
 /** Agents write line-per-line replies. Markdown folds single newlines, so keep them as hard breaks (not inside code fences). */
-const withBreaks = (t: string) => (t.includes('```') ? t : t.replace(/([^\n])\n(?!\n)/g, '$1  \n'))
+// Agents write one sentence per line. Make each line its own paragraph (list items stay a tight list).
+const withBreaks = (t: string) => {
+  if (t.includes('```')) return t
+  const isItem = (l: string) => /^\s*([-*+]|\d+[.)])\s/.test(l)
+  const lines = t.split('\n')
+  return lines.map((l, i) => {
+    const next = lines[i + 1]
+    if (next === undefined || !l.trim() || !next.trim()) return l
+    return isItem(l) && isItem(next) ? l : l + '\n'
+  }).join('\n')
+}
 const agentName = (slug: string | null) => (slug ? agents.value.find(a => a.slug === slug)?.frontmatter.name ?? slug : 'Me')
 const runById = (runId: string) => issue.value?.runs.find(r => r.id === runId)
 const when = (iso?: string) => (iso ? new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '')
@@ -103,7 +155,7 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
               <h1 class="text-[20px] font-semibold flex-1">{{ issue.title }}</h1>
               <button class="p-1.5 rounded-lg hover-bg" title="Edit" style="color: var(--text-tertiary)" @click="startEdit"><UIcon name="i-lucide-pencil" class="size-4 block" /></button>
             </div>
-            <div v-if="issue.description.trim()" class="prose-sm text-[13px]" v-html="renderMarkdown(issue.description)" />
+            <div v-if="issue.description.trim()" class="md-prose issue-prose" v-html="renderMarkdown(issue.description)" />
             <p v-else class="text-[13px] text-meta">No description.</p>
           </template>
         </section>
@@ -118,7 +170,7 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
                   <UIcon :name="e.author === 'agent' ? 'i-lucide-cpu' : 'i-lucide-user'" class="size-3.5" />
                   {{ e.author === 'agent' ? agentName(issue.assignee) : 'You' }} &middot; {{ when(e.at) }}
                 </div>
-                <div class="text-[13px] prose-sm" v-html="renderMarkdown(withBreaks(e.body))" />
+                <div class="md-prose issue-prose" v-html="renderMarkdown(withBreaks(e.body))" />
               </div>
               <!-- status -->
               <div v-else-if="e.type === 'status'" class="flex items-center gap-2 text-[12px] text-label">
@@ -149,10 +201,19 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
           </ol>
 
           <div class="rounded-xl p-3 space-y-2" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)">
-            <textarea v-model="newComment" rows="3" placeholder="Leave a comment" class="w-full px-2 py-1.5 rounded-lg text-[13px]" style="background: var(--surface-base); border: 1px solid var(--border-subtle)" />
+<div class="relative">
+              <div v-if="mentionOptions.length" class="absolute bottom-full mb-1 left-0 z-20 w-[420px] max-w-full rounded-lg overflow-hidden shadow-lg" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)">
+                <button v-for="(a, i) in mentionOptions" :key="a.slug" type="button" class="w-full text-left px-3 py-1.5 text-[12px] flex items-center gap-2" :style="{ background: i === mentionIdx ? 'var(--surface-base)' : 'transparent' }" @mousedown.prevent="pickMention(a.slug)">
+                  <UIcon name="i-lucide-cpu" class="size-3.5 shrink-0" />
+                  <b class="shrink-0" style="color: var(--text-primary)">@{{ a.slug }}</b>
+                  <span class="text-meta truncate min-w-0 flex-1">{{ a.frontmatter.description }}</span>
+                </button>
+              </div>
+              <textarea ref="commentEl" v-model="newComment" rows="3" placeholder="Leave a comment. Type @ to hand the next run to an agent" class="w-full px-2 py-1.5 rounded-lg text-[13px]" style="background: var(--surface-base); border: 1px solid var(--border-subtle)" @input="updateMention" @click="updateMention" @keydown="onCommentKey" @blur="mentionQuery = null" />
+            </div>
             <div class="flex justify-end gap-2">
               <UButton label="Comment" size="sm" variant="soft" color="neutral" :disabled="!newComment.trim() || busy" @click="send(false)" />
-              <UButton label="Comment and run" size="sm" icon="i-lucide-play" :disabled="!newComment.trim() || busy || running || !issue.assignee" :title="issue.assignee ? '' : 'Assign an agent first'" @click="send(true)" />
+              <UButton label="Comment and run" size="sm" icon="i-lucide-play" :disabled="!newComment.trim() || busy || running || (!issue.assignee && !mentionedAgent)" :title="issue.assignee || mentionedAgent ? (mentionedAgent ? `Run @${mentionedAgent}` : '') : 'Assign an agent or @mention one'" @click="send(true)" />
             </div>
           </div>
         </section>
