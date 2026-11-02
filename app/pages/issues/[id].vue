@@ -29,11 +29,21 @@ const running = ref(false)
 type Entry = IssueDetail['timeline'][number]
 /** Comments stay visible. Everything between two comments (assign, run, status moves) folds into one row. */
 const blocks = computed(() => {
-  const out: { key: string; comment?: Extract<Entry, { type: 'comment' }>; group: Entry[]; run?: IssueRun }[] = []
-  for (const e of issue.value?.timeline ?? []) {
-    if (e.type === 'comment') { out.push({ key: e.id, comment: e, group: [] }); continue }
+  const out: { key: string; comment?: Extract<Entry, { type: 'comment' }>; group: Entry[]; run?: IssueRun; fold?: Extract<Entry, { type: 'distill' }>; foldOf?: string }[] = []
+  // Comments a distill folded: one header row at the first of them, the comments follow and show when it is open
+  const timeline = issue.value?.timeline ?? []
+  const foldOf = new Map<string, Extract<Entry, { type: 'distill' }>>()
+  for (const e of timeline) if (e.type === 'distill') for (const id of e.foldedIds) foldOf.set(id, e)
+  const headed = new Set<string>()
+  for (const e of timeline) {
+    if (e.type === 'comment') {
+      const f = foldOf.get(e.id)
+      if (f && !headed.has(f.id)) { headed.add(f.id); out.push({ key: `fold-${f.id}`, group: [], fold: f }) }
+      out.push({ key: e.id, comment: e, group: [], foldOf: f?.id })
+      continue
+    }
     let last = out[out.length - 1]
-    if (!last || last.comment) out.push(last = { key: e.id, group: [] })
+    if (!last || last.comment || last.fold) out.push(last = { key: e.id, group: [] })
     last.group.push(e)
     if (e.type === 'run') { const r = runById(e.runId); if (r) last.run = r }
   }
@@ -42,6 +52,22 @@ const blocks = computed(() => {
 // Folded by default, running or not: the summary row already shows the live status
 const openGroups = ref<Set<string>>(new Set())
 const groupOpen = (b: { key: string }) => openGroups.value.has(b.key)
+/** A comment folded by a distill shows only while its header row is open */
+const visibleBlock = (b: { foldOf?: string }) => !b.foldOf || openGroups.value.has(`fold-${b.foldOf}`)
+// Not counted: the command comment itself, and for a distill the run's summary comment
+const foldCount = (f: { foldedIds: string[]; kind?: string }) =>
+  Math.max(0, f.foldedIds.filter(id => issue.value?.timeline.some(e => e.id === id && e.type === 'comment')).length - (f.kind === 'clear' ? 1 : 2))
+const foldStamp = (f: { at: string; kind?: string }) => `${f.kind === 'clear' ? 'clear' : 'distill'}-${f.at.slice(0, 16)}`
+const foldText = (f: { kind?: string; note?: string }) => (f.kind === 'clear'
+  ? `folded, description unchanged${f.note ? `: ${f.note.length > 80 ? `${f.note.slice(0, 80)}...` : f.note}` : ''}`
+  : 'folded into the description')
+// Typing /clear: say what it hides before it is sent
+const liveCount = computed(() => {
+  const tl = issue.value?.timeline ?? []
+  const folded = new Set(tl.flatMap(e => (e.type === 'distill' ? e.foldedIds : [])))
+  return tl.filter(e => e.type === 'comment' && !folded.has(e.id)).length
+})
+const clearing = computed(() => /^\s*(?:@[\w-]+\s+)*\/(?:clear|reset)(?:\s|$)/i.test(newComment.value))
 const toggleGroup = (key: string) => {
   const o = new Set(openGroups.value)
   o.has(key) ? o.delete(key) : o.add(key)
@@ -197,6 +223,8 @@ const emojiOptions = computed(() => (emojiQuery.value === null ? [] : searchEmoj
 // /slash commands in the comment box: only as the first word, after optional @mentions
 const SLASH_COMMANDS = [
   { name: 'adhoc', hint: 'Run with only this comment, no description or history' },
+  { name: 'clear', hint: 'Hide the old comments from later runs. No run, nothing deleted' },
+  { name: 'distill', hint: 'Fold the new comments into the description. Later runs skip them' },
   { name: 'last', hint: 'This comment plus the 2 before it. /last N sends N+1. No description' },
 ]
 const slashQuery = ref<string | null>(null)
@@ -347,9 +375,16 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
         <section class="space-y-3">
           <h2 class="text-[13px] font-semibold">Activity</h2>
           <ol class="space-y-3">
-            <li v-for="b in blocks" :key="b.key">
+            <li v-for="b in blocks" v-show="visibleBlock(b)" :key="b.key">
+              <!-- distill header: the comments below it are folded into the description -->
+              <button v-if="b.fold" class="w-full flex items-center gap-2 text-[12px] text-label rounded-lg px-0 py-1.5 text-left" @click="toggleGroup(b.key)">
+                <UIcon name="i-lucide-chevron-right" class="size-3.5 shrink-0 transition-transform" :class="{ 'rotate-90': groupOpen(b) }" />
+                <UIcon :name="b.fold.kind === 'clear' ? 'i-lucide-eraser' : 'i-lucide-flask-conical'" class="size-3.5 shrink-0" />
+                <b style="color: var(--text-primary)">{{ foldStamp(b.fold) }}</b>
+                <span class="truncate">{{ foldCount(b.fold) }} {{ foldCount(b.fold) === 1 ? 'comment' : 'comments' }} {{ foldText(b.fold) }}</span>
+              </button>
               <!-- comment -->
-              <div v-if="b.comment" class="rounded-xl p-3" :style="{ background: b.comment.author === 'agent' ? 'var(--issue-reply-bg)' : 'var(--surface-raised)', border: '1px solid ' + (b.comment.author === 'agent' ? 'var(--issue-reply-border)' : 'var(--border-subtle)') }">
+              <div v-else-if="b.comment" class="rounded-xl p-3" :style="{ background: b.comment.author === 'agent' ? 'var(--issue-reply-bg)' : 'var(--surface-raised)', border: '1px solid ' + (b.comment.author === 'agent' ? 'var(--issue-reply-border)' : 'var(--border-subtle)') }">
                 <div class="flex items-center gap-2 text-[11px] text-label mb-1">
                   <UIcon :name="b.comment.author === 'agent' ? 'i-lucide-cpu' : 'i-lucide-user'" class="size-3.5" />
                   {{ b.comment.author === 'agent' ? agentName(issue.assignee) : 'You' }} &middot; {{ when(b.comment.at) }}
@@ -381,6 +416,11 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
                   <div v-else-if="e.type === 'assign'" class="flex items-center gap-2 text-[12px] text-label">
                     <UIcon name="i-lucide-user-round-check" class="size-3.5" />
                     <span>Assigned to <b>{{ agentName(e.to) }}</b></span><span class="text-meta">{{ when(e.at) }}</span>
+                  </div>
+                  <!-- distill -->
+                  <div v-else-if="e.type === 'distill'" class="flex items-center gap-2 text-[12px] text-label">
+                    <UIcon :name="e.kind === 'clear' ? 'i-lucide-eraser' : 'i-lucide-flask-conical'" class="size-3.5" />
+                    <span>{{ e.kind === 'clear' ? 'Cleared' : 'Distilled' }} {{ foldCount(e) }} {{ foldCount(e) === 1 ? 'comment' : 'comments' }}<template v-if="e.kind !== 'clear'"> into the description</template></span><span class="text-meta">{{ when(e.at) }}</span>
                   </div>
                   <!-- run -->
                   <div v-else-if="e.type === 'run' && runById(e.runId)" class="rounded-xl p-3 text-[12px]" style="border: 1px dashed var(--border-subtle)">
@@ -439,6 +479,7 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
               </div>
               <textarea ref="commentEl" spellcheck="false" v-model="newComment" rows="3" placeholder="Leave a comment. Type @ to hand the next run to an agent, / for commands" class="w-full px-2 py-1.5 rounded-lg text-[13px]" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)" @input="updateMention" @click="updateMention" @keydown="onCommentKey" @blur="mentionQuery = null; emojiQuery = null; slashQuery = null" />
             </div>
+            <p v-if="clearing" class="text-[12px]" style="color: #d97706">Hides {{ liveCount }} {{ liveCount === 1 ? 'comment' : 'comments' }} from later runs. Nothing is deleted. Use /distill to keep what they say in the description.</p>
             <div class="flex justify-end gap-2">
               <UButton label="Comment" size="sm" variant="soft" color="neutral" :disabled="!newComment.trim() || busy" @click="send(false)" />
               <UButton label="Comment and run" size="sm" icon="i-lucide-play" :disabled="!newComment.trim() || busy || running || (!issue.assignee && !mentionedAgent)" :title="issue.assignee || mentionedAgent ? (mentionedAgent ? `Run @${mentionedAgent}` : '') : 'Assign an agent or @mention one'" @click="send(true)" />

@@ -29,6 +29,7 @@ export type TimelineEntry =
   | { id: string; at: string; type: 'status'; from: IssueStatus | null; to: IssueStatus; by: 'user' | 'system' }
   | { id: string; at: string; type: 'assign'; from: string | null; to: string | null }
   | { id: string; at: string; type: 'run'; runId: string }
+  | { id: string; at: string; type: 'distill'; kind?: 'distill' | 'clear'; note?: string; foldedIds: string[]; descriptionBefore: string }
 
 export type WakeRepeat = 'once' | 'hourly' | 'daily' | 'weekdays' | 'weekly'
 export const WAKE_REPEAT_LABEL: Record<WakeRepeat, string> = { once: 'Trigger once', hourly: 'Repeat hourly', daily: 'Repeat daily', weekdays: 'Repeat on weekdays', weekly: 'Repeat weekly' }

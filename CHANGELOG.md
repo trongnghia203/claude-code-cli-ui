@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+**Comment command `/clear` hides old comments without a run**
+- Add `/clear` (alias `/reset`): later runs and `/last` skip the comments, no run and no agent needed, nothing deleted
+- Show it as a folded row `clear-<timestamp>` with the optional note, and a hint with the comment count while typing
+- Refuse `/clear` when there are no new comments
+- Document it in `docs/issues-management.md` and `docs/adr/0007-clear-command.md`
+
+**Comment command `/distill` folds comments into the description**
+- Add `/distill`: a run compares the new comments with the description and rewrites it, with no other work and no status change
+- Add a distill entry on success: its comments are skipped by later runs and `/last`, and shown folded as `distill-<timestamp>`
+- Keep comments and the old description, so a fold can be undone
+- Refuse `/distill` when there are no new comments since the last one
+- Document it in `docs/issues-management.md` and `docs/adr/0006-distill-command.md`
+
 **Comment commands `/adhoc` and `/last` for lighter runs**
 - Add `/adhoc`: a run gets only the issue id, title and the new comment, no description or history
 - Add `/last` and `/last N`: same, plus the N+1 comments before yours (default 2, max 11), so a reply like `go` keeps the proposal

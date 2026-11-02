@@ -58,6 +58,17 @@ Example: `@ops-engineer /adhoc check Snowflake for Petronas, which cluster is it
 `/last N` sends N+1 comments before yours (N max 10, yours and the agent's, oldest first).
 The +1 is there because a short reply of yours, like `go`, would otherwise use up the count.
 
+**Distill.** Start a comment with `/distill` (an `@agent` mention may come first) and press "Comment and run".
+The agent gets the description and the comments no earlier distill folded, plus any text after `/distill` as a hint.
+It rewrites the description to match them, keeps your original request at the top, and does nothing else. The status does not change.
+On success the comments it saw are folded: later runs and `/last` skip them, and the page shows them under `distill-<timestamp>`.
+Nothing is deleted. Example: `@issue-watcher /distill focus on the rollback decision`.
+With no new comments since the last distill, the command is refused.
+
+**Clear.** Start a comment with `/clear` (or `/reset`) and press "Comment". No run starts and no agent is needed.
+The comments so far are folded like after a distill, but the description is not touched. Text after `/clear` is kept as a note on the folded row.
+Use it for noise. Use `/distill` when the comments hold facts the description should keep.
+
 **The description is the relay between runs.** Before finishing, the agent reads the issue with `claude-ui issue get` and rewrites
 the description with `claude-ui issue update`. It keeps your original request at the top, then Context, Steps, Checklist, Findings, Next.
 Long detail goes to the project notes file (for a Jira ticket: its impl-notes). The agent's final message is only a 2-3 line summary,

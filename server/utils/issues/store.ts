@@ -39,6 +39,12 @@ export type TimelineEntry =
   | { id: string; at: string; type: 'status'; from: IssueStatus | null; to: IssueStatus; by: 'user' | 'system' }
   | { id: string; at: string; type: 'assign'; from: string | null; to: string | null }
   | { id: string; at: string; type: 'run'; runId: string }
+  /**
+   * A fold. `/distill` (after a successful run): the description now holds what these comments said.
+   * `/clear`: no run, the comments are only hidden from later prompts. A missing `kind` means distill.
+   * Comments are kept. Later prompts skip them, and the page folds them. Delete the entry to unfold.
+   */
+  | { id: string; at: string; type: 'distill'; kind?: 'distill' | 'clear'; note?: string; foldedIds: string[]; descriptionBefore: string }
 
 export const WAKE_REPEATS = ['once', 'hourly', 'daily', 'weekdays', 'weekly'] as const
 export type WakeRepeat = typeof WAKE_REPEATS[number]
@@ -79,6 +85,21 @@ export interface Issue {
   updatedAt: string
   timeline: TimelineEntry[]
   runs: IssueRun[]
+}
+
+type CommentEntry = Extract<TimelineEntry, { type: 'comment' }>
+
+/** Ids of comments folded into the description by a distill. */
+export function foldedCommentIds(issue: Pick<Issue, 'timeline'>): Set<string> {
+  const out = new Set<string>()
+  for (const e of issue.timeline) if (e.type === 'distill') for (const id of e.foldedIds) out.add(id)
+  return out
+}
+
+/** Comments no distill has folded yet: what a run still needs to read next to the description. */
+export function liveComments(issue: Pick<Issue, 'timeline'>): CommentEntry[] {
+  const folded = foldedCommentIds(issue)
+  return issue.timeline.filter((e): e is CommentEntry => e.type === 'comment' && !folded.has(e.id))
 }
 
 export const ISSUE_PREFIX = 'ISS'

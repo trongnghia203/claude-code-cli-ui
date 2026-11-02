@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { appendTranscript, readIssue, updateIssue, setStatus, newEntryId, type Issue, type IssueRun, type RunUsage } from './store'
+import { appendTranscript, liveComments, readIssue, updateIssue, setStatus, newEntryId, type Issue, type IssueRun, type RunUsage } from './store'
 
 const TIMEOUT_MS = 30 * 60_000
 const BUDGET_USD = 5
@@ -121,14 +121,45 @@ export function buildAdhocPrompt(issue: Issue, question: string, previous?: { au
   ].filter(Boolean).join('\n')
 }
 
+const DISTILL_INSTRUCTION = `
+## Your job: distill
+
+Bring the description up to date with the discussion. Do no other work.
+
+1. Compare each comment with the description. Find what is stale, missing, or contradicted.
+2. Rewrite the description: \`claude-ui issue update {ID} --body-file - <<'EOF'\` ... \`EOF\`
+3. Keep the original request at the top, unchanged. Keep these sections current, rewrite stale parts, do not append a log:
+   **Context**, **Steps**, **Checklist** (\`- [x]\` done, \`- [ ]\` open), **Findings**, **Next**.
+4. Decisions made in the comments go into the right section. A dead approach goes to **Findings** with the reason.
+5. If the description is already current, leave it as it is.
+6. Do not change status, assignee or labels. Do not start the work the comments talk about.
+
+The comments below are folded into the description after this run, so later runs will not see them. Do not lose a fact.
+Older comments, already folded by an earlier distill, can be read with \`claude-ui issue get {ID} --comments 50\`.
+
+Last, finish with a 2-3 line summary: what you changed, and what the reviewer should check. It is posted as the comment.
+Do not post comments with the CLI.`
+
+/** A distill run sees the description, the comments no earlier distill folded, and an optional hint. */
+export function buildDistillPrompt(issue: Issue, comments: { author: string; at: string; body: string }[], hint: string): string {
+  return [
+    `You are working on issue ${issue.id}: ${issue.title}`,
+    issue.description.trim() ? `\n## Description\n${issue.description.trim()}` : '\n## Description\n(empty)',
+    `\n## Comments to fold (oldest first)\n${comments.map(c => `**${c.author}** (${c.at}):\n${c.body}`).join('\n\n')}`,
+    hint ? `\n## Hint from the user\n${hint}` : '',
+    DISTILL_INSTRUCTION.replaceAll('{ID}', issue.id),
+  ].filter(Boolean).join('\n')
+}
+
 export function buildPrompt(issue: Issue, extra?: string): string {
   const parts = [
     `You are working on issue ${issue.id}: ${issue.title}`,
     issue.description.trim() ? `\n## Description\n${issue.description.trim()}` : '',
   ]
-  const comments = issue.timeline.filter(e => e.type === 'comment')
+  const comments = liveComments(issue)
+  const folded = issue.timeline.filter(e => e.type === 'comment').length - comments.length
   if (comments.length) {
-    parts.push('\n## Discussion')
+    parts.push(folded ? `\n## Discussion\n(${folded} older comments are already in the description above.)` : '\n## Discussion')
     for (const c of comments) if (c.type === 'comment') parts.push(`**${c.author}** (${c.at}):\n${c.body}`)
   }
   if (extra?.trim()) parts.push(`\n## Wakeup\n${extra.trim()}`)
@@ -137,8 +168,17 @@ export function buildPrompt(issue: Issue, extra?: string): string {
   return parts.filter(Boolean).join('\n')
 }
 
+export interface RunOptions {
+  /** Use this prompt as it is, instead of the default one */
+  prompt?: string
+  /** Leave the status alone, in and out. For runs that only edit the issue, like /distill. */
+  keepStatus?: boolean
+  /** Called when the run has ended, with the id of the summary comment it posted (success only) */
+  after?: (r: { ok: boolean; commentId?: string }) => void
+}
+
 /** Start a run for the issue. Returns the run id, or null when one is already active. */
-export function startRun(issueId: string, trigger?: string, extraInstruction?: string, agentOverride?: string | null, adhoc?: { question: string; previous?: { author: string; at: string; body: string }[] }): string | null {
+export function startRun(issueId: string, trigger?: string, extraInstruction?: string, agentOverride?: string | null, adhoc?: { question: string; previous?: { author: string; at: string; body: string }[] }, opts: RunOptions = {}): string | null {
   if (active.has(issueId)) return null
   const issue = readIssue(issueId)
   if (!issue) return null
@@ -151,24 +191,26 @@ export function startRun(issueId: string, trigger?: string, extraInstruction?: s
     trigger: (trigger?.trim().replace(/\s+/g, ' ').slice(0, 160)) || (issue.runs.length ? 'Run agent' : 'Initial run'),
   }
 
-  const prompt = adhoc ? buildAdhocPrompt(issue, adhoc.question, adhoc.previous) : buildPrompt(issue, extraInstruction)
+  const prompt = opts.prompt ?? (adhoc ? buildAdhocPrompt(issue, adhoc.question, adhoc.previous) : buildPrompt(issue, extraInstruction))
   updateIssue(issueId, (i) => {
     i.runs.push(run)
     i.timeline.push({ id: newEntryId(), at: run.startedAt, type: 'run', runId })
-    setStatus(i, 'in_progress', 'system')
+    if (!opts.keepStatus) setStatus(i, 'in_progress', 'system')
   })
 
   const finish = (patch: Partial<IssueRun>, nextStatus: 'in_review' | 'todo', comment?: string) => {
     const entry = active.get(issueId)
     active.delete(issueId)
     const finishedAt = new Date()
+    const commentId = comment ? newEntryId() : undefined
     updateIssue(issueId, (i) => {
       const r = i.runs.find(x => x.id === runId)
       if (r) Object.assign(r, patch, { finishedAt: finishedAt.toISOString(), durationMs: finishedAt.getTime() - startedAt.getTime() })
       // A user who moved the issue elsewhere during the run keeps their choice
-      if (i.status === 'in_progress') setStatus(i, entry?.cancelled ? 'todo' : nextStatus, 'system')
-      if (comment) i.timeline.push({ id: newEntryId(), at: finishedAt.toISOString(), type: 'comment', author: 'agent', body: comment })
+      if (!opts.keepStatus && i.status === 'in_progress') setStatus(i, entry?.cancelled ? 'todo' : nextStatus, 'system')
+      if (comment) i.timeline.push({ id: commentId!, at: finishedAt.toISOString(), type: 'comment', author: 'agent', body: comment })
     })
+    opts.after?.({ ok: patch.status === 'success', commentId })
   }
 
   if (!existsSync(issue.projectDir)) {
