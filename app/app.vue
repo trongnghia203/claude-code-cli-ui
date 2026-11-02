@@ -223,6 +223,19 @@ function isActive(to: string) {
   return route.path === to || route.path.startsWith(to + '/')
 }
 
+// Issues with an agent run in progress, across all projects. Polled, since runs finish without any page event.
+const runningIssues = ref(0)
+async function refreshRunningIssues() {
+  try {
+    const res = await $fetch<{ issues: { running: boolean }[] }>('/api/issues', { query: { all: '1' } })
+    runningIssues.value = res.issues.filter(i => i.running).length
+  } catch { /* keep the last count */ }
+}
+let runningTimer: ReturnType<typeof setInterval> | null = null
+onMounted(() => { refreshRunningIssues(); runningTimer = setInterval(refreshRunningIssues, 5000) })
+onUnmounted(() => { if (runningTimer) clearInterval(runningTimer) })
+watch(() => route.fullPath, refreshRunningIssues)
+
 function badgeFor(to: string) {
   if (to === '/agents') return agents.value.length || null
   if (to === '/commands') return commands.value.length || null
@@ -505,7 +518,11 @@ function badgeFor(to: string) {
             <UIcon :name="link.icon" class="size-[15px] shrink-0 transition-colors duration-150" :style="{ color: isActive(link.to) ? 'var(--accent)' : undefined }" />
             <template v-if="!sidebarCollapsed">
               <span class="flex-1" style="font-family: var(--font-sans);">{{ link.label }}</span>
+              <span v-if="link.key === 'issues' && runningIssues" class="flex items-center gap-1 text-[11px] px-1.5 rounded-full" style="color: #3b82f6; background: color-mix(in srgb, #3b82f6 12%, transparent);" :title="`${runningIssues} agent ${runningIssues === 1 ? 'run' : 'runs'} in progress`">
+                <UIcon name="i-lucide-loader-2" class="size-3 animate-spin" />{{ runningIssues }} running
+              </span>
             </template>
+            <span v-else-if="link.key === 'issues' && runningIssues" class="absolute top-1 right-2 size-2 rounded-full animate-pulse" style="background: #3b82f6;" />
           </NuxtLink>
 
           <!-- Separator 2 -->
