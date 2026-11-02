@@ -106,15 +106,18 @@ Skip the edit if nothing is worth keeping.
 Last, finish with a 2-3 line summary of the answer. That summary is posted as the comment. Do not post comments with the CLI.`
 
 /** An adhoc run sees only the issue id, title and the new comment. The agent can fetch more with `claude-ui issue get`. */
-export function buildAdhocPrompt(issue: Issue, question: string): string {
+export function buildAdhocPrompt(issue: Issue, question: string, previous?: { author: string; at: string; body: string }): string {
   return [
     `You are working on issue ${issue.id}: ${issue.title}`,
-    '\nThis is an adhoc question. You get no description or earlier comments on purpose.',
+    previous
+      ? '\nThis is an adhoc run. You get no description or older comments on purpose, only the last comment before this one.'
+      : '\nThis is an adhoc question. You get no description or earlier comments on purpose.',
     `If you need more context, run \`claude-ui issue get ${issue.id}\`.`,
-    `\n## Question\n${question.trim()}`,
+    previous ? `\n## Last comment\n**${previous.author}** (${previous.at}):\n${previous.body}` : '',
+    `\n## ${previous ? 'New comment' : 'Question'}\n${question.trim()}`,
     '\nDo the work in the current directory.',
     ADHOC_RELAY_INSTRUCTION.replaceAll('{ID}', issue.id),
-  ].join('\n')
+  ].filter(Boolean).join('\n')
 }
 
 export function buildPrompt(issue: Issue, extra?: string): string {
@@ -134,7 +137,7 @@ export function buildPrompt(issue: Issue, extra?: string): string {
 }
 
 /** Start a run for the issue. Returns the run id, or null when one is already active. */
-export function startRun(issueId: string, trigger?: string, extraInstruction?: string, agentOverride?: string | null, adhocQuestion?: string): string | null {
+export function startRun(issueId: string, trigger?: string, extraInstruction?: string, agentOverride?: string | null, adhoc?: { question: string; previous?: { author: string; at: string; body: string } }): string | null {
   if (active.has(issueId)) return null
   const issue = readIssue(issueId)
   if (!issue) return null
@@ -147,7 +150,7 @@ export function startRun(issueId: string, trigger?: string, extraInstruction?: s
     trigger: (trigger?.trim().replace(/\s+/g, ' ').slice(0, 160)) || (issue.runs.length ? 'Run agent' : 'Initial run'),
   }
 
-  const prompt = adhocQuestion ? buildAdhocPrompt(issue, adhocQuestion) : buildPrompt(issue, extraInstruction)
+  const prompt = adhoc ? buildAdhocPrompt(issue, adhoc.question, adhoc.previous) : buildPrompt(issue, extraInstruction)
   updateIssue(issueId, (i) => {
     i.runs.push(run)
     i.timeline.push({ id: newEntryId(), at: run.startedAt, type: 'run', runId })
