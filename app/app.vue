@@ -257,10 +257,13 @@ function isActive(to: string) {
 
 // Issues with an agent run in progress, across all projects. Polled, since runs finish without any page event.
 const runningIssues = ref(0)
+// Runs that stopped to ask for Allow or Deny. They count as running too, so the two badges can show together.
+const awaitingIssues = ref(0)
 async function refreshRunningIssues() {
   try {
-    const res = await $fetch<{ issues: { running: boolean }[] }>('/api/issues', { query: { all: '1' } })
+    const res = await $fetch<{ issues: { running: boolean; awaitingApproval?: boolean }[] }>('/api/issues', { query: { all: '1' } })
     runningIssues.value = res.issues.filter(i => i.running).length
+    awaitingIssues.value = res.issues.filter(i => i.awaitingApproval).length
   } catch { /* keep the last count */ }
 }
 let runningTimer: ReturnType<typeof setInterval> | null = null
@@ -562,11 +565,14 @@ function badgeFor(to: string) {
             <UIcon :name="link.icon" class="size-[15px] shrink-0 transition-colors duration-150" :style="{ color: isActive(link.to) ? 'var(--accent)' : undefined }" />
             <template v-if="!sidebarCollapsed">
               <span class="flex-1" style="font-family: var(--font-sans);">{{ link.label }}</span>
+              <span v-if="link.key === 'issues' && awaitingIssues" class="flex items-center gap-1 text-[11px] font-medium px-1.5 rounded-full whitespace-nowrap shrink-0" style="color: #ea580c; background: color-mix(in srgb, #f97316 16%, transparent);" :title="`${awaitingIssues} ${awaitingIssues === 1 ? 'run waits' : 'runs wait'} for your approval`">
+                <UIcon name="i-lucide-shield-question" class="size-3" />{{ awaitingIssues }} to approve
+              </span>
               <span v-if="link.key === 'issues' && runningIssues" class="flex items-center gap-1 text-[11px] px-1.5 rounded-full whitespace-nowrap shrink-0" style="color: #3b82f6; background: color-mix(in srgb, #3b82f6 12%, transparent);" :title="`${runningIssues} agent ${runningIssues === 1 ? 'run' : 'runs'} in progress`">
-                <UIcon name="i-lucide-loader-2" class="size-3 animate-spin" />{{ runningIssues }} running
+                <UIcon name="i-lucide-loader-2" class="size-3 animate-spin" />{{ runningIssues }}<template v-if="!awaitingIssues"> running</template>
               </span>
             </template>
-            <span v-else-if="link.key === 'issues' && runningIssues" class="absolute top-1 right-2 size-2 rounded-full animate-pulse" style="background: #3b82f6;" />
+            <span v-else-if="link.key === 'issues' && (awaitingIssues || runningIssues)" class="absolute top-1 right-2 size-2 rounded-full animate-pulse" :style="{ background: awaitingIssues ? '#f97316' : '#3b82f6' }" />
           </NuxtLink>
 
           <!-- Separator 2 -->

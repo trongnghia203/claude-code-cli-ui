@@ -63,10 +63,12 @@ export interface IssueSummary {
   commentCount: number
   runCount: number
   running: boolean
+  /** The running agent asked to use a tool and waits for Allow or Deny */
+  awaitingApproval?: boolean
   lastRun: { status: IssueRunStatus; startedAt: string } | null
 }
 
-export interface IssueDetail extends Omit<IssueSummary, 'commentCount' | 'runCount' | 'running' | 'lastRun' | 'nextWakeup'> {
+export interface IssueDetail extends Omit<IssueSummary, 'commentCount' | 'runCount' | 'running' | 'awaitingApproval' | 'lastRun' | 'nextWakeup'> {
   wakeupHistory?: WakeupEvent[]
   timeline: TimelineEntry[]
   runs: IssueRun[]
