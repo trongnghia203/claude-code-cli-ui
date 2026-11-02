@@ -3,6 +3,9 @@ export type IssuePriority = 'none' | 'low' | 'medium' | 'high' | 'urgent'
 export type IssuePermissionMode = 'plan' | 'default' | 'acceptEdits'
 export type IssueRunStatus = 'running' | 'success' | 'error' | 'timeout' | 'cancelled'
 
+export interface RunUsage { input: number; output: number; cacheRead: number; cacheWrite: number }
+export interface RunModelUsage extends RunUsage { model: string; costUsd: number }
+
 export interface IssueRun {
   id: string
   agent: string | null
@@ -11,6 +14,9 @@ export interface IssueRun {
   finishedAt?: string
   durationMs?: number
   sessionId?: string
+  trigger?: string
+  usage?: RunUsage
+  models?: RunModelUsage[]
   costUsd?: number
   numTurns?: number
   permissionDenials?: string[]
@@ -23,6 +29,8 @@ export type TimelineEntry =
   | { id: string; at: string; type: 'status'; from: IssueStatus | null; to: IssueStatus; by: 'user' | 'system' }
   | { id: string; at: string; type: 'assign'; from: string | null; to: string | null }
   | { id: string; at: string; type: 'run'; runId: string }
+
+export interface IssueApproval { id: string; tool: string; input: any; at: string }
 
 export interface IssueSummary {
   id: string
@@ -102,7 +110,7 @@ export function useIssues() {
   async function createWithAgent(prompt: string, projectDir: string, agents: { slug: string; name: string; description: string }[]): Promise<IssueDetail | null> {
     try { return (await $fetch<{ issue: IssueDetail }>('/api/issues/agent-create', { method: 'POST', body: { prompt, projectDir, agents } })).issue } catch (e) { return fail(e) }
   }
-  async function fetchOne(id: string): Promise<{ issue: IssueDetail; running: boolean } | null> {
+  async function fetchOne(id: string): Promise<{ issue: IssueDetail; running: boolean; approvals: IssueApproval[] } | null> {
     try { return await $fetch(`/api/issues/${id}`) } catch (e) { return fail(e) }
   }
   async function update(id: string, input: IssueInput): Promise<IssueDetail | null> {
@@ -117,9 +125,12 @@ export function useIssues() {
   async function run(id: string): Promise<boolean> {
     try { await $fetch(`/api/issues/${id}/run`, { method: 'POST' }); return true } catch (e) { fail(e); return false }
   }
+  async function answerApproval(id: string, approvalId: string, decision: 'allow' | 'allow_tool' | 'deny'): Promise<boolean> {
+    try { await $fetch(`/api/issues/${id}/approvals`, { method: 'POST', body: { approvalId, decision } }); return true } catch (e) { fail(e); return false }
+  }
   async function cancel(id: string): Promise<boolean> {
     try { await $fetch(`/api/issues/${id}/cancel`, { method: 'POST' }); return true } catch (e) { fail(e); return false }
   }
 
-  return { issues, loading, load, create, createWithAgent, fetchOne, update, remove, comment, run, cancel }
+  return { issues, loading, load, create, createWithAgent, fetchOne, update, remove, comment, run, cancel, answerApproval }
 }

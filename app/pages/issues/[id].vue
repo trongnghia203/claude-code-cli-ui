@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { IssueDetail, IssuePermissionMode, IssuePriority, IssueStatus } from '~/composables/useIssues'
+import type { IssueApproval, IssueDetail, IssueRun, IssuePermissionMode, IssuePriority, IssueStatus } from '~/composables/useIssues'
 import { ISSUE_PRIORITIES, ISSUE_PRIORITY_META, ISSUE_RUN_META, ISSUE_STATUS_META, ISSUE_STATUSES } from '~/composables/useIssues'
 import { renderMarkdown } from '~/utils/markdown'
 import { projectSlug } from '~/utils/projectSlug'
@@ -7,12 +7,43 @@ import { projectSlug } from '~/utils/projectSlug'
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
-const { fetchOne, update, remove, comment, run, cancel } = useIssues()
+const { fetchOne, update, remove, comment, run, cancel, answerApproval } = useIssues()
 const { agents, fetchAll: fetchAgents } = useAgents()
 
 const id = computed(() => String(route.params.id))
 const issue = ref<IssueDetail | null>(null)
 const running = ref(false)
+type Entry = IssueDetail['timeline'][number]
+/** Comments stay visible. Everything between two comments (assign, run, status moves) folds into one row. */
+const blocks = computed(() => {
+  const out: { key: string; comment?: Extract<Entry, { type: 'comment' }>; group: Entry[]; run?: IssueRun }[] = []
+  for (const e of issue.value?.timeline ?? []) {
+    if (e.type === 'comment') { out.push({ key: e.id, comment: e, group: [] }); continue }
+    let last = out[out.length - 1]
+    if (!last || last.comment) out.push(last = { key: e.id, group: [] })
+    last.group.push(e)
+    if (e.type === 'run') { const r = runById(e.runId); if (r) last.run = r }
+  }
+  return out
+})
+const openGroups = ref<Set<string>>(new Set())
+const closedGroups = ref<Set<string>>(new Set())
+// A group with a live run stays open unless the user closed it
+const groupOpen = (b: { key: string; run?: IssueRun }) => openGroups.value.has(b.key) || (b.run?.status === 'running' && !closedGroups.value.has(b.key))
+const toggleGroup = (key: string) => {
+  const b = blocks.value.find(x => x.key === key)
+  const open = b ? groupOpen(b) : false
+  const o = new Set(openGroups.value); const c = new Set(closedGroups.value)
+  if (open) { o.delete(key); c.add(key) } else { o.add(key); c.delete(key) }
+  openGroups.value = o; closedGroups.value = c
+}
+const openTranscripts = ref<Set<string>>(new Set())
+const toggleTranscript = (runId: string) => {
+  const next = new Set(openTranscripts.value)
+  next.has(runId) ? next.delete(runId) : next.add(runId)
+  openTranscripts.value = next
+}
+const approvals = ref<IssueApproval[]>([])
 const notFound = ref(false)
 
 const editing = ref(false)
@@ -26,6 +57,7 @@ async function load() {
   const res = await fetchOne(id.value)
   if (!res) { if (!issue.value) notFound.value = true; return }
   issue.value = res.issue
+  approvals.value = res.approvals ?? []
   running.value = res.running || res.issue.runs.some(r => r.status === 'running')
 }
 
@@ -105,6 +137,15 @@ function onCommentKey(e: KeyboardEvent) {
 async function onRun() {
   if (await run(id.value)) { toast.add({ title: 'Run started', color: 'success', duration: 2000 }); await load() }
 }
+async function decide(a: IssueApproval, decision: 'allow' | 'allow_tool' | 'deny') {
+  approvals.value = approvals.value.filter(x => x.id !== a.id)
+  await answerApproval(id.value, a.id, decision)
+  await load()
+}
+const approvalDetail = (a: IssueApproval) => {
+  const i = a.input || {}
+  return String(i.command ?? i.file_path ?? i.path ?? i.url ?? i.pattern ?? JSON.stringify(i)).slice(0, 600)
+}
 async function onCancel() {
   if (await cancel(id.value)) await load()
 }
@@ -125,6 +166,9 @@ const withBreaks = (t: string) => {
     return isItem(l) && isItem(next) ? l : l + '\n'
   }).join('\n')
 }
+/** Turn @agent into a pill (only for agents that exist, so emails and handles are left alone). */
+const mentionize = (t: string) => t.replace(/(^|[\s(])@([\w-]+)/g, (m, pre, slug) =>
+  agents.value.some(a => a.slug === slug) ? `${pre}<span class="agent-mention">@${slug}</span>` : m)
 const agentName = (slug: string | null) => (slug ? agents.value.find(a => a.slug === slug)?.frontmatter.name ?? slug : 'Me')
 const runById = (runId: string) => issue.value?.runs.find(r => r.id === runId)
 const when = (iso?: string) => (iso ? new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '')
@@ -163,45 +207,76 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
         <section class="space-y-3">
           <h2 class="text-[13px] font-semibold">Activity</h2>
           <ol class="space-y-3">
-            <li v-for="e in issue.timeline" :key="e.id">
+            <li v-for="b in blocks" :key="b.key">
               <!-- comment -->
-              <div v-if="e.type === 'comment'" class="rounded-xl p-3" :style="{ background: 'var(--surface-raised)', border: '1px solid var(--border-subtle)' }">
+              <div v-if="b.comment" class="rounded-xl p-3" :style="{ background: b.comment.author === 'agent' ? 'var(--issue-reply-bg)' : 'var(--surface-raised)', border: '1px solid ' + (b.comment.author === 'agent' ? 'var(--issue-reply-border)' : 'var(--border-subtle)') }">
                 <div class="flex items-center gap-2 text-[11px] text-label mb-1">
-                  <UIcon :name="e.author === 'agent' ? 'i-lucide-cpu' : 'i-lucide-user'" class="size-3.5" />
-                  {{ e.author === 'agent' ? agentName(issue.assignee) : 'You' }} &middot; {{ when(e.at) }}
+                  <UIcon :name="b.comment.author === 'agent' ? 'i-lucide-cpu' : 'i-lucide-user'" class="size-3.5" />
+                  {{ b.comment.author === 'agent' ? agentName(issue.assignee) : 'You' }} &middot; {{ when(b.comment.at) }}
                 </div>
-                <div class="md-prose issue-prose" v-html="renderMarkdown(withBreaks(e.body))" />
+                <div class="md-prose issue-prose" v-html="renderMarkdown(mentionize(withBreaks(b.comment.body)))" />
               </div>
-              <!-- status -->
-              <div v-else-if="e.type === 'status'" class="flex items-center gap-2 text-[12px] text-label">
-                <UIcon :name="ISSUE_STATUS_META[e.to].icon" class="size-3.5" :style="{ color: ISSUE_STATUS_META[e.to].color }" />
-                <span>{{ e.by === 'system' ? 'System' : 'You' }} {{ e.from ? 'moved' : 'set' }} status<template v-if="e.from"> from {{ ISSUE_STATUS_META[e.from].label }}</template> to <b>{{ ISSUE_STATUS_META[e.to].label }}</b></span>
-                <span class="text-meta">{{ when(e.at) }}</span>
-              </div>
-              <!-- assign -->
-              <div v-else-if="e.type === 'assign'" class="flex items-center gap-2 text-[12px] text-label">
-                <UIcon name="i-lucide-user-round-check" class="size-3.5" />
-                <span>Assigned to <b>{{ agentName(e.to) }}</b></span><span class="text-meta">{{ when(e.at) }}</span>
-              </div>
-              <!-- run -->
-              <div v-else-if="e.type === 'run' && runById(e.runId)" class="rounded-xl p-3 text-[12px]" style="border: 1px dashed var(--border-subtle)">
-                <div class="flex items-center gap-2">
-                  <UIcon :name="ISSUE_RUN_META[runById(e.runId)!.status].icon" class="size-4" :class="{ 'animate-spin': runById(e.runId)!.status === 'running' }" :style="{ color: ISSUE_RUN_META[runById(e.runId)!.status].color }" />
-                  <b>Run {{ ISSUE_RUN_META[runById(e.runId)!.status].label.toLowerCase() }}</b>
-                  <span class="text-label">{{ agentName(runById(e.runId)!.agent) }} &middot; {{ when(e.at) }}</span>
-                  <span class="ml-auto text-meta">
-                    {{ duration(runById(e.runId)!.durationMs) }}<template v-if="runById(e.runId)!.costUsd != null"> &middot; ${{ runById(e.runId)!.costUsd!.toFixed(2) }}</template><template v-if="runById(e.runId)!.numTurns"> &middot; {{ runById(e.runId)!.numTurns }} {{ runById(e.runId)!.numTurns === 1 ? 'turn' : 'turns' }}</template>
-                  </span>
-                </div>
-                <p v-if="runById(e.runId)!.error" class="mt-1.5" style="color: #ef4444">{{ runById(e.runId)!.error }}</p>
-                <p v-if="runById(e.runId)!.permissionDenials?.length" class="mt-1.5" style="color: #d97706">Denied tools: {{ [...new Set(runById(e.runId)!.permissionDenials)].join(', ') }}</p>
-                <NuxtLink v-if="sessionLink(runById(e.runId)!.sessionId)" :to="sessionLink(runById(e.runId)!.sessionId)!" class="inline-block mt-1.5 underline text-label">Open chat session</NuxtLink>
+              <!-- run and status activity, folded into one line -->
+              <div v-else>
+                <button class="w-full flex items-center gap-2 text-[12px] text-label rounded-lg px-2 py-1.5 hover-bg text-left" @click="toggleGroup(b.key)">
+                  <UIcon name="i-lucide-chevron-right" class="size-3.5 shrink-0 transition-transform" :class="{ 'rotate-90': groupOpen(b) }" />
+                  <template v-if="b.run">
+                    <UIcon :name="ISSUE_RUN_META[b.run.status].icon" class="size-3.5 shrink-0" :class="{ 'animate-spin': b.run.status === 'running' }" :style="{ color: ISSUE_RUN_META[b.run.status].color }" />
+                    <b style="color: var(--text-primary)">Run {{ ISSUE_RUN_META[b.run.status].label.toLowerCase() }}</b>
+                    <span class="truncate">{{ agentName(b.run.agent) }} &middot; {{ when(b.run.startedAt) }}</span>
+                    <span class="ml-auto text-meta shrink-0">{{ duration(b.run.durationMs) }}<template v-if="b.run.costUsd != null"> &middot; ${{ b.run.costUsd.toFixed(2) }}</template></span>
+                  </template>
+                  <span v-else class="truncate">{{ b.group.length }} {{ b.group.length === 1 ? 'update' : 'updates' }} &middot; {{ when(b.group[0]!.at) }}</span>
+                  <span v-if="b.run" class="text-meta shrink-0">&middot; {{ b.group.length - 1 }} {{ b.group.length - 1 === 1 ? 'update' : 'updates' }}</span>
+                </button>
+                <ol v-if="groupOpen(b)" class="space-y-3 mt-2 ml-3 pl-3" style="border-left: 1px solid var(--border-subtle)">
+                  <li v-for="e in b.group" :key="e.id">
+                  <!-- status -->
+                  <div v-if="e.type === 'status'" class="flex items-center gap-2 text-[12px] text-label">
+                    <UIcon :name="ISSUE_STATUS_META[e.to].icon" class="size-3.5" :style="{ color: ISSUE_STATUS_META[e.to].color }" />
+                    <span>{{ e.by === 'system' ? 'System' : 'You' }} {{ e.from ? 'moved' : 'set' }} status<template v-if="e.from"> from {{ ISSUE_STATUS_META[e.from].label }}</template> to <b>{{ ISSUE_STATUS_META[e.to].label }}</b></span>
+                    <span class="text-meta">{{ when(e.at) }}</span>
+                  </div>
+                  <!-- assign -->
+                  <div v-else-if="e.type === 'assign'" class="flex items-center gap-2 text-[12px] text-label">
+                    <UIcon name="i-lucide-user-round-check" class="size-3.5" />
+                    <span>Assigned to <b>{{ agentName(e.to) }}</b></span><span class="text-meta">{{ when(e.at) }}</span>
+                  </div>
+                  <!-- run -->
+                  <div v-else-if="e.type === 'run' && runById(e.runId)" class="rounded-xl p-3 text-[12px]" style="border: 1px dashed var(--border-subtle)">
+                    <div class="flex items-center gap-2">
+                      <UIcon :name="ISSUE_RUN_META[runById(e.runId)!.status].icon" class="size-4" :class="{ 'animate-spin': runById(e.runId)!.status === 'running' }" :style="{ color: ISSUE_RUN_META[runById(e.runId)!.status].color }" />
+                      <b>Run {{ ISSUE_RUN_META[runById(e.runId)!.status].label.toLowerCase() }}</b>
+                      <span class="text-label">{{ agentName(runById(e.runId)!.agent) }} &middot; {{ when(e.at) }}</span>
+                      <span class="ml-auto text-meta">
+                        {{ duration(runById(e.runId)!.durationMs) }}<template v-if="runById(e.runId)!.costUsd != null"> &middot; ${{ runById(e.runId)!.costUsd!.toFixed(2) }}</template><template v-if="runById(e.runId)!.numTurns"> &middot; {{ runById(e.runId)!.numTurns }} {{ runById(e.runId)!.numTurns === 1 ? 'turn' : 'turns' }}</template>
+                      </span>
+                    </div>
+                    <p v-if="runById(e.runId)!.error" class="mt-1.5" style="color: #ef4444">{{ runById(e.runId)!.error }}</p>
+                    <p v-if="runById(e.runId)!.permissionDenials?.length" class="mt-1.5" style="color: #d97706">Denied tools: {{ [...new Set(runById(e.runId)!.permissionDenials)].join(', ') }}</p>
+                    <NuxtLink v-if="sessionLink(runById(e.runId)!.sessionId)" :to="sessionLink(runById(e.runId)!.sessionId)!" class="inline-block mt-1.5 underline text-label">Open chat session</NuxtLink>
+                    <button class="block mt-1.5 underline text-label" @click="toggleTranscript(e.runId)">{{ openTranscripts.has(e.runId) ? 'Hide context' : 'View context' }}</button>
+                    <IssueTranscript v-if="openTranscripts.has(e.runId)" :issue-id="issue.id" :run-id="e.runId" :live="runById(e.runId)!.status === 'running'" />
+                  </div>
+
+                  </li>
+                </ol>
               </div>
             </li>
           </ol>
 
+          <div v-for="a in approvals" :key="a.id" class="rounded-xl p-3 space-y-2 text-[12px]" style="border: 1px solid #d97706; background: var(--surface-raised)">
+            <div class="flex items-center gap-2"><UIcon name="i-lucide-shield-question" class="size-4" style="color: #d97706" /><b>Agent asks to use {{ a.tool }}</b></div>
+            <pre class="whitespace-pre-wrap break-all p-2 rounded-lg text-[12px]" style="background: var(--surface-base)">{{ approvalDetail(a) }}</pre>
+            <div class="flex gap-2 justify-end">
+              <UButton label="Deny" size="xs" color="neutral" variant="soft" @click="decide(a, 'deny')" />
+              <UButton :label="`Allow ${a.tool} for this run`" size="xs" color="neutral" variant="soft" @click="decide(a, 'allow_tool')" />
+              <UButton label="Allow once" size="xs" @click="decide(a, 'allow')" />
+            </div>
+          </div>
+
           <div class="rounded-xl p-3 space-y-2" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)">
-<div class="relative">
+            <div class="relative">
               <div v-if="mentionOptions.length" class="absolute bottom-full mb-1 left-0 z-20 w-[420px] max-w-full rounded-lg overflow-hidden shadow-lg" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)">
                 <button v-for="(a, i) in mentionOptions" :key="a.slug" type="button" class="w-full text-left px-3 py-1.5 text-[12px] flex items-center gap-2" :style="{ background: i === mentionIdx ? 'var(--surface-base)' : 'transparent' }" @mousedown.prevent="pickMention(a.slug)">
                   <UIcon name="i-lucide-cpu" class="size-3.5 shrink-0" />
@@ -209,7 +284,7 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
                   <span class="text-meta truncate min-w-0 flex-1">{{ a.frontmatter.description }}</span>
                 </button>
               </div>
-              <textarea ref="commentEl" v-model="newComment" rows="3" placeholder="Leave a comment. Type @ to hand the next run to an agent" class="w-full px-2 py-1.5 rounded-lg text-[13px]" style="background: var(--surface-base); border: 1px solid var(--border-subtle)" @input="updateMention" @click="updateMention" @keydown="onCommentKey" @blur="mentionQuery = null" />
+              <textarea ref="commentEl" spellcheck="false" v-model="newComment" rows="3" placeholder="Leave a comment. Type @ to hand the next run to an agent" class="w-full px-2 py-1.5 rounded-lg text-[13px]" style="background: var(--surface-base); border: 1px solid var(--border-subtle)" @input="updateMention" @click="updateMention" @keydown="onCommentKey" @blur="mentionQuery = null" />
             </div>
             <div class="flex justify-end gap-2">
               <UButton label="Comment" size="sm" variant="soft" color="neutral" :disabled="!newComment.trim() || busy" @click="send(false)" />
@@ -220,38 +295,47 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
       </div>
 
       <!-- Sidebar -->
-      <aside class="w-[290px] shrink-0 overflow-y-auto custom-scrollbar p-4 space-y-4 text-[12px]" style="border-left: 1px solid var(--border-subtle)">
+      <aside class="w-[310px] shrink-0 overflow-y-auto custom-scrollbar p-4 space-y-5 text-[12px]" style="border-left: 1px solid var(--border-subtle)">
         <div class="flex gap-2">
           <UButton v-if="running" label="Stop run" icon="i-lucide-square" color="error" variant="soft" size="sm" class="flex-1 justify-center" @click="onCancel" />
           <UButton v-else label="Run agent" icon="i-lucide-play" size="sm" class="flex-1 justify-center" :disabled="!canRun" @click="onRun" />
         </div>
-        <label class="block space-y-1"><span class="text-label">Status</span>
-          <select :value="issue.status" class="w-full px-2 py-1.5 rounded-lg" style="background: var(--surface-base); border: 1px solid var(--border-subtle)" @change="patch({ status: ($event.target as HTMLSelectElement).value as IssueStatus })">
-            <option v-for="s in ISSUE_STATUSES" :key="s" :value="s">{{ ISSUE_STATUS_META[s].label }}</option>
-          </select></label>
-        <label class="block space-y-1"><span class="text-label">Priority</span>
-          <select :value="issue.priority" class="w-full px-2 py-1.5 rounded-lg" style="background: var(--surface-base); border: 1px solid var(--border-subtle)" @change="patch({ priority: ($event.target as HTMLSelectElement).value as IssuePriority })">
-            <option v-for="p in ISSUE_PRIORITIES" :key="p" :value="p">{{ ISSUE_PRIORITY_META[p].label }}</option>
-          </select></label>
-        <label class="block space-y-1"><span class="text-label">Assignee</span>
-          <select :value="issue.assignee ?? ''" class="w-full px-2 py-1.5 rounded-lg" style="background: var(--surface-base); border: 1px solid var(--border-subtle)" @change="patch({ assignee: ($event.target as HTMLSelectElement).value || null })">
-            <option value="">Me (no agent run)</option>
-            <option v-for="a in agents" :key="a.slug" :value="a.slug">{{ a.frontmatter.name || a.slug }}</option>
-          </select></label>
-        <label class="block space-y-1"><span class="text-label">Agent permissions</span>
-          <select :value="issue.permissionMode" class="w-full px-2 py-1.5 rounded-lg" style="background: var(--surface-base); border: 1px solid var(--border-subtle)" @change="patch({ permissionMode: ($event.target as HTMLSelectElement).value as IssuePermissionMode })">
-            <option value="plan">Plan only (no edits)</option>
-            <option value="default">Default</option>
-            <option value="acceptEdits">Accept edits</option>
-          </select></label>
-        <div v-if="issue.labels.length" class="space-y-1"><span class="text-label">Labels</span>
-          <div class="flex flex-wrap gap-1"><span v-for="l in issue.labels" :key="l" class="px-1.5 py-0.5 rounded text-[11px]" style="background: var(--accent-muted)">{{ l }}</span></div></div>
-        <div class="space-y-1"><span class="text-label">Project</span><p class="font-mono text-[11px] text-meta break-all">{{ issue.projectDir }}</p></div>
-        <div class="space-y-1"><span class="text-label">Runs ({{ issue.runs.length }})</span>
-          <p v-if="!issue.runs.length" class="text-meta">None yet.</p>
-          <ul class="space-y-1"><li v-for="r in [...issue.runs].reverse()" :key="r.id" class="flex items-center gap-1.5">
-            <UIcon :name="ISSUE_RUN_META[r.status].icon" class="size-3.5" :class="{ 'animate-spin': r.status === 'running' }" :style="{ color: ISSUE_RUN_META[r.status].color }" />
-            {{ ISSUE_RUN_META[r.status].label }} <span class="text-meta ml-auto">{{ when(r.startedAt) }}</span></li></ul></div>
+        <section class="space-y-1">
+          <h3 class="font-semibold text-[13px] mb-1.5">Properties</h3>
+          <div class="prop-row"><span class="prop-label">Status</span>
+            <span class="flex items-center gap-1.5 flex-1 min-w-0"><UIcon :name="ISSUE_STATUS_META[issue.status].icon" class="size-3.5 shrink-0" :style="{ color: ISSUE_STATUS_META[issue.status].color }" />
+              <select :value="issue.status" class="prop-select" @change="patch({ status: ($event.target as HTMLSelectElement).value as IssueStatus })">
+                <option v-for="s in ISSUE_STATUSES" :key="s" :value="s">{{ ISSUE_STATUS_META[s].label }}</option>
+              </select></span></div>
+          <div class="prop-row"><span class="prop-label">Assignee</span>
+            <span class="flex items-center gap-1.5 flex-1 min-w-0"><span class="issue-agent-dot"><UIcon :name="issue.assignee ? 'i-lucide-cpu' : 'i-lucide-user'" class="size-3" /></span>
+              <select :value="issue.assignee ?? ''" class="prop-select" @change="patch({ assignee: ($event.target as HTMLSelectElement).value || null })">
+                <option value="">Me (no agent run)</option>
+                <option v-for="a in agents" :key="a.slug" :value="a.slug">{{ a.frontmatter.name || a.slug }}</option>
+              </select></span></div>
+          <div class="prop-row"><span class="prop-label">Priority</span>
+            <select :value="issue.priority" class="prop-select" @change="patch({ priority: ($event.target as HTMLSelectElement).value as IssuePriority })">
+              <option v-for="p in ISSUE_PRIORITIES" :key="p" :value="p">{{ ISSUE_PRIORITY_META[p].label }}</option>
+            </select></div>
+          <div class="prop-row"><span class="prop-label">Permissions</span>
+            <select :value="issue.permissionMode" class="prop-select" @change="patch({ permissionMode: ($event.target as HTMLSelectElement).value as IssuePermissionMode })">
+              <option value="plan">Plan only (no edits)</option>
+              <option value="default">Default</option>
+              <option value="acceptEdits">Accept edits</option>
+            </select></div>
+          <div class="prop-row"><span class="prop-label">Project</span>
+            <span class="flex items-center gap-1.5 min-w-0" :title="issue.projectDir"><UIcon name="i-lucide-folder" class="size-3.5 shrink-0 text-meta" /><span class="truncate">{{ issue.projectDir.split('/').filter(Boolean).pop() }}</span></span></div>
+          <div v-if="issue.labels.length" class="prop-row"><span class="prop-label">Labels</span>
+            <span class="flex flex-wrap gap-1"><span v-for="l in issue.labels" :key="l" class="px-1.5 py-0.5 rounded text-[11px]" style="background: var(--accent-muted)">{{ l }}</span></span></div>
+        </section>
+
+        <IssueExecutionLog :issue-id="issue.id" :title="issue.title" :runs="issue.runs" :agent-name="agentName" />
+
+        <section class="space-y-1">
+          <h3 class="font-semibold text-[13px] mb-1.5">Details</h3>
+          <div class="prop-row"><span class="prop-label">Created</span><span>{{ when(issue.createdAt) }}</span></div>
+          <div class="prop-row"><span class="prop-label">Updated</span><span>{{ when(issue.updatedAt) }}</span></div>
+        </section>
         <button class="flex items-center gap-1.5 text-[12px]" style="color: #ef4444" @click="confirmDelete = true"><UIcon name="i-lucide-trash-2" class="size-3.5" /> Delete issue</button>
       </aside>
     </template>
