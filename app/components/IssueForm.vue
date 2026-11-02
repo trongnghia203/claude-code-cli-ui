@@ -5,7 +5,7 @@ import { ISSUE_PRIORITIES, ISSUE_PRIORITY_META, ISSUE_STATUS_META, ISSUE_STATUSE
 const props = defineProps<{ projectDir: string; agents: { slug: string; name: string }[]; busy?: boolean }>()
 const emit = defineEmits<{
   save: [input: IssueInput, another: boolean]
-  'agent-create': [prompt: string, another: boolean]
+  'agent-create': [prompt: string, another: boolean, draftAgent: string]
   cancel: []
 }>()
 
@@ -13,7 +13,13 @@ const emit = defineEmits<{
 const modeCookie = useCookie<'agent' | 'manual'>('issue-create-mode', { default: () => 'agent', maxAge: 60 * 60 * 24 * 365 })
 const mode = computed({ get: () => modeCookie.value, set: (v) => { modeCookie.value = v } })
 
+const draftAgentCookie = useCookie<string>('issue-draft-agent', { default: () => 'ops-engineer', maxAge: 60 * 60 * 24 * 365 })
+const draftAgent = computed({
+  get: () => props.agents.some(a => a.slug === draftAgentCookie.value) ? draftAgentCookie.value : (props.agents[0]?.slug ?? ''),
+  set: (v) => { draftAgentCookie.value = v },
+})
 const request = ref('')
+const hasSources = computed(() => /https?:\/\/\S+|\b(?!ISS-)[A-Z][A-Z0-9]{1,9}-\d{1,6}\b/.test(request.value))
 const title = ref('')
 const description = ref('')
 const status = ref<IssueStatus>('todo')
@@ -39,7 +45,7 @@ function toAgent() {
 
 function submit() {
   if (!canSubmit.value) return
-  if (mode.value === 'agent') return emit('agent-create', request.value.trim(), another.value)
+  if (mode.value === 'agent') return emit('agent-create', request.value.trim(), another.value, draftAgent.value)
   emit('save', {
     title: title.value.trim(),
     description: description.value,
@@ -60,7 +66,16 @@ function submit() {
     <template v-if="mode === 'agent'">
       <textarea v-model="request" rows="6" autofocus :disabled="busy" class="w-full px-3 py-2 rounded-lg text-[14px]" style="background: var(--surface-base); border: 1px solid var(--border-subtle)"
         placeholder='Tell the agent what to do, e.g. "let code-reviewer fix the slow inbox loading in the web app"' />
-      <p class="text-[12px] text-label">The agent writes the title and description, picks an agent if you name one, and starts working after creation.</p>
+      <label class="flex items-center gap-2 text-[12px]">
+        <span class="text-label shrink-0">Read sources with</span>
+        <select v-model="draftAgent" class="flex-1 min-w-0 px-2 py-1.5 rounded-lg" style="background: var(--surface-base); border: 1px solid var(--border-subtle)" :disabled="busy">
+          <option v-for="a in agents" :key="a.slug" :value="a.slug">{{ a.name }}</option>
+        </select>
+      </label>
+      <p class="text-[12px]" :style="hasSources ? 'color: #3b82f6' : ''" :class="hasSources ? '' : 'text-label'">
+        <template v-if="hasSources">Links or ticket keys found. The issue is filed now, then the agent reads them (read-only) and rewrites the title and description.</template>
+        <template v-else>The agent writes the title and description, picks an agent if you name one, and starts working after creation. Add a link, a Jira key or a Slack thread and it reads them first.</template>
+      </p>
     </template>
 
     <template v-else>

@@ -44,6 +44,8 @@ export interface IssueSummary {
   parentId: string | null
   projectDir: string
   permissionMode: IssuePermissionMode
+  drafting?: boolean
+  draftNote?: string
   createdAt: string
   updatedAt: string
   commentCount: number
@@ -107,8 +109,8 @@ export function useIssues() {
   async function create(input: IssueInput): Promise<IssueDetail | null> {
     try { return (await $fetch<{ issue: IssueDetail }>('/api/issues', { method: 'POST', body: input })).issue } catch (e) { return fail(e) }
   }
-  async function createWithAgent(prompt: string, projectDir: string, agents: { slug: string; name: string; description: string }[]): Promise<IssueDetail | null> {
-    try { return (await $fetch<{ issue: IssueDetail }>('/api/issues/agent-create', { method: 'POST', body: { prompt, projectDir, agents } })).issue } catch (e) { return fail(e) }
+  async function createWithAgent(prompt: string, projectDir: string, agents: { slug: string; name: string; description: string }[], draftAgent?: string): Promise<IssueDetail | null> {
+    try { return (await $fetch<{ issue: IssueDetail }>('/api/issues/agent-create', { method: 'POST', body: { prompt, projectDir, agents, draftAgent } })).issue } catch (e) { return fail(e) }
   }
   async function fetchOne(id: string): Promise<{ issue: IssueDetail; running: boolean; approvals: IssueApproval[] } | null> {
     try { return await $fetch(`/api/issues/${id}`) } catch (e) { return fail(e) }

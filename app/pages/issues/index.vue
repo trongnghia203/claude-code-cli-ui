@@ -44,9 +44,9 @@ async function onCreate(input: IssueInput, another: boolean) {
   busy.value = true
   await afterCreate(await create(input), another)
 }
-async function onAgentCreate(prompt: string, another: boolean) {
+async function onAgentCreate(prompt: string, another: boolean, draftAgent: string) {
   busy.value = true
-  await afterCreate(await createWithAgent(prompt, workingDir.value, agents.value.map(a => ({ slug: a.slug, name: a.frontmatter.name || a.slug, description: a.frontmatter.description || '' }))), another)
+  await afterCreate(await createWithAgent(prompt, workingDir.value, agents.value.map(a => ({ slug: a.slug, name: a.frontmatter.name || a.slug, description: a.frontmatter.description || '' })), draftAgent), another)
 }
 
 // Drag a card to another column
@@ -65,7 +65,7 @@ async function onDrop(status: IssueStatus) {
 
 // Poll while a run is active
 let timer: ReturnType<typeof setInterval> | null = null
-const anyRunning = computed(() => issues.value.some(i => i.running))
+const anyRunning = computed(() => issues.value.some(i => i.running || i.drafting))
 watch(anyRunning, (r) => {
   if (r && !timer) timer = setInterval(refresh, 3000)
   if (!r && timer) { clearInterval(timer); timer = null }
@@ -117,7 +117,7 @@ useHead({ title: 'Issues | Agent Manager' })
             @dragstart="dragId = i.id" @dragend="dragId = overStatus = null" @click="open(i)">
             <div class="flex items-center gap-1.5 text-[11px] text-meta font-mono">
               {{ i.id }}
-              <UIcon v-if="i.running" name="i-lucide-loader-2" class="size-3 animate-spin" style="color: #3b82f6" />
+              <UIcon v-if="i.running || i.drafting" name="i-lucide-loader-2" class="size-3 animate-spin" style="color: #3b82f6" :title="i.drafting ? 'Agent is reading sources' : undefined" />
               <span class="ml-auto size-2 rounded-full" :title="ISSUE_PRIORITY_META[i.priority].label" :style="{ background: ISSUE_PRIORITY_META[i.priority].color }" />
             </div>
             <div class="text-[13px] font-medium mt-0.5 line-clamp-2">{{ i.title }}</div>
@@ -147,7 +147,7 @@ useHead({ title: 'Issues | Agent Manager' })
               <span class="size-2 rounded-full shrink-0" :style="{ background: ISSUE_PRIORITY_META[i.priority].color }" />
               <span class="font-mono text-[11px] text-meta w-16 shrink-0">{{ i.id }}</span>
               <span class="flex-1 truncate">{{ i.title }}</span>
-              <UIcon v-if="i.running" name="i-lucide-loader-2" class="size-3.5 animate-spin" style="color: #3b82f6" />
+              <UIcon v-if="i.running || i.drafting" name="i-lucide-loader-2" class="size-3.5 animate-spin" style="color: #3b82f6" :title="i.drafting ? 'Agent is reading sources' : undefined" />
               <span class="text-[11px] text-label w-32 truncate">{{ agentName(i.assignee) }}</span>
               <span class="text-[11px] text-meta w-20 text-right">{{ formatRelativeTime(i.updatedAt) }}</span>
             </button>

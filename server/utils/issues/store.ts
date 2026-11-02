@@ -52,6 +52,9 @@ export interface Issue {
   parentId: string | null
   projectDir: string
   permissionMode: IssuePermissionMode
+  /** True while an agent is reading sources to rewrite the title and description */
+  drafting?: boolean
+  draftNote?: string
   createdAt: string
   updatedAt: string
   timeline: TimelineEntry[]

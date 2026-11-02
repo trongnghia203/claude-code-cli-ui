@@ -59,7 +59,8 @@ async function load() {
 }
 
 let timer: ReturnType<typeof setInterval> | null = null
-watch(running, (r) => {
+const drafting = computed(() => !!issue.value?.drafting)
+watch(() => running.value || drafting.value, (r) => {
   if (r && !timer) timer = setInterval(load, 2500)
   if (!r && timer) { clearInterval(timer); timer = null }
 }, { immediate: true })
@@ -196,8 +197,10 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
           <template v-else>
             <div class="flex items-start gap-3">
               <h1 class="text-[20px] font-semibold flex-1">{{ issue.title }}</h1>
+              <span v-if="drafting" class="flex items-center gap-1.5 text-[12px] shrink-0 whitespace-nowrap" style="color: #3b82f6"><UIcon name="i-lucide-loader-2" class="size-3.5 animate-spin" />Agent is reading sources</span>
               <button class="p-1.5 rounded-lg hover-bg" title="Edit" style="color: var(--text-tertiary)" @click="startEdit"><UIcon name="i-lucide-pencil" class="size-4 block" /></button>
             </div>
+            <p v-if="issue.draftNote" class="text-[12px] mb-2" style="color: #d97706">{{ issue.draftNote }}</p>
             <div v-if="issue.description.trim()" class="md-prose issue-prose" v-html="renderMarkdown(issue.description)" />
             <p v-else class="text-[13px] text-meta">No description.</p>
           </template>
