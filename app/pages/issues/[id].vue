@@ -201,7 +201,7 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
               <button class="p-1.5 rounded-lg hover-bg" title="Edit" style="color: var(--text-tertiary)" @click="startEdit"><UIcon name="i-lucide-pencil" class="size-4 block" /></button>
             </div>
             <p v-if="issue.draftNote" class="text-[12px] mb-2" style="color: #d97706">{{ issue.draftNote }}</p>
-            <div v-if="issue.description.trim()" class="md-prose issue-prose" v-html="renderMarkdown(issue.description)" />
+            <div v-if="issue.description.trim()" class="md-prose issue-prose rounded-xl px-4 py-3" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)" v-html="renderMarkdown(issue.description)" />
             <p v-else class="text-[13px] text-meta">No description.</p>
           </template>
         </section>
