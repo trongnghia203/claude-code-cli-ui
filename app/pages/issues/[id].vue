@@ -47,6 +47,33 @@ const editing = ref(false)
 const draftTitle = ref('')
 const draftDesc = ref('')
 const newComment = ref('')
+// Right column width: drag the left edge, double-click to reset. Remembered per browser.
+const SIDE_DEFAULT = 310
+const SIDE_MIN = 260
+const SIDE_MAX = 560
+const clampSide = (n: number) => Math.min(SIDE_MAX, Math.max(SIDE_MIN, Math.round(n)))
+const sideWidth = ref(SIDE_DEFAULT)
+const resizingSide = ref(false)
+onMounted(() => {
+  try { const v = Number(localStorage.getItem('issue-side-width')); if (v) sideWidth.value = clampSide(v) } catch { /* storage blocked */ }
+})
+function startSideResize(e: PointerEvent) {
+  e.preventDefault()
+  resizingSide.value = true
+  const onMove = (ev: PointerEvent) => { sideWidth.value = clampSide(window.innerWidth - ev.clientX) }
+  const onUp = () => {
+    resizingSide.value = false
+    window.removeEventListener('pointermove', onMove)
+    window.removeEventListener('pointerup', onUp)
+    try { localStorage.setItem('issue-side-width', String(sideWidth.value)) } catch { /* ignore */ }
+  }
+  window.addEventListener('pointermove', onMove)
+  window.addEventListener('pointerup', onUp)
+}
+function resetSideWidth() {
+  sideWidth.value = SIDE_DEFAULT
+  try { localStorage.removeItem('issue-side-width') } catch { /* ignore */ }
+}
 const confirmDelete = ref(false)
 const busy = ref(false)
 
@@ -297,7 +324,10 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
       </div>
 
       <!-- Sidebar -->
-      <aside class="w-[310px] shrink-0 overflow-y-auto custom-scrollbar p-4 space-y-5 text-[12px]" style="border-left: 1px solid var(--border-subtle)">
+      <div class="relative shrink-0 min-h-0 flex" :style="{ width: sideWidth + 'px' }">
+      <div class="absolute top-0 left-0 h-full w-1.5 -translate-x-1/2 z-20 cursor-col-resize transition-colors hover:bg-[var(--accent-muted)]" :style="resizingSide ? { background: 'var(--accent-muted)' } : undefined"
+        title="Drag to resize, double-click to reset" @pointerdown="startSideResize" @dblclick="resetSideWidth" />
+      <aside class="flex-1 min-w-0 overflow-y-auto custom-scrollbar p-4 space-y-5 text-[12px]" style="border-left: 1px solid var(--border-subtle)">
         <div class="flex gap-2">
           <UButton v-if="running" label="Stop run" icon="i-lucide-square" color="error" variant="soft" size="sm" class="flex-1 justify-center" @click="onCancel" />
           <UButton v-else label="Run agent" icon="i-lucide-play" size="sm" class="flex-1 justify-center" :disabled="!canRun" @click="onRun" />
@@ -340,6 +370,7 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
         </section>
         <button class="flex items-center gap-1.5 text-[12px]" style="color: #ef4444" @click="confirmDelete = true"><UIcon name="i-lucide-trash-2" class="size-3.5" /> Delete issue</button>
       </aside>
+      </div>
     </template>
 
     <UModal v-model:open="confirmDelete">
