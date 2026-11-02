@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { IssueLabel, IssueProperty, PropertyType } from '~/composables/useIssueConfig'
-import { LABEL_COLORS, MAX_ACTIVE_PROPERTIES, PROPERTY_TYPE_META } from '~/composables/useIssueConfig'
+import { LABEL_COLORS, MAX_ACTIVE_PROPERTIES, PROPERTY_TYPE_META, propertyColor } from '~/composables/useIssueConfig'
 import { formatRelativeTime } from '~/utils/messageFormatting'
 
 const route = useRoute()
@@ -23,8 +23,8 @@ watch(dir, load)
 const createLabel = (b: { name: string; color: string; description: string }) => ic.createLabel(dir.value, b)
 const updateLabel = (id: string, b: Partial<{ name: string; color: string; description: string }>) => ic.updateLabel(dir.value, id, b)
 const deleteLabel = (id: string) => ic.deleteLabel(dir.value, id)
-const createProperty = (b: { name: string; type: PropertyType; options: { id?: string; name: string }[] }) => ic.createProperty(dir.value, b)
-const updateProperty = (id: string, b: Partial<{ name: string; options: { id?: string; name: string }[]; archived: boolean }>) => ic.updateProperty(dir.value, id, b)
+const createProperty = (b: { name: string; type: PropertyType; color: string; options: { id?: string; name: string }[] }) => ic.createProperty(dir.value, b)
+const updateProperty = (id: string, b: Partial<{ name: string; color: string; options: { id?: string; name: string }[]; archived: boolean }>) => ic.updateProperty(dir.value, id, b)
 const saveWakeups = (r: { enabled: boolean; instruction: string }) => ic.saveWakeups(dir.value, r)
 const labelUsed = (id: string) => usage.value.labels[id] ?? 0
 const propUsed = (id: string) => usage.value.properties[id] ?? 0
@@ -97,16 +97,16 @@ const propRows = computed(() => {
 })
 const propDlg = ref(false)
 const propEditId = ref<string | null>(null)
-const propForm = reactive<{ name: string; type: PropertyType; options: { id?: string; name: string }[] }>({ name: '', type: 'text', options: [] })
+const propForm = reactive<{ name: string; type: PropertyType; color: string; options: { id?: string; name: string }[] }>({ name: '', type: 'text', color: LABEL_COLORS[0]!, options: [] })
 const propBusy = ref(false)
 const atLimit = computed(() => activeProperties.value.length >= MAX_ACTIVE_PROPERTIES)
 function newProperty() {
-  Object.assign(propForm, { name: '', type: 'text' as PropertyType, options: [] })
+  Object.assign(propForm, { name: '', type: 'text' as PropertyType, color: LABEL_COLORS[activeProperties.value.length % LABEL_COLORS.length]!, options: [] })
   propEditId.value = null
   propDlg.value = true
 }
 function editProperty(p: IssueProperty) {
-  Object.assign(propForm, { name: p.name, type: p.type, options: p.options.map(o => ({ ...o })) })
+  Object.assign(propForm, { name: p.name, type: p.type, color: propertyColor(p), options: p.options.map(o => ({ ...o })) })
   propEditId.value = p.id
   propDlg.value = true
 }
@@ -116,8 +116,8 @@ async function submitProperty() {
   propBusy.value = true
   const options = propForm.options.filter(o => o.name.trim())
   const ok = propEditId.value
-    ? await updateProperty(propEditId.value, { name: propForm.name, ...(propForm.type === 'select' ? { options } : {}) })
-    : await createProperty({ name: propForm.name, type: propForm.type, options })
+    ? await updateProperty(propEditId.value, { name: propForm.name, color: propForm.color, ...(propForm.type === 'select' ? { options } : {}) })
+    : await createProperty({ name: propForm.name, type: propForm.type, color: propForm.color, options })
   propBusy.value = false
   if (ok) propDlg.value = false
 }
@@ -208,7 +208,7 @@ const BUILT_IN = 'Every sub-issue of this issue is closed. Review what each one 
               </div>
               <p v-if="!propRows.length" class="px-4 py-8 text-center text-[13px] text-meta">{{ config.properties.length ? 'No match.' : 'No properties yet. For example Severity or Environment.' }}</p>
               <div v-for="p in propRows" :key="p.id" class="grid grid-cols-[1.2fr_90px_1.6fr_80px_90px_64px] gap-3 px-4 py-2.5 items-center text-[13px]" :class="{ 'opacity-60': p.archived }" style="border-bottom: 1px solid var(--border-subtle)">
-                <button class="flex items-center gap-2 text-left min-w-0" :disabled="readOnly" @click="editProperty(p)"><span class="truncate font-medium">{{ p.name }}</span><span v-if="p.archived" class="text-[10px] text-meta">archived</span></button>
+                <button class="flex items-center gap-2 text-left min-w-0" :disabled="readOnly" @click="editProperty(p)"><span class="size-2.5 rounded-full shrink-0" :style="{ background: propertyColor(p) }" /><span class="truncate font-medium">{{ p.name }}</span><span v-if="p.archived" class="text-[10px] text-meta">archived</span></button>
                 <span class="flex items-center gap-1.5 text-label"><UIcon :name="PROPERTY_TYPE_META[p.type].icon" class="size-3.5" />{{ PROPERTY_TYPE_META[p.type].label }}</span>
                 <span class="truncate text-label">{{ optionsSummary(p) }}</span>
                 <span class="text-label">{{ usage.properties[p.id] ?? 0 }} used</span>
@@ -294,6 +294,10 @@ const BUILT_IN = 'Every sub-issue of this issue is closed. Review what each one 
           <h3 class="text-page-title">{{ propEditId ? 'Edit property' : 'New property' }}</h3>
           <label class="block space-y-1"><span class="text-[12px] text-label">Name</span>
             <input v-model="propForm.name" maxlength="40" autofocus class="w-full px-3 py-2 rounded-lg text-[13px]" :style="field" /></label>
+          <div class="space-y-1"><span class="text-[12px] text-label">Color</span>
+            <div class="flex gap-2">
+              <button v-for="c in LABEL_COLORS" :key="c" type="button" class="size-6 rounded-full" :style="{ background: c, outline: propForm.color === c ? '2px solid var(--text-primary)' : 'none', outlineOffset: '2px' }" :title="c" @click="propForm.color = c" />
+            </div></div>
           <label class="block space-y-1"><span class="text-[12px] text-label">Type {{ propEditId ? '(cannot change)' : '' }}</span>
             <select v-model="propForm.type" :disabled="!!propEditId" class="w-full px-3 py-2 rounded-lg text-[13px]" :style="field">
               <option v-for="(m, t) in PROPERTY_TYPE_META" :key="t" :value="t">{{ m.label }}</option>

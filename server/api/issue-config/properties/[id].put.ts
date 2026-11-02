@@ -16,6 +16,7 @@ export default defineEventHandler(async (event) => {
     if (body.name && cfg.properties.some(x => x.id !== id && x.name.toLowerCase() === body.name!.toLowerCase())) throw createError({ statusCode: 400, message: `Property "${body.name}" already exists` })
     if (body.archived === false && p.archived && cfg.properties.filter(x => !x.archived).length >= MAX_ACTIVE_PROPERTIES) throw createError({ statusCode: 400, message: `Limit is ${MAX_ACTIVE_PROPERTIES} active properties` })
     if (body.name) p.name = body.name
+    if (body.color) p.color = body.color
     if (body.archived !== undefined) p.archived = body.archived
     // Options keep their ids, so values already stored on issues stay valid after a rename
     if (body.options && p.type === 'select') p.options = body.options

@@ -19,13 +19,25 @@ export interface IssueProperty {
   name: string
   type: PropertyType
   options: PropertyOption[]
+  /** Missing on properties made before colors existed: the UI falls back to gray */
+  color?: string
   archived: boolean
   updatedAt: string
 }
 export interface WakeupRule { enabled: boolean; instruction: string }
+/** A saved board setup. `filters` and `display` are the shapes in app/composables/useIssueView.ts, stored as given (size capped). */
+export interface IssueView {
+  id: string
+  name: string
+  layout: 'board' | 'list'
+  filters: Record<string, unknown>
+  display: Record<string, unknown>
+  updatedAt: string
+}
 export interface IssueConfig {
   labels: IssueLabel[]
   properties: IssueProperty[]
+  views: IssueView[]
   wakeups: { subIssuesFinish: WakeupRule }
 }
 
@@ -52,6 +64,7 @@ export const hasProjectConfig = (dir?: string | null) => !!dir && existsSync(pro
 const defaults = (): IssueConfig => ({
   labels: [],
   properties: [],
+  views: [],
   wakeups: { subIssuesFinish: { enabled: true, instruction: '' } },
 })
 
@@ -103,6 +116,7 @@ function readFile(file: string): IssueConfig {
     return {
       labels: Array.isArray(raw.labels) ? raw.labels : d.labels,
       properties: Array.isArray(raw.properties) ? raw.properties : d.properties,
+      views: Array.isArray(raw.views) ? raw.views : d.views,
       wakeups: { subIssuesFinish: { ...d.wakeups.subIssuesFinish, ...raw.wakeups?.subIssuesFinish } },
     }
   } catch {
@@ -159,6 +173,7 @@ export function resetProject(projectDir: string) {
 }
 
 export const newLabelId = () => newId('lbl')
+export const newViewId = () => newId('view')
 export const newPropertyId = () => newId('prop')
 export const newOptionId = () => newId('opt')
 

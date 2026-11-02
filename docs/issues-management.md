@@ -91,3 +91,18 @@ Open the gear icon on the Issues page (`/issues/settings`). Tabs: Labels, Proper
   issues, or per issue in its Wakeups row.
 
 Files: default `~/.claude/issues/_config.json`, project `~/.config/claude-ui/issues/<project>/_config.json`.
+
+## Filter, Display and Views
+
+Above the board: **Filter**, **Display**, board or list, and a tab bar of saved views. Design in `docs/adr/0003-issue-views.md`.
+
+- **Filter**: Status, Priority, Assignee, Label, Project (in "All" scope), Date and your select, checkbox and text properties.
+  Several filters combine with AND, values inside one filter with OR. Date rules: Today, This week, Overdue, Next 7 days, No date,
+  on created, updated or any date property. Active filters show as chips under the tab bar.
+- **Display**: grouping (status, priority, assignee, label, project or a select property), hidden columns, ordering with direction,
+  show or hide sub-issues (the parent then shows closed/total), and which properties each card shows.
+  Drag and drop changes status only when grouped by status. Grouped by label, an issue with two labels appears twice.
+- **Views**: **All** is built in. The layers button next to the tabs has New view and Manage views (rename, move, duplicate, delete).
+  Changing filters on an open view shows `*` with Save and Discard.
+  Views live in the settings file of the project, or the default one, so they follow the same Customize and Reset rules.
+- The current filters and display are in the page URL, so a reload or a shared link keeps them.

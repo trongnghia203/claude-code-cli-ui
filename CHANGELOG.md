@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+**Issue filters, display and views**
+- Add Filter (status, priority, assignee, label, project, date, properties), Display (grouping, columns, ordering, sub-issues, card properties) and saved Views tabs
+- Store views in the issue settings file, per project or default; add `/api/issue-config/views` routes
+- Keep the working filters and display in the page URL
+- Add ADR 0003
+
 **Issue settings (`/issues/settings`)**
 - Add Labels (name, color, description, usage count), Properties (6 field types, archive, 20 active) and Wakeups tabs
 - Store settings per project in `~/.config/claude-ui/issues/<project>/_config.json`, falling back to `~/.claude/issues/_config.json`

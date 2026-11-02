@@ -9,11 +9,17 @@ const router = useRouter()
 const toast = useToast()
 const { fetchOne, update, remove, comment, run, cancel, answerApproval } = useIssues()
 const { agents, fetchAll: fetchAgents } = useAgents()
+import { propertyColor } from '~/composables/useIssueConfig'
 const ic = useIssueConfig()
 const issueConfig = computed(() => ic.configFor(issue.value?.projectDir ?? ''))
 const activeProperties = computed(() => ic.activePropertiesFor(issue.value?.projectDir ?? ''))
 
 const id = computed(() => String(route.params.id))
+// Going back keeps the board's filters and view (they live in its URL). Opened directly, go to the plain list.
+function goBack(e: MouseEvent) {
+  const prev = (window.history.state as { back?: string } | null)?.back
+  if (prev?.startsWith('/issues') && !prev.startsWith('/issues/ISS-')) { e.preventDefault(); router.back() }
+}
 const issue = ref<IssueDetail | null>(null)
 const running = ref(false)
 type Entry = IssueDetail['timeline'][number]
@@ -229,7 +235,9 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
     <template v-else-if="issue">
       <!-- Main -->
       <div class="flex-1 min-w-0 overflow-y-auto custom-scrollbar p-6 space-y-6">
-        <NuxtLink to="/issues" class="inline-flex items-center gap-1 text-[12px] text-label"><UIcon name="i-lucide-arrow-left" class="size-3.5" /> Issues</NuxtLink>
+        <NuxtLink to="/issues" class="group inline-flex items-center gap-1.5 pl-2 pr-3 py-1 rounded-lg text-[12px] font-medium hover-bg focus-ring" style="color: var(--text-secondary); border: 1px solid var(--border-subtle); background: var(--surface-raised)" title="Back to issues" @click="goBack">
+          <UIcon name="i-lucide-arrow-left" class="size-3.5 transition-transform group-hover:-translate-x-0.5" /> Issues
+        </NuxtLink>
 
         <section class="space-y-3">
           <div class="text-[11px] font-mono text-meta">{{ issue.id }}<template v-if="issue.parentId"> &middot; sub-issue of <NuxtLink :to="`/issues/${issue.parentId}`" class="underline">{{ issue.parentId }}</NuxtLink></template></div>
@@ -382,7 +390,7 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
               </button>
               <NuxtLink v-if="!issueConfig.labels.length" to="/issues/settings?tab=labels" class="text-meta underline pt-0.5">Create labels</NuxtLink>
             </span></div>
-          <div v-for="p in activeProperties" :key="p.id" class="prop-row"><span class="prop-label" :title="p.name">{{ p.name }}</span>
+          <div v-for="p in activeProperties" :key="p.id" class="prop-row"><span class="prop-label flex items-center gap-1.5" :title="p.name"><span class="size-1.5 rounded-full shrink-0" :style="{ background: propertyColor(p) }" /><span class="truncate">{{ p.name }}</span></span>
             <IssuePropertyField compact :property="p" :model-value="issue.properties?.[p.id]" @update:model-value="setProp(p.id, $event)" /></div>
         </section>
 
