@@ -95,6 +95,16 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: 'No user message found' })
   }
 
+  // No saved session: the browser owns the conversation and sends it each time.
+  // Earlier turns go into the prompt as plain text, so nothing lands in ~/.claude/projects.
+  const lastIdx = body.messages.lastIndexOf(lastUserMessage)
+  const earlier = body.messages.slice(0, lastIdx).filter(m => m.content?.trim()).slice(-20)
+  let history = earlier.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n\n')
+  if (history.length > 60_000) history = history.slice(-60_000)
+  const promptText = history
+    ? `<conversation_so_far>\n${history}\n</conversation_so_far>\n\nContinue the conversation. Reply to the latest user message:\n\n${lastUserMessage.content}`
+    : lastUserMessage.content
+
   const claudeDir = getClaudeDir()
 
   // Build system prompt depending on whether an agent is active
@@ -141,12 +151,13 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    let sessionId = body.sessionId || null
+    let sessionId: string | null = null
     let resultText = ''
 
     for await (const message of query({
-      prompt: lastUserMessage.content,
+      prompt: promptText,
       options: {
+        persistSession: false,
         cwd: body.projectDir && existsSync(body.projectDir) ? body.projectDir : claudeDir,
         allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep'],
         permissionMode: 'bypassPermissions',
@@ -158,7 +169,6 @@ export default defineEventHandler(async (event) => {
           preset: systemPreset,
           append: systemAppend,
         },
-        ...(sessionId ? { resume: sessionId } : {}),
       },
     })) {
       // Capture session ID for resumption
