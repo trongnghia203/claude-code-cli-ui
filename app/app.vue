@@ -12,6 +12,38 @@ const { styles, fetchStyles } = useOutputStyles()
 const initialized = ref(false)
 const showSearch = ref(false)
 const sidebarCollapsed = useState('sidebar-collapsed', () => false)
+
+// User-resizable sidebar width, remembered in the browser
+const SIDEBAR_MIN = 180
+const SIDEBAR_MAX = 360
+const SIDEBAR_DEFAULT = 200
+const sidebarWidth = ref(SIDEBAR_DEFAULT)
+const resizingSidebar = ref(false)
+const clampWidth = (w: number) => Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, Math.round(w)))
+onMounted(() => {
+  try {
+    const saved = Number(localStorage.getItem('sidebar-width'))
+    if (saved) sidebarWidth.value = clampWidth(saved)
+  } catch { /* storage blocked: keep the default */ }
+})
+function startSidebarResize(e: PointerEvent) {
+  if (sidebarCollapsed.value) return
+  e.preventDefault()
+  resizingSidebar.value = true
+  const onMove = (ev: PointerEvent) => { sidebarWidth.value = clampWidth(ev.clientX) }
+  const onUp = () => {
+    resizingSidebar.value = false
+    window.removeEventListener('pointermove', onMove)
+    window.removeEventListener('pointerup', onUp)
+    try { localStorage.setItem('sidebar-width', String(sidebarWidth.value)) } catch { /* ignore */ }
+  }
+  window.addEventListener('pointermove', onMove)
+  window.addEventListener('pointerup', onUp)
+}
+function resetSidebarWidth() {
+  sidebarWidth.value = SIDEBAR_DEFAULT
+  try { localStorage.removeItem('sidebar-width') } catch { /* ignore */ }
+}
 const { isPanelOpen: chatOpen } = useChat()
 const { workingDir, setWorkingDir, clearWorkingDir } = useWorkingDir()
 const colorMode = useColorMode()
@@ -252,13 +284,24 @@ function badgeFor(to: string) {
     <div class="flex h-screen overflow-hidden" style="background: var(--surface-base);">
       <!-- Sidebar -->
       <aside
-        class="sidebar shrink-0 flex flex-col relative h-full overflow-hidden transition-all duration-300"
+        class="sidebar shrink-0 flex flex-col relative h-full overflow-hidden"
+        :class="resizingSidebar ? '' : 'transition-all duration-300'"
         :style="{
-          width: sidebarCollapsed ? '56px' : '200px',
+          width: sidebarCollapsed ? '56px' : sidebarWidth + 'px',
           background: 'var(--sidebar-bg)',
           borderRight: '1px solid var(--border-subtle)',
         }"
       >
+        <!-- Drag the right edge to resize, double-click to reset -->
+        <div
+          v-if="!sidebarCollapsed"
+          class="absolute top-0 right-0 h-full w-1.5 z-20 cursor-col-resize transition-colors hover:bg-[var(--accent-muted)]"
+          :style="resizingSidebar ? { background: 'var(--accent-muted)' } : undefined"
+          title="Drag to resize, double-click to reset"
+          @pointerdown="startSidebarResize"
+          @dblclick="resetSidebarWidth"
+        />
+
         <!-- Ambient glow at top — stronger -->
         <div
           class="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-32 pointer-events-none"
@@ -518,7 +561,7 @@ function badgeFor(to: string) {
             <UIcon :name="link.icon" class="size-[15px] shrink-0 transition-colors duration-150" :style="{ color: isActive(link.to) ? 'var(--accent)' : undefined }" />
             <template v-if="!sidebarCollapsed">
               <span class="flex-1" style="font-family: var(--font-sans);">{{ link.label }}</span>
-              <span v-if="link.key === 'issues' && runningIssues" class="flex items-center gap-1 text-[11px] px-1.5 rounded-full" style="color: #3b82f6; background: color-mix(in srgb, #3b82f6 12%, transparent);" :title="`${runningIssues} agent ${runningIssues === 1 ? 'run' : 'runs'} in progress`">
+              <span v-if="link.key === 'issues' && runningIssues" class="flex items-center gap-1 text-[11px] px-1.5 rounded-full whitespace-nowrap shrink-0" style="color: #3b82f6; background: color-mix(in srgb, #3b82f6 12%, transparent);" :title="`${runningIssues} agent ${runningIssues === 1 ? 'run' : 'runs'} in progress`">
                 <UIcon name="i-lucide-loader-2" class="size-3 animate-spin" />{{ runningIssues }} running
               </span>
             </template>
