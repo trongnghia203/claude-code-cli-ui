@@ -146,8 +146,10 @@ watch(() => running.value || drafting.value, (r) => {
   if (r && !timer) timer = setInterval(load, 2500)
   if (!r && timer) { clearInterval(timer); timer = null }
 }, { immediate: true })
-onUnmounted(() => { if (timer) clearInterval(timer) })
-onMounted(() => { fetchAgents(); load() })
+// Opening an issue clears its tint on the board. Leaving counts too: a run may have finished while the page was open.
+const { markSeen } = useIssueSeen()
+onUnmounted(() => { if (timer) clearInterval(timer); markSeen(id.value) })
+onMounted(() => { markSeen(id.value); fetchAgents(); load() })
 watch(() => issue.value?.projectDir, (d) => { if (d) ic.load(d) })
 const toggleLabel = (labelId: string) => {
   if (!issue.value) return
