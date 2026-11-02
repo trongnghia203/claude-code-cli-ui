@@ -182,7 +182,7 @@ const toggleRow = (id: string) => { expanded.value = expanded.value === id ? nul
       </ul>
     </template>
 
-    <UModal v-model:open="open" :ui="{ content: 'max-w-[980px]' }">
+    <UModal v-model:open="open" :ui="{ content: 'w-[calc(100vw-4rem)] max-w-[1280px]' }">
       <template #content>
         <div class="max-h-[88vh] overflow-y-auto custom-scrollbar text-[13px]" style="background: var(--surface-raised)">
           <div class="p-6 pb-4 flex items-start gap-3">
@@ -211,7 +211,7 @@ const toggleRow = (id: string) => { expanded.value = expanded.value === id ? nul
               <div class="relative flex-1 h-44" style="border-bottom: 1px solid var(--border-subtle)">
                 <div v-for="n in 4" :key="n" class="absolute left-0 right-0" :style="{ top: ((n - 1) * 25) + '%', borderTop: '1px solid var(--border-subtle)' }" />
                 <div class="absolute inset-0 flex items-end gap-1.5 px-2">
-                  <div v-for="s in series" :key="s.run.id" class="flex-1 min-w-[6px] max-w-[64px] mx-auto rounded-t cursor-pointer transition-opacity hover:opacity-80" :title="`${s.run.trigger || 'Run'} - ${fmtMetric(s.value)}`"
+                  <div v-for="s in series" :key="s.run.id" class="flex-1 min-w-[6px] max-w-[88px] mx-auto rounded-t cursor-pointer transition-opacity hover:opacity-80" :title="`${s.run.trigger || 'Run'} - ${fmtMetric(s.value)}`"
                     :style="{ height: Math.max(2, (s.value / chartMax) * 100) + '%', background: '#2563eb' }" @click="expanded = s.run.id" />
                 </div>
               </div>
