@@ -1,8 +1,8 @@
 <script setup lang="ts">
-// Long comments make a long trigger: one line, capped at 128 characters. The full text stays in the tooltip.
-const TRIGGER_MAX = 128
+// Long comments make a long trigger: first non-empty line only, capped at 90 characters. The full text stays in the tooltip.
+const TRIGGER_MAX = 90
 function shortTrigger(t?: string): string {
-  const one = (t ?? '').replace(/\s+/g, ' ').trim()
+  const one = ((t ?? '').split('\n').find(l => l.trim()) ?? '').replace(/\s+/g, ' ').trim()
   if (!one) return 'Run'
   return one.length > TRIGGER_MAX ? one.slice(0, TRIGGER_MAX - 1).trimEnd() + '…' : one
 }
