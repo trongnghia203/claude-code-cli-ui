@@ -124,7 +124,7 @@ export function useIssues() {
   async function createWithAgent(prompt: string, projectDir: string, agents: { slug: string; name: string; description: string }[], draftAgent?: string): Promise<IssueDetail | null> {
     try { return (await $fetch<{ issue: IssueDetail }>('/api/issues/agent-create', { method: 'POST', body: { prompt, projectDir, agents, draftAgent } })).issue } catch (e) { return fail(e) }
   }
-  async function fetchOne(id: string): Promise<{ issue: IssueDetail; running: boolean; approvals: IssueApproval[] } | null> {
+  async function fetchOne(id: string): Promise<{ issue: IssueDetail; running: boolean; approvals: IssueApproval[]; subIssues?: { id: string; title: string; status: IssueStatus }[] } | null> {
     try { return await $fetch(`/api/issues/${id}`) } catch (e) { return fail(e) }
   }
   async function update(id: string, input: IssueInput): Promise<IssueDetail | null> {

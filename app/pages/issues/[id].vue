@@ -52,6 +52,7 @@ const toggleTranscript = (runId: string) => {
   openTranscripts.value = next
 }
 const approvals = ref<IssueApproval[]>([])
+const subIssues = ref<{ id: string; title: string; status: IssueStatus }[]>([])
 const notFound = ref(false)
 
 const editing = ref(false)
@@ -93,6 +94,7 @@ async function load() {
   if (!res) { if (!issue.value) notFound.value = true; return }
   issue.value = res.issue
   approvals.value = res.approvals ?? []
+  subIssues.value = res.subIssues ?? []
   running.value = res.running || res.issue.runs.some(r => r.status === 'running')
 }
 
@@ -450,12 +452,16 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
               </div>
             </div>
           </div>
-          <div class="prop-row"><span class="prop-label" title="Wake the assignee when every sub-issue is closed">Sub-issues</span>
+          <!-- Only where it can apply: a parent with sub-issues, or one that already has an override to reset -->
+          <div v-if="subIssues.length || wakeValue !== 'default'" class="pt-1.5 space-y-0.5">
+            <div class="text-[11px] text-meta" :title="`Run the agent again when all ${subIssues.length || ''} sub-issues are done or cancelled`">When sub-issues close</div>
             <select :value="wakeValue" class="prop-select" @change="patch({ wakeups: { subIssuesFinish: ($event.target as HTMLSelectElement).value as 'default' | 'on' | 'off' } })">
-              <option value="default">Workspace default ({{ wakeDefault }})</option>
-              <option value="on">On</option>
-              <option value="off">Off</option>
-            </select></div>
+              <option value="default">Use default ({{ wakeDefault }})</option>
+              <option value="on">Wake the agent</option>
+              <option value="off">Don't wake</option>
+            </select>
+            <p v-if="!issue.assignee && wakeValue !== 'off'" class="text-[11px] text-meta">Needs an agent assignee to run.</p>
+          </div>
         </section>
 
         <IssueExecutionLog :issue-id="issue.id" :title="issue.title" :runs="issue.runs" :agent-name="agentName" />
