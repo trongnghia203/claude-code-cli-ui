@@ -15,8 +15,15 @@ export default defineEventHandler(async (event) => {
   const prev = { assignee: before.assignee, status: before.status }
 
   const issue = updateIssue(id, (i) => {
-    const { status, assignee, ...rest } = f
+    const { status, assignee, wakeups, ...rest } = f
     Object.assign(i, rest)
+    if (wakeups) {
+      // 'default' clears the override but keeps the timed wakeups
+      const next = { ...i.wakeups }
+      if (wakeups.subIssuesFinish) next.subIssuesFinish = wakeups.subIssuesFinish
+      else delete next.subIssuesFinish
+      i.wakeups = next
+    }
     if (assignee !== undefined && assignee !== i.assignee) {
       i.timeline.push({ id: newEntryId(), at: new Date().toISOString(), type: 'assign', from: i.assignee, to: assignee })
       i.assignee = assignee

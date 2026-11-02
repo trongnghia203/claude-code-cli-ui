@@ -30,6 +30,12 @@ export type TimelineEntry =
   | { id: string; at: string; type: 'assign'; from: string | null; to: string | null }
   | { id: string; at: string; type: 'run'; runId: string }
 
+export type WakeRepeat = 'once' | 'hourly' | 'daily' | 'weekdays' | 'weekly'
+export const WAKE_REPEAT_LABEL: Record<WakeRepeat, string> = { once: 'Trigger once', hourly: 'Repeat hourly', daily: 'Repeat daily', weekdays: 'Repeat on weekdays', weekly: 'Repeat weekly' }
+export interface IssueWakeup { id: string; at: string; agent: string | null; instruction: string; repeat: WakeRepeat; enabled: boolean; createdAt: string }
+export interface WakeupEvent { id: string; wakeupId: string; at: string; outcome: 'started' | 'skipped'; note: string }
+export type WakeupInput = Partial<Pick<IssueWakeup, 'at' | 'agent' | 'instruction' | 'repeat' | 'enabled'>>
+
 export interface IssueApproval { id: string; tool: string; input: any; at: string }
 
 export interface IssueSummary {
@@ -43,7 +49,7 @@ export interface IssueSummary {
   /** Label ids. Resolve with useIssueConfig().labelById */
   labels: string[]
   properties?: Record<string, string | number | boolean>
-  wakeups?: { subIssuesFinish?: 'default' | 'on' | 'off' }
+  wakeups?: { subIssuesFinish?: 'default' | 'on' | 'off'; items?: IssueWakeup[] }
   parentId: string | null
   projectDir: string
   permissionMode: IssuePermissionMode
@@ -51,13 +57,16 @@ export interface IssueSummary {
   draftNote?: string
   createdAt: string
   updatedAt: string
+  /** Time of the next enabled timed wakeup */
+  nextWakeup?: string | null
   commentCount: number
   runCount: number
   running: boolean
   lastRun: { status: IssueRunStatus; startedAt: string } | null
 }
 
-export interface IssueDetail extends Omit<IssueSummary, 'commentCount' | 'runCount' | 'running' | 'lastRun'> {
+export interface IssueDetail extends Omit<IssueSummary, 'commentCount' | 'runCount' | 'running' | 'lastRun' | 'nextWakeup'> {
+  wakeupHistory?: WakeupEvent[]
   timeline: TimelineEntry[]
   runs: IssueRun[]
 }
@@ -133,9 +142,18 @@ export function useIssues() {
   async function answerApproval(id: string, approvalId: string, decision: 'allow' | 'allow_tool' | 'deny'): Promise<boolean> {
     try { await $fetch(`/api/issues/${id}/approvals`, { method: 'POST', body: { approvalId, decision } }); return true } catch (e) { fail(e); return false }
   }
+  async function addWakeup(id: string, input: WakeupInput): Promise<IssueDetail | null> {
+    try { return (await $fetch<{ issue: IssueDetail }>(`/api/issues/${id}/wakeups`, { method: 'POST', body: input })).issue } catch (e) { return fail(e) }
+  }
+  async function updateWakeup(id: string, wid: string, input: WakeupInput): Promise<IssueDetail | null> {
+    try { return (await $fetch<{ issue: IssueDetail }>(`/api/issues/${id}/wakeups/${wid}`, { method: 'PUT', body: input })).issue } catch (e) { return fail(e) }
+  }
+  async function deleteWakeup(id: string, wid: string): Promise<IssueDetail | null> {
+    try { return (await $fetch<{ issue: IssueDetail }>(`/api/issues/${id}/wakeups/${wid}`, { method: 'DELETE' })).issue } catch (e) { return fail(e) }
+  }
   async function cancel(id: string): Promise<boolean> {
     try { await $fetch(`/api/issues/${id}/cancel`, { method: 'POST' }); return true } catch (e) { fail(e); return false }
   }
 
-  return { issues, loading, load, create, createWithAgent, fetchOne, update, remove, comment, run, cancel, answerApproval }
+  return { issues, loading, load, create, createWithAgent, fetchOne, update, remove, comment, run, cancel, answerApproval, addWakeup, updateWakeup, deleteWakeup }
 }

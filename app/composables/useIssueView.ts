@@ -29,14 +29,14 @@ export interface DisplayOptions {
 }
 export type Layout = 'board' | 'list'
 
-export const DEFAULT_CARD = ['id', 'priority', 'assignee', 'labels', 'comments']
+export const DEFAULT_CARD = ['id', 'priority', 'assignee', 'labels', 'comments', 'wakeup']
 export const defaultDisplay = (): DisplayOptions => ({
   groupBy: 'status', hiddenColumns: [], orderBy: 'priority', orderDir: 'asc', showSubIssues: true, card: [...DEFAULT_CARD],
 })
 export const BUILT_IN_CARD_FIELDS: { key: string; label: string }[] = [
   { key: 'id', label: 'ID' }, { key: 'priority', label: 'Priority' }, { key: 'description', label: 'Description' },
   { key: 'assignee', label: 'Assignee' }, { key: 'project', label: 'Project' }, { key: 'labels', label: 'Labels' },
-  { key: 'comments', label: 'Comments' }, { key: 'subProgress', label: 'Sub-issue progress' },
+  { key: 'comments', label: 'Comments' }, { key: 'subProgress', label: 'Sub-issue progress' }, { key: 'wakeup', label: 'Next wakeup' },
 ]
 export const DATE_OP_LABEL: Record<DateOp, string> = { today: 'Today', week: 'This week', overdue: 'Overdue', next7: 'Next 7 days', none: 'No date' }
 const CLOSED = ['done', 'cancelled']

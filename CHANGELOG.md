@@ -2,18 +2,49 @@
 
 ## Unreleased
 
-**Issue filters, display and views**
-- Add Filter (status, priority, assignee, label, project, date, properties), Display (grouping, columns, ordering, sub-issues, card properties) and saved Views tabs
-- Store views in the issue settings file, per project or default; add `/api/issue-config/views` routes
-- Keep the working filters and display in the page URL
-- Add ADR 0003
+**Issue filters, display and views (`/issues`)**
+- Add Filter menu - status, priority, assignee, label, project (All scope), date (created, updated or any date property) and select, checkbox, text properties; AND between filters, OR inside one [`9bb6375`](https://github.com/trongnghia203/claude-code-cli-ui/commit/9bb6375)
+- Add date rules - Today, This week, Overdue (ignores done and cancelled), Next 7 days, No date [`9bb6375`](https://github.com/trongnghia203/claude-code-cli-ui/commit/9bb6375)
+- Add Display menu - grouping (status, priority, assignee, label, project, select property), hidden columns, ordering with direction, show sub-issues, card properties [`9bb6375`](https://github.com/trongnghia203/claude-code-cli-ui/commit/9bb6375)
+- Group by label puts an issue with several labels in each column; drag and drop changes status only when grouped by status [`9bb6375`](https://github.com/trongnghia203/claude-code-cli-ui/commit/9bb6375)
+- Sort issues with no value last in both directions; show closed/total progress on a parent when sub-issues are hidden [`9bb6375`](https://github.com/trongnghia203/claude-code-cli-ui/commit/9bb6375)
+- Show active filters as removable chips under the tab bar; keep filters, display and layout in the page URL [`9bb6375`](https://github.com/trongnghia203/claude-code-cli-ui/commit/9bb6375)
+- Add saved Views tabs with an unsaved mark, Save and Discard; Manage views to rename, move, duplicate and delete [`9bb6375`](https://github.com/trongnghia203/claude-code-cli-ui/commit/9bb6375)
+- Store views in the issue settings file, per project or default; add `/api/issue-config/views` routes (create, update, delete, order), max 30 per config [`9bb6375`](https://github.com/trongnghia203/claude-code-cli-ui/commit/9bb6375)
+- Add Save as view dialog - name, editable filters with Add filter, default display (layout, grouping, ordering, card properties) [`5376f5a`](https://github.com/trongnghia203/claude-code-cli-ui/commit/5376f5a)
+- Add Save as view button on the filter bar; Save updates the open view when it changed [`5376f5a`](https://github.com/trongnghia203/claude-code-cli-ui/commit/5376f5a)
+- Ask before giving a project its own settings when saving its first view [`9bb6375`](https://github.com/trongnghia203/claude-code-cli-ui/commit/9bb6375)
+- Share the display controls and filter chips between the page and the dialog [`5376f5a`](https://github.com/trongnghia203/claude-code-cli-ui/commit/5376f5a)
+- Add ADR 0003 - `docs/adr/0003-issue-views.md` [`9bb6375`](https://github.com/trongnghia203/claude-code-cli-ui/commit/9bb6375)
+
+**Timed wakeups (issue page)**
+- Add Wakeups to the issue sidebar - time, agent, trigger once or repeat hourly, daily, weekdays, weekly, optional instruction, on/off switch
+- Add Wakeup history with each firing and skip; fire missed wakeups after a restart and mark them late
+- Wait while a run is active, skip closed issues, and skip with a note when no agent is set
+- Show the next wakeup time on board cards (new card property, on by default)
+- Add `/api/issues/:id/wakeups` routes and a 30-second timer plugin; the issue save keeps timed wakeups
+- Add ADR 0004
+
+**Issue cards and issue page**
+- Show assignee on the first card line after the ID, and the comment count next to the priority dot [`9bb6375`](https://github.com/trongnghia203/claude-code-cli-ui/commit/9bb6375)
+- Make card text easier to read - 14px semibold title up to 3 lines, 12px meta text, more padding [`5376f5a`](https://github.com/trongnghia203/claude-code-cli-ui/commit/5376f5a)
+- Give custom properties a color (8 swatches, gray for older ones); show it on property chips as a tinted background, with the name in that color [`5376f5a`](https://github.com/trongnghia203/claude-code-cli-ui/commit/5376f5a)
+- Restyle the issue page back button as a pill; going back keeps the board filters and view [`9bb6375`](https://github.com/trongnghia203/claude-code-cli-ui/commit/9bb6375)
+- Replace the browser date picker with a calendar popover (Monday first, Today and Clear)
+- Make the Run agent button fit its label instead of stretching across the sidebar
+- Fix an empty date property showing today's date in the sidebar - show "Set date" with a clear button [`290e400`](https://github.com/trongnghia203/claude-code-cli-ui/commit/290e400)
 
 **Issue settings (`/issues/settings`)**
-- Add Labels (name, color, description, usage count), Properties (6 field types, archive, 20 active) and Wakeups tabs
-- Store settings per project in `~/.config/claude-ui/issues/<project>/_config.json`, falling back to `~/.claude/issues/_config.json`
-- Change `Issue.labels` from names to label ids, migrated once from existing issues
-- Wake the parent's agent when every sub-issue is closed, with a per-issue override
-- Add ADR 0002
+- Add Labels tab - name, color, description, usage count; unique names [`290e400`](https://github.com/trongnghia203/claude-code-cli-ui/commit/290e400)
+- Add Properties tab - text, number, select, date, checkbox, URL; archive instead of delete, 20 active at most, type fixed after creation [`290e400`](https://github.com/trongnghia203/claude-code-cli-ui/commit/290e400)
+- Add Wakeups tab - when every sub-issue is closed, run the parent's agent with an instruction; on by default, per-issue override [`290e400`](https://github.com/trongnghia203/claude-code-cli-ui/commit/290e400)
+- Store settings per project in `~/.config/claude-ui/issues/<project>/_config.json`, falling back to `~/.claude/issues/_config.json` [`290e400`](https://github.com/trongnghia203/claude-code-cli-ui/commit/290e400)
+- Add Customize for this project and Reset to default; a project file replaces the default as a whole [`290e400`](https://github.com/trongnghia203/claude-code-cli-ui/commit/290e400)
+- Block deleting a label, archiving a property and resetting a project while issues still use them [`290e400`](https://github.com/trongnghia203/claude-code-cli-ui/commit/290e400)
+- Change `Issue.labels` from names to label ids, migrated once from existing issues; the issue drafting agent may only pick existing labels [`290e400`](https://github.com/trongnghia203/claude-code-cli-ui/commit/290e400)
+- Add property fields to the new issue form and the issue sidebar [`290e400`](https://github.com/trongnghia203/claude-code-cli-ui/commit/290e400)
+- Add `/api/issue-config` routes for config, labels, properties, wakeups and per-project settings [`290e400`](https://github.com/trongnghia203/claude-code-cli-ui/commit/290e400)
+- Add ADR 0002 - `docs/adr/0002-issue-settings.md` [`290e400`](https://github.com/trongnghia203/claude-code-cli-ui/commit/290e400)
 
 - Add macOS launcher (`scripts/`) - Swift+WKWebView app, `claude-ui` CLI, `install.sh` [`b929e24`](https://github.com/trongnghia203/claude-code-cli-ui/commit/b929e24)
 

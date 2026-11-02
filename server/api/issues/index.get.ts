@@ -14,6 +14,7 @@ export default defineEventHandler((event) => {
       // A restart mid-draft leaves the flag set: stop showing it after 5 minutes
       drafting: !!rest.drafting && Date.now() - Date.parse(rest.createdAt) < 300_000,
       running: runs.some(r => r.status === 'running'),
+      nextWakeup: (rest.wakeups?.items ?? []).filter(w => w.enabled).sort((a, b) => a.at.localeCompare(b.at))[0]?.at ?? null,
       lastRun: runs.at(-1) ? { status: runs.at(-1)!.status, startedAt: runs.at(-1)!.startedAt } : null,
     }))
     .sort((a, b) => b.number - a.number)

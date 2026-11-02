@@ -6,6 +6,7 @@ import { propertyColor } from '~/composables/useIssueConfig'
 import type { Column } from '~/composables/useIssueView'
 import { columnsFor, filterChips, defaultDisplay, keysOf, matchesFilters, propText, sortIssues, subProgress, useIssueViewState, visibleIssues } from '~/composables/useIssueView'
 import { formatRelativeTime } from '~/utils/messageFormatting'
+import { formatWakeAt } from '~/utils/wakeupFormat'
 
 const { issues, loading, load, create, createWithAgent, update } = useIssues()
 const { workingDir } = useWorkingDir()
@@ -238,7 +239,8 @@ useHead({ title: 'Issues | Agent Manager' })
             </div>
             <div class="text-[14px] leading-snug font-semibold mt-1.5 line-clamp-3" style="color: var(--text-primary)">{{ i.title }}</div>
             <p v-if="shows('description') && i.description.trim()" class="mt-1.5 text-[12px] leading-snug text-label line-clamp-2">{{ plain(i.description) }}</p>
-            <div v-if="shows('project') || (shows('subProgress') && subProgress(i.id, issues))" class="mt-2 flex items-center gap-3 text-[12px] text-label">
+            <div v-if="shows('project') || (shows('subProgress') && subProgress(i.id, issues)) || (shows('wakeup') && i.nextWakeup)" class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-label">
+              <span v-if="shows('wakeup') && i.nextWakeup" class="flex items-center gap-1" title="Next wakeup"><UIcon name="i-lucide-clock" class="size-3.5" />{{ formatWakeAt(i.nextWakeup) }}</span>
               <span v-if="shows('project')" class="flex items-center gap-0.5 min-w-0"><UIcon name="i-lucide-folder" class="size-3" /><span class="truncate">{{ i.projectDir.split('/').filter(Boolean).pop() }}</span></span>
               <span v-if="shows('subProgress') && subProgress(i.id, issues)" class="flex items-center gap-0.5" title="Closed sub-issues"><UIcon name="i-lucide-git-branch" class="size-3" />{{ subProgress(i.id, issues)!.done }}/{{ subProgress(i.id, issues)!.total }}</span>
             </div>

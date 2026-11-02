@@ -87,15 +87,16 @@ export function buildPrompt(issue: Issue, extra?: string): string {
 }
 
 /** Start a run for the issue. Returns the run id, or null when one is already active. */
-export function startRun(issueId: string, trigger?: string, extraInstruction?: string): string | null {
+export function startRun(issueId: string, trigger?: string, extraInstruction?: string, agentOverride?: string | null): string | null {
   if (active.has(issueId)) return null
   const issue = readIssue(issueId)
   if (!issue) return null
 
+  const agentSlug = agentOverride || issue.assignee
   const runId = newEntryId()
   const startedAt = new Date()
   const run: IssueRun = {
-    id: runId, agent: issue.assignee, status: 'running', startedAt: startedAt.toISOString(),
+    id: runId, agent: agentSlug, status: 'running', startedAt: startedAt.toISOString(),
     trigger: (trigger?.trim().replace(/\s+/g, ' ').slice(0, 160)) || (issue.runs.length ? 'Run agent' : 'Initial run'),
   }
 
@@ -133,7 +134,7 @@ export function startRun(issueId: string, trigger?: string, extraInstruction?: s
     '--permission-prompt-tool', 'stdio',
     // No saved session: the issue description and comments are the only context a run gets, so every run starts fresh
     '--no-session-persistence']
-  if (issue.assignee) args.push('--agent', issue.assignee)
+  if (agentSlug) args.push('--agent', agentSlug)
 
   let buf = ''
   let stderr = ''
@@ -192,9 +193,9 @@ export function startRun(issueId: string, trigger?: string, extraInstruction?: s
         else setTimeout(askStatus, MCP_POLL_MS)
       } else if (m.type === 'control_request' && m.request?.subtype === 'can_use_tool') {
         askApproval(m)
-      } else if (m.type === 'system' && m.subtype === 'init' && issue.assignee && Array.isArray(m.agents) && !m.agents.includes(issue.assignee)) {
+      } else if (m.type === 'system' && m.subtype === 'init' && agentSlug && Array.isArray(m.agents) && !m.agents.includes(agentSlug)) {
         // Stream mode silently falls back to the default agent for an unknown --agent. Stop instead of running the wrong one.
-        badAgent = `Agent "${issue.assignee}" not found. Available: ${m.agents.slice(0, 15).join(', ')}`
+        badAgent = `Agent "${agentSlug}" not found. Available: ${m.agents.slice(0, 15).join(', ')}`
         child.kill('SIGTERM')
       } else if (m.type === 'result') {
         resultMsg = m

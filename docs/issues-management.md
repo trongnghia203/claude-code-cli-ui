@@ -106,3 +106,13 @@ Above the board: **Filter**, **Display**, board or list, and a tab bar of saved 
   Changing filters on an open view shows `*` with Save and Discard.
   Views live in the settings file of the project, or the default one, so they follow the same Customize and Reset rules.
 - The current filters and display are in the page URL, so a reload or a shared link keeps them.
+
+## Timed wakeups
+
+Each issue can wake an agent at a set time. Design in `docs/adr/0004-issue-wakeups.md`.
+
+- In the issue sidebar, **Wakeups** has a + button. A wakeup has a date and time, an agent (default: the assignee),
+  Trigger once, hourly, daily, weekdays or weekly, and an optional instruction. Use the switch to turn one off.
+- **Wakeup history** lists each firing and each skip, with a note.
+- It only fires while the app is running. After a restart, a missed one fires at once and is marked late.
+- If a run is active on the issue, the wakeup waits. A closed issue skips it. The board card can show the next wakeup time.

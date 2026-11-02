@@ -40,6 +40,20 @@ export type TimelineEntry =
   | { id: string; at: string; type: 'assign'; from: string | null; to: string | null }
   | { id: string; at: string; type: 'run'; runId: string }
 
+export const WAKE_REPEATS = ['once', 'hourly', 'daily', 'weekdays', 'weekly'] as const
+export type WakeRepeat = typeof WAKE_REPEATS[number]
+/** A timed wakeup: at `at`, run the issue's agent (or `agent`) with `instruction`. `at` moves forward after each firing of a repeating one. */
+export interface IssueWakeup {
+  id: string
+  at: string
+  agent: string | null
+  instruction: string
+  repeat: WakeRepeat
+  enabled: boolean
+  createdAt: string
+}
+export interface WakeupEvent { id: string; wakeupId: string; at: string; outcome: 'started' | 'skipped'; note: string }
+
 export interface Issue {
   id: string
   number: number
@@ -53,7 +67,8 @@ export interface Issue {
   /** Custom property values keyed by property id */
   properties?: Record<string, string | number | boolean>
   /** Per-issue wakeup override. Missing means follow the workspace default. */
-  wakeups?: { subIssuesFinish?: 'on' | 'off' }
+  wakeups?: { subIssuesFinish?: 'on' | 'off'; items?: IssueWakeup[] }
+  wakeupHistory?: WakeupEvent[]
   parentId: string | null
   projectDir: string
   permissionMode: IssuePermissionMode

@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import type { IssueApproval, IssueDetail, IssueRun, IssuePermissionMode, IssuePriority, IssueStatus } from '~/composables/useIssues'
-import { ISSUE_PRIORITIES, ISSUE_PRIORITY_META, ISSUE_RUN_META, ISSUE_STATUS_META, ISSUE_STATUSES } from '~/composables/useIssues'
+import { WAKE_REPEAT_LABEL, ISSUE_PRIORITIES, ISSUE_PRIORITY_META, ISSUE_RUN_META, ISSUE_STATUS_META, ISSUE_STATUSES } from '~/composables/useIssues'
+import type { IssueWakeup, WakeupInput } from '~/composables/useIssues'
+import { formatWakeAt } from '~/utils/wakeupFormat'
 import { renderMarkdown } from '~/utils/markdown'
 import { projectSlug } from '~/utils/projectSlug'
 
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
-const { fetchOne, update, remove, comment, run, cancel, answerApproval } = useIssues()
+const { fetchOne, update, remove, comment, run, cancel, answerApproval, addWakeup, updateWakeup, deleteWakeup } = useIssues()
 const { agents, fetchAll: fetchAgents } = useAgents()
 import { propertyColor } from '~/composables/useIssueConfig'
 const ic = useIssueConfig()
@@ -114,6 +116,35 @@ const setProp = (propId: string, v: string | number | boolean | null) => {
   else next[propId] = v
   patch({ properties: next })
 }
+// Timed wakeups
+const wakeups = computed(() => [...(issue.value?.wakeups?.items ?? [])].sort((a, b) => a.at.localeCompare(b.at)))
+const wakeDlg = ref(false)
+const wakeEdit = ref<IssueWakeup | null>(null)
+const wakeBusy = ref(false)
+const wakeKey = ref(0)
+const showWakeHistory = ref(false)
+const history = computed(() => issue.value?.wakeupHistory ?? [])
+const wakeAgentName = (w: IssueWakeup) => agentName(w.agent ?? issue.value?.assignee ?? null)
+function openWake(w: IssueWakeup | null) { wakeEdit.value = w; wakeKey.value++; wakeDlg.value = true }
+async function saveWake(input: WakeupInput) {
+  wakeBusy.value = true
+  const res = wakeEdit.value ? await updateWakeup(id.value, wakeEdit.value.id, input) : await addWakeup(id.value, input)
+  wakeBusy.value = false
+  if (res) { issue.value = res; wakeDlg.value = false }
+}
+async function removeWake() {
+  if (!wakeEdit.value) return
+  const res = await deleteWakeup(id.value, wakeEdit.value.id)
+  if (res) { issue.value = res; wakeDlg.value = false }
+}
+async function toggleWake(w: IssueWakeup, enabled: boolean) {
+  const res = await updateWakeup(id.value, w.id, { enabled })
+  if (res) issue.value = res
+}
+// A wakeup can fire while the page is open: look again every 30 seconds when one is set
+let wakeTimer: ReturnType<typeof setInterval> | null = null
+onMounted(() => { wakeTimer = setInterval(() => { if (wakeups.value.some(w => w.enabled)) load() }, 30_000) })
+onUnmounted(() => { if (wakeTimer) clearInterval(wakeTimer) })
 const wakeValue = computed(() => issue.value?.wakeups?.subIssuesFinish ?? 'default')
 const wakeDefault = computed(() => (issueConfig.value.wakeups.subIssuesFinish.enabled ? 'on' : 'off'))
 
@@ -354,8 +385,8 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
         title="Drag to resize, double-click to reset" @pointerdown="startSideResize" @dblclick="resetSideWidth" />
       <aside class="flex-1 min-w-0 overflow-y-auto custom-scrollbar p-4 space-y-5 text-[12px]" style="border-left: 1px solid var(--border-subtle)">
         <div class="flex gap-2">
-          <UButton v-if="running" label="Stop run" icon="i-lucide-square" color="error" variant="soft" size="sm" class="flex-1 justify-center" @click="onCancel" />
-          <UButton v-else label="Run agent" icon="i-lucide-play" size="sm" class="flex-1 justify-center" :disabled="!canRun" @click="onRun" />
+          <UButton v-if="running" label="Stop run" icon="i-lucide-square" color="error" variant="soft" size="sm" @click="onCancel" />
+          <UButton v-else label="Run agent" icon="i-lucide-play" size="sm" :disabled="!canRun" @click="onRun" />
         </div>
         <section class="space-y-1">
           <h3 class="font-semibold text-[13px] mb-1.5">Properties</h3>
@@ -390,12 +421,35 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
               </button>
               <NuxtLink v-if="!issueConfig.labels.length" to="/issues/settings?tab=labels" class="text-meta underline pt-0.5">Create labels</NuxtLink>
             </span></div>
-          <div v-for="p in activeProperties" :key="p.id" class="prop-row"><span class="prop-label flex items-center gap-1.5" :title="p.name"><span class="size-1.5 rounded-full shrink-0" :style="{ background: propertyColor(p) }" /><span class="truncate">{{ p.name }}</span></span>
+          <div v-for="p in activeProperties" :key="p.id" class="prop-row"><span class="prop-label truncate font-medium" :title="p.name" :style="{ color: propertyColor(p) }">{{ p.name }}</span>
             <IssuePropertyField compact :property="p" :model-value="issue.properties?.[p.id]" @update:model-value="setProp(p.id, $event)" /></div>
         </section>
 
         <section class="space-y-1">
-          <h3 class="font-semibold text-[13px] mb-1.5">Wakeups</h3>
+          <div class="flex items-center gap-2 mb-1.5">
+            <h3 class="font-semibold text-[13px]">Wakeups</h3>
+            <span v-if="wakeups.length" class="text-meta text-[11px]">{{ wakeups.length }}</span>
+            <button class="ml-auto p-1 rounded hover-bg" title="Add wakeup" @click="openWake(null)"><UIcon name="i-lucide-plus" class="size-3.5 block" /></button>
+          </div>
+          <div v-for="w in wakeups" :key="w.id" class="flex items-center gap-2 py-1.5">
+            <UIcon name="i-lucide-clock" class="size-4 shrink-0 text-meta" />
+            <button class="flex-1 min-w-0 text-left" :class="{ 'opacity-50': !w.enabled }" @click="openWake(w)">
+              <div class="text-[13px] font-medium truncate">Wake at {{ formatWakeAt(w.at) }}</div>
+              <div class="text-[11px] text-meta truncate">Wake {{ wakeAgentName(w) }} · {{ WAKE_REPEAT_LABEL[w.repeat] }}</div>
+            </button>
+            <USwitch :model-value="w.enabled" size="sm" :title="w.enabled ? 'On' : 'Off'" @update:model-value="toggleWake(w, $event)" />
+          </div>
+          <div v-if="history.length">
+            <button class="flex items-center gap-1 py-1 text-[12px] text-label" @click="showWakeHistory = !showWakeHistory">
+              <UIcon :name="showWakeHistory ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'" class="size-3.5" />Wakeup history <span class="text-meta">{{ history.length }}</span>
+            </button>
+            <div v-if="showWakeHistory" class="pl-1 space-y-1.5 pb-1">
+              <div v-for="h in history" :key="h.id" class="flex items-start gap-2 text-[11px]">
+                <UIcon :name="h.outcome === 'started' ? 'i-lucide-play' : 'i-lucide-skip-forward'" class="size-3 mt-0.5 shrink-0" :style="{ color: h.outcome === 'started' ? '#22c55e' : '#d97706' }" />
+                <span class="min-w-0"><span class="text-label">{{ formatWakeAt(h.at) }}</span> <span class="text-meta">{{ h.note }}</span></span>
+              </div>
+            </div>
+          </div>
           <div class="prop-row"><span class="prop-label" title="Wake the assignee when every sub-issue is closed">Sub-issues</span>
             <select :value="wakeValue" class="prop-select" @change="patch({ wakeups: { subIssuesFinish: ($event.target as HTMLSelectElement).value as 'default' | 'on' | 'off' } })">
               <option value="default">Workspace default ({{ wakeDefault }})</option>
@@ -415,6 +469,13 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
       </aside>
       </div>
     </template>
+
+    <UModal v-model:open="wakeDlg" :dismissible="!wakeBusy">
+      <template #content>
+        <IssueWakeupDialog v-if="issue" :key="wakeKey" :wakeup="wakeEdit" :assignee="issue.assignee" :agents="agents.map(a => ({ slug: a.slug, name: a.frontmatter.name || a.slug }))" :busy="wakeBusy"
+          @save="saveWake" @remove="removeWake" @cancel="wakeDlg = false" />
+      </template>
+    </UModal>
 
     <UModal v-model:open="confirmDelete">
       <template #content>

@@ -1,4 +1,4 @@
-import { ISSUE_PRIORITIES, ISSUE_STATUSES, PERMISSION_MODES, type Issue } from './store'
+import { ISSUE_PRIORITIES, ISSUE_STATUSES, PERMISSION_MODES, WAKE_REPEATS, type Issue, type WakeRepeat } from './store'
 import { MAX_ISSUE_LABELS, readConfig } from './config'
 
 type Fields = Pick<Issue, 'title' | 'description' | 'status' | 'priority' | 'assignee' | 'labels' | 'parentId' | 'projectDir' | 'permissionMode'>
@@ -80,6 +80,7 @@ export function parseFields(body: any, projectDir: string): Partial<Fields> {
   if ('wakeups' in body) {
     const v = body.wakeups?.subIssuesFinish
     if (v !== undefined && v !== 'default' && v !== 'on' && v !== 'off') bad('Invalid wakeup setting')
+    // Only the sub-issue rule is edited here. Timed wakeups have their own routes, so a save never drops them.
     out.wakeups = v === 'on' || v === 'off' ? { subIssuesFinish: v } : {}
   }
   if ('parentId' in body) out.parentId = body.parentId ? String(body.parentId) : null
@@ -92,4 +93,35 @@ export function shouldAutoRun(before: Pick<Issue, 'assignee' | 'status'> | null,
   if (!after.assignee) return false
   if (after.status !== 'todo' && after.status !== 'in_progress') return false
   return !before || before.assignee !== after.assignee || before.status !== after.status
+}
+
+export interface WakeupFields { at?: string; agent?: string | null; instruction?: string; repeat?: WakeRepeat; enabled?: boolean }
+
+/** Validate a timed wakeup. A new or moved time must not be in the past (a minute of slack for a slow click). */
+export function parseWakeup(body: any, creating: boolean): WakeupFields {
+  if (!body || typeof body !== 'object') bad('Body must be an object')
+  const out: WakeupFields = {}
+  if (creating || 'at' in body) {
+    const t = Date.parse(String(body.at))
+    if (!Number.isFinite(t)) bad('Pick a date and time')
+    if (t < Date.now() - 60_000) bad('Pick a time in the future')
+    out.at = new Date(t).toISOString()
+  }
+  if ('agent' in body) {
+    const a = body.agent == null || body.agent === '' ? null : String(body.agent)
+    if (a && !/^[A-Za-z0-9._-]+$/.test(a)) bad('Invalid agent')
+    out.agent = a
+  }
+  if ('instruction' in body) {
+    const t = String(body.instruction ?? '')
+    if (t.length > 2000) bad('Instruction is too long (max 2000)')
+    out.instruction = t
+  }
+  if (creating || 'repeat' in body) {
+    const r = body.repeat ?? 'once'
+    if (!(WAKE_REPEATS as readonly string[]).includes(r)) bad(`Invalid repeat: ${r}`)
+    out.repeat = r
+  }
+  if ('enabled' in body) out.enabled = !!body.enabled
+  return out
 }
