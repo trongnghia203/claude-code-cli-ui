@@ -1,4 +1,11 @@
 <script setup lang="ts">
+// Long comments make a long trigger: one line, capped at 128 characters. The full text stays in the tooltip.
+const TRIGGER_MAX = 128
+function shortTrigger(t?: string): string {
+  const one = (t ?? '').replace(/\s+/g, ' ').trim()
+  if (!one) return 'Run'
+  return one.length > TRIGGER_MAX ? one.slice(0, TRIGGER_MAX - 1).trimEnd() + '…' : one
+}
 import type { IssueRun } from '~/composables/useIssues'
 import { ISSUE_RUN_META } from '~/composables/useIssues'
 
@@ -175,7 +182,7 @@ const toggleRow = (id: string) => { expanded.value = expanded.value === id ? nul
       <ul class="space-y-1 max-h-[150px] overflow-y-auto custom-scrollbar pr-1">
         <li v-for="r in recent" :key="r.id" class="flex items-center gap-2 cursor-pointer h-[28px] shrink-0" @click="open = true">
           <span class="issue-agent-dot"><UIcon name="i-lucide-cpu" class="size-3" /></span>
-          <span class="truncate flex-1" :title="r.trigger">{{ r.trigger || 'Run' }}</span>
+          <span class="truncate flex-1" :title="r.trigger">{{ shortTrigger(r.trigger) }}</span>
           <UIcon :name="ISSUE_RUN_META[r.status].icon" class="size-3.5 shrink-0" :class="{ 'animate-spin': r.status === 'running' }" :style="{ color: ISSUE_RUN_META[r.status].color }" />
           <span class="tabular-nums w-11 text-right">{{ money(r.costUsd) }}</span>
         </li>
@@ -243,7 +250,7 @@ const toggleRow = (id: string) => { expanded.value = expanded.value === id ? nul
               <div v-for="r in g.runs" :key="r.id" style="border-bottom: 1px solid var(--border-subtle)">
                 <button class="w-full grid grid-cols-[52px_1fr_150px_100px_70px_80px_64px_22px] gap-3 px-6 py-2.5 items-center text-left hover-bg" @click="toggleRow(r.id)">
                   <span class="text-meta tabular-nums text-[12px]">{{ clock(r.startedAt) }}</span>
-                  <span class="truncate" :title="r.trigger">{{ r.trigger || 'Run' }}</span>
+                  <span class="truncate" :title="r.trigger">{{ shortTrigger(r.trigger) }}</span>
                   <span class="flex items-center gap-1.5 min-w-0"><span class="issue-agent-dot"><UIcon name="i-lucide-cpu" class="size-3" /></span><span class="truncate">{{ agentName(r.agent) }}</span></span>
                   <span class="truncate"><span v-if="modelsOf(r)[0]" class="px-1.5 py-0.5 rounded text-[11px]" style="background: var(--surface-base)">{{ modelLabel(modelsOf(r)[0]!) }}</span></span>
                   <span class="tabular-nums">{{ dur(r.durationMs) }}</span>
