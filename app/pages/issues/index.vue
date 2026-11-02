@@ -167,13 +167,13 @@ watch(anyRunning, (r) => {
 const { markSeen, isUnseen } = useIssueSeen()
 const FRESH_MS = 60 * 60_000
 const tick = ref(Date.now())
-const tickTimer = setInterval(() => { tick.value = Date.now() }, 60_000)
+let tickTimer: ReturnType<typeof setInterval> | null = null
 const isFresh = (i: { id: string; updatedAt: string }) => tick.value - Date.parse(i.updatedAt) < FRESH_MS && isUnseen(i.id, i.updatedAt)
 const cardStyle = (i: { id: string; updatedAt: string }) => (isFresh(i)
   ? 'background: color-mix(in srgb, #3b82f6 15%, var(--surface-base)); border: 1px solid color-mix(in srgb, #3b82f6 45%, var(--border-subtle))'
   : 'background: var(--surface-base); border: 1px solid var(--border-subtle)')
-onUnmounted(() => { if (timer) clearInterval(timer); clearInterval(tickTimer) })
-onMounted(() => { fetchAgents(); refresh() })
+onUnmounted(() => { if (timer) clearInterval(timer); if (tickTimer) clearInterval(tickTimer) })
+onMounted(() => { tickTimer = setInterval(() => { tick.value = Date.now() }, 60_000); fetchAgents(); refresh() })
 // Each project may have its own labels: load the settings of every project on the board
 watch(issues, (list) => { for (const d of new Set(list.map(i => i.projectDir))) if (!(d in ic.entries.value)) ic.load(d) })
 
