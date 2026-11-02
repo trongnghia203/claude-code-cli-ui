@@ -81,8 +81,8 @@ async function handleSend() {
         <span v-if="isDraft" class="text-[9px] font-mono px-1.5 py-px rounded-full" style="background: rgba(229, 169, 62, 0.1); color: var(--accent);">Draft</span>
         <span class="text-[9px] font-mono tracking-widest uppercase px-1.5 py-px rounded-full transition-all" :style="{ background: isStreaming ? 'var(--accent-muted)' : 'var(--badge-subtle-bg)', color: isStreaming ? 'var(--accent)' : 'var(--text-disabled)' }">{{ statusText }}</span>
       </div>
-      <button v-if="messages.length" class="p-1 rounded-md hover-bg transition-all" style="color: var(--text-disabled);" title="Clear conversation" @click="clearChat">
-        <UIcon name="i-lucide-rotate-ccw" class="size-3" />
+      <button v-if="messages.length" class="flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-medium hover-bg transition-all" style="color: var(--text-tertiary);" title="Start over with a fresh conversation" :disabled="isStreaming" @click="clearChat">
+        <UIcon name="i-lucide-rotate-ccw" class="size-3" /> Clear conversation
       </button>
     </div>
 
