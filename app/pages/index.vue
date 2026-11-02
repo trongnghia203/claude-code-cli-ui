@@ -461,13 +461,13 @@ const statItems = computed(() => [
               style="color: var(--accent)"
             >Create agent</NuxtLink>
           </div>
-          <!-- min-h keeps the card at least two rows tall (row = 32px icon + py-3 + 1px divider) -->
+          <!-- Row = 32px icon + py-3 + 1px divider = 57px. min-h: two rows, max-h: three rows, then scroll -->
           <div
             v-else
-            class="divide-y divide-[var(--border-subtle)] min-h-[113px]"
+            class="divide-y divide-[var(--border-subtle)] min-h-[113px] max-h-[171px] overflow-y-auto custom-scrollbar"
           >
             <NuxtLink
-              v-for="agent in agents.slice(0, 6)"
+              v-for="agent in agents"
               :key="agent.slug"
               :to="`/agents/${agent.slug}`"
               class="flex items-center gap-3 px-4 py-3 hover-bg group"
