@@ -5,6 +5,7 @@ import type { IssueWakeup, WakeupInput } from '~/composables/useIssues'
 import { formatWakeAt } from '~/utils/wakeupFormat'
 import { renderMarkdown } from '~/utils/markdown'
 import { emojify, searchEmoji } from '~/utils/emoji'
+import { linkify } from '~/utils/linkify'
 import { projectSlug } from '~/utils/projectSlug'
 
 const route = useRoute()
@@ -193,6 +194,23 @@ const mentionedAgent = computed(() => {
 const emojiQuery = ref<string | null>(null)
 const emojiIdx = ref(0)
 const emojiOptions = computed(() => (emojiQuery.value === null ? [] : searchEmoji(emojiQuery.value)))
+// /slash commands in the comment box: only as the first word, after optional @mentions
+const SLASH_COMMANDS = [
+  { name: 'adhoc', hint: 'Run with only this comment, no description or history' },
+  { name: 'last', hint: 'This comment plus the 2 before it. /last N sends N+1. No description' },
+]
+const slashQuery = ref<string | null>(null)
+const slashIdx = ref(0)
+const slashOptions = computed(() => (slashQuery.value === null ? [] : SLASH_COMMANDS.filter(c => c.name.startsWith(slashQuery.value!))))
+function pickSlash(name: string) {
+  const el = commentEl.value
+  if (!el) return
+  const pos = el.selectionStart
+  const before = newComment.value.slice(0, pos).replace(/\/[a-z]*$/i, `/${name} `)
+  newComment.value = before + newComment.value.slice(pos)
+  slashQuery.value = null
+  nextTick(() => { el.focus(); el.setSelectionRange(before.length, before.length) })
+}
 function updateMention() {
   const el = commentEl.value
   if (!el) return
@@ -200,6 +218,9 @@ function updateMention() {
   const m = /(^|\s)@([\w-]*)$/.exec(upto)
   mentionQuery.value = m ? (m[2] ?? '').toLowerCase() : null
   mentionIdx.value = 0
+  const sl = /^\s*(?:@[\w-]+\s+)*\/([a-z]*)$/i.exec(upto)
+  slashQuery.value = sl ? sl[1]!.toLowerCase() : null
+  slashIdx.value = 0
   const e = /(^|\s):([a-z0-9_+-]{2,})$/i.exec(upto)
   emojiQuery.value = e ? e[2]!.toLowerCase() : null
   emojiIdx.value = 0
@@ -223,6 +244,13 @@ function pickMention(slug: string) {
   nextTick(() => { el.focus(); el.setSelectionRange(before.length, before.length) })
 }
 function onCommentKey(e: KeyboardEvent) {
+  const sc = slashOptions.value
+  if (sc.length) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); slashIdx.value = (slashIdx.value + 1) % sc.length; return }
+    if (e.key === 'ArrowUp') { e.preventDefault(); slashIdx.value = (slashIdx.value - 1 + sc.length) % sc.length; return }
+    if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); pickSlash(sc[slashIdx.value]!.name); return }
+    if (e.key === 'Escape') { slashQuery.value = null; return }
+  }
   const em = emojiOptions.value
   if (em.length) {
     if (e.key === 'ArrowDown') { e.preventDefault(); emojiIdx.value = (emojiIdx.value + 1) % em.length; return }
@@ -311,7 +339,7 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
               <button class="p-1.5 rounded-lg hover-bg" title="Edit" style="color: var(--text-tertiary)" @click="startEdit"><UIcon name="i-lucide-pencil" class="size-4 block" /></button>
             </div>
             <p v-if="issue.draftNote" class="text-[12px] mb-2" style="color: #d97706">{{ issue.draftNote }}</p>
-            <div v-if="issue.description.trim()" class="md-prose issue-prose rounded-xl px-4 py-3" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)" v-html="renderMarkdown(emojify(issue.description))" />
+            <div v-if="issue.description.trim()" class="md-prose issue-prose rounded-xl px-4 py-3" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)" v-html="renderMarkdown(linkify(emojify(issue.description)))" />
             <p v-else class="text-[13px] text-meta">No description.</p>
           </template>
         </section>
@@ -326,7 +354,7 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
                   <UIcon :name="b.comment.author === 'agent' ? 'i-lucide-cpu' : 'i-lucide-user'" class="size-3.5" />
                   {{ b.comment.author === 'agent' ? agentName(issue.assignee) : 'You' }} &middot; {{ when(b.comment.at) }}
                 </div>
-                <div class="md-prose issue-prose" v-html="renderMarkdown(mentionize(withBreaks(emojify(b.comment.body), b.comment.author === 'user')))" />
+                <div class="md-prose issue-prose" v-html="renderMarkdown(mentionize(withBreaks(linkify(emojify(b.comment.body)), b.comment.author === 'user')))" />
               </div>
               <!-- run and status activity, folded into one line -->
               <div v-else>
@@ -396,13 +424,20 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
                   <span class="text-meta truncate min-w-0 flex-1">{{ a.frontmatter.description }}</span>
                 </button>
               </div>
+              <div v-if="slashOptions.length" class="absolute bottom-full mb-1 left-0 z-20 w-[420px] max-w-full rounded-lg overflow-hidden shadow-lg" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)">
+                <button v-for="(c, i) in slashOptions" :key="c.name" type="button" class="w-full text-left px-3 py-1.5 text-[12px] flex items-center gap-2" :style="{ background: i === slashIdx ? 'var(--surface-base)' : 'transparent' }" @mousedown.prevent="pickSlash(c.name)">
+                  <UIcon name="i-lucide-zap" class="size-3.5 shrink-0" />
+                  <b class="shrink-0" style="color: var(--text-primary)">/{{ c.name }}</b>
+                  <span class="text-meta truncate min-w-0 flex-1">{{ c.hint }}</span>
+                </button>
+              </div>
               <div v-if="emojiOptions.length" class="absolute bottom-full mb-1 left-0 z-20 w-[260px] max-w-full rounded-lg overflow-hidden shadow-lg" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)">
                 <button v-for="(o, i) in emojiOptions" :key="o.name" type="button" class="w-full text-left px-3 py-1.5 text-[12px] flex items-center gap-2" :style="{ background: i === emojiIdx ? 'var(--surface-base)' : 'transparent' }" @mousedown.prevent="pickEmoji(o.name, o.emoji)">
                   <span class="text-[15px] shrink-0">{{ o.emoji }}</span>
                   <span class="text-meta truncate">:{{ o.name }}:</span>
                 </button>
               </div>
-              <textarea ref="commentEl" spellcheck="false" v-model="newComment" rows="3" placeholder="Leave a comment. Type @ to hand the next run to an agent" class="w-full px-2 py-1.5 rounded-lg text-[13px]" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)" @input="updateMention" @click="updateMention" @keydown="onCommentKey" @blur="mentionQuery = null; emojiQuery = null" />
+              <textarea ref="commentEl" spellcheck="false" v-model="newComment" rows="3" placeholder="Leave a comment. Type @ to hand the next run to an agent, / for commands" class="w-full px-2 py-1.5 rounded-lg text-[13px]" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)" @input="updateMention" @click="updateMention" @keydown="onCommentKey" @blur="mentionQuery = null; emojiQuery = null; slashQuery = null" />
             </div>
             <div class="flex justify-end gap-2">
               <UButton label="Comment" size="sm" variant="soft" color="neutral" :disabled="!newComment.trim() || busy" @click="send(false)" />

@@ -54,7 +54,9 @@ title, description, all comments, the wakeup text if any, then the hand-over ins
 The prompt is then only the issue id, title and that comment. No description, no earlier comments.
 The agent can read more with `claude-ui issue get`. It does not rewrite the description, it adds at most 1-3 bullets under **Findings**.
 Example: `@ops-engineer /adhoc check Snowflake for Petronas, which cluster is it`.
-`/last` works the same but also sends the comment right before yours (for example the agent's proposal when you reply `go`).
+`/last` works the same but also sends the 2 comments before yours (for example the agent's proposal and your `go`).
+`/last N` sends N+1 comments before yours (N max 10, yours and the agent's, oldest first).
+The +1 is there because a short reply of yours, like `go`, would otherwise use up the count.
 
 **The description is the relay between runs.** Before finishing, the agent reads the issue with `claude-ui issue get` and rewrites
 the description with `claude-ui issue update`. It keeps your original request at the top, then Context, Steps, Checklist, Findings, Next.
