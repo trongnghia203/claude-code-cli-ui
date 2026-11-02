@@ -153,14 +153,16 @@ async function doDelete() {
 
 /** Agents write line-per-line replies. Markdown folds single newlines, so keep them as hard breaks (not inside code fences). */
 // Agents write one sentence per line. Make each line its own paragraph (list items stay a tight list).
-const withBreaks = (t: string) => {
+const withBreaks = (t: string, tight = false) => {
   if (t.includes('```')) return t
   const isItem = (l: string) => /^\s*([-*+]|\d+[.)])\s/.test(l)
   const lines = t.split('\n')
   return lines.map((l, i) => {
     const next = lines[i + 1]
     if (next === undefined || !l.trim() || !next.trim()) return l
-    return isItem(l) && isItem(next) ? l : l + '\n'
+    if (isItem(l) && isItem(next)) return l
+    // Your own notes are short lines: keep them close together instead of one paragraph each
+    return tight ? l + '  ' : l + '\n'
   }).join('\n')
 }
 /** Turn @agent into a pill (only for agents that exist, so emails and handles are left alone). */
@@ -211,11 +213,11 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
                   <UIcon :name="b.comment.author === 'agent' ? 'i-lucide-cpu' : 'i-lucide-user'" class="size-3.5" />
                   {{ b.comment.author === 'agent' ? agentName(issue.assignee) : 'You' }} &middot; {{ when(b.comment.at) }}
                 </div>
-                <div class="md-prose issue-prose" v-html="renderMarkdown(mentionize(withBreaks(b.comment.body)))" />
+                <div class="md-prose issue-prose" v-html="renderMarkdown(mentionize(withBreaks(b.comment.body, b.comment.author === 'user')))" />
               </div>
               <!-- run and status activity, folded into one line -->
               <div v-else>
-                <button class="w-full flex items-center gap-2 text-[12px] text-label rounded-lg px-2 py-1.5 hover-bg text-left" @click="toggleGroup(b.key)">
+                <button class="w-full flex items-center gap-2 text-[12px] text-label rounded-lg px-0 py-1.5 text-left" @click="toggleGroup(b.key)">
                   <UIcon name="i-lucide-chevron-right" class="size-3.5 shrink-0 transition-transform" :class="{ 'rotate-90': groupOpen(b) }" />
                   <template v-if="b.run">
                     <UIcon :name="ISSUE_RUN_META[b.run.status].icon" class="size-3.5 shrink-0" :class="{ 'animate-spin': b.run.status === 'running' }" :style="{ color: ISSUE_RUN_META[b.run.status].color }" />

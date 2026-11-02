@@ -1655,7 +1655,7 @@ details summary::-webkit-details-marker {
   --md-font-size: 14px;
   line-height: 1.7;
 }
-.issue-prose p { margin: 0.65rem 0; line-height: 1.7; }
+.issue-prose p { margin: 0.5rem 0; line-height: 1.65; }
 .issue-prose p:first-child { margin-top: 0; }
 .issue-prose p:last-child { margin-bottom: 0; }
 .issue-prose li { margin: 0.2rem 0; line-height: 1.65; }
