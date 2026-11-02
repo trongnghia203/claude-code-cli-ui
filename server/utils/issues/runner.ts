@@ -93,6 +93,30 @@ If the description names a Jira key (CSI-, ICU-, ONE-), that ticket's impl-notes
 
 Last, finish with a 2-3 line summary: what changed, what needs review. That summary is posted as the comment. Do not post comments with the CLI.`
 
+// Adhoc hand-over: a side question must not rewrite the main description, so the run only appends a short note.
+const ADHOC_RELAY_INSTRUCTION = `
+## Before you finish
+
+This is an adhoc run. Do not rewrite the description and do not touch the original request.
+If you found a fact the next run needs, add 1-3 bullets under **Findings** in the description:
+1. Read it: \`claude-ui issue get {ID}\`
+2. Rewrite it with only that edit: \`claude-ui issue update {ID} --body-file - <<'EOF'\` ... \`EOF\`
+Skip the edit if nothing is worth keeping.
+
+Last, finish with a 2-3 line summary of the answer. That summary is posted as the comment. Do not post comments with the CLI.`
+
+/** An adhoc run sees only the issue id, title and the new comment. The agent can fetch more with `claude-ui issue get`. */
+export function buildAdhocPrompt(issue: Issue, question: string): string {
+  return [
+    `You are working on issue ${issue.id}: ${issue.title}`,
+    '\nThis is an adhoc question. You get no description or earlier comments on purpose.',
+    `If you need more context, run \`claude-ui issue get ${issue.id}\`.`,
+    `\n## Question\n${question.trim()}`,
+    '\nDo the work in the current directory.',
+    ADHOC_RELAY_INSTRUCTION.replaceAll('{ID}', issue.id),
+  ].join('\n')
+}
+
 export function buildPrompt(issue: Issue, extra?: string): string {
   const parts = [
     `You are working on issue ${issue.id}: ${issue.title}`,
@@ -110,7 +134,7 @@ export function buildPrompt(issue: Issue, extra?: string): string {
 }
 
 /** Start a run for the issue. Returns the run id, or null when one is already active. */
-export function startRun(issueId: string, trigger?: string, extraInstruction?: string, agentOverride?: string | null): string | null {
+export function startRun(issueId: string, trigger?: string, extraInstruction?: string, agentOverride?: string | null, adhocQuestion?: string): string | null {
   if (active.has(issueId)) return null
   const issue = readIssue(issueId)
   if (!issue) return null
@@ -123,7 +147,7 @@ export function startRun(issueId: string, trigger?: string, extraInstruction?: s
     trigger: (trigger?.trim().replace(/\s+/g, ' ').slice(0, 160)) || (issue.runs.length ? 'Run agent' : 'Initial run'),
   }
 
-  const prompt = buildPrompt(issue, extraInstruction)
+  const prompt = adhocQuestion ? buildAdhocPrompt(issue, adhocQuestion) : buildPrompt(issue, extraInstruction)
   updateIssue(issueId, (i) => {
     i.runs.push(run)
     i.timeline.push({ id: newEntryId(), at: run.startedAt, type: 'run', runId })

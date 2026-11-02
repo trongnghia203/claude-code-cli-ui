@@ -50,6 +50,11 @@ A run keeps no session (`--no-session-persistence`). The prompt is built by `bui
 title, description, all comments, the wakeup text if any, then the hand-over instruction.
 "Run agent" and "Comment and run" use the same prompt. Your comment is already in the timeline, so it appears under Discussion.
 
+**Adhoc run.** Start a comment with `/adhoc` (an `@agent` mention may come first) and press "Comment and run".
+The prompt is then only the issue id, title and that comment. No description, no earlier comments.
+The agent can read more with `claude-ui issue get`. It does not rewrite the description, it adds at most 1-3 bullets under **Findings**.
+Example: `@ops-engineer /adhoc check Snowflake for Petronas, which cluster is it`.
+
 **The description is the relay between runs.** Before finishing, the agent reads the issue with `claude-ui issue get` and rewrites
 the description with `claude-ui issue update`. It keeps your original request at the top, then Context, Steps, Checklist, Findings, Next.
 Long detail goes to the project notes file (for a Jira ticket: its impl-notes). The agent's final message is only a 2-3 line summary,

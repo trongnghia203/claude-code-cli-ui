@@ -21,6 +21,8 @@ export default defineEventHandler(async (event) => {
       i.assignee = mention
     }
   })
-  if (run) startRun(id, text)
+  // `/adhoc` as first word (after optional @mentions): the run gets only this comment, not the description or history
+  const adhoc = /^\s*(?:@[\w-]+\s+)*\/adhoc(?:\s+|$)/i.test(text)
+  if (run) startRun(id, text, undefined, null, adhoc ? text.replace(/\/adhoc\b/i, '').trim() : undefined)
   return { issue: readIssue(id) }
 })
