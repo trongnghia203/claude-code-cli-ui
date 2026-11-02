@@ -21,6 +21,6 @@ export default defineEventHandler(async (event) => {
       i.assignee = mention
     }
   })
-  if (run) startRun(id)
+  if (run) startRun(id, text)
   return { issue: readIssue(id) }
 })

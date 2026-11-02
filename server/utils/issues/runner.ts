@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { readIssue, updateIssue, setStatus, newEntryId, type Issue, type IssueRun } from './store'
+import { appendTranscript, readIssue, updateIssue, setStatus, newEntryId, type Issue, type IssueRun, type RunUsage } from './store'
 
 const TIMEOUT_MS = 30 * 60_000
 const BUDGET_USD = 5
@@ -8,7 +8,32 @@ const MAX_RESULT_CHARS = 20_000
 const MCP_WAIT_MS = 60_000
 const MCP_POLL_MS = 2_000
 
-const active = new Map<string, { child: ChildProcess; runId: string; cancelled: boolean }>()
+export interface PendingApproval { id: string; tool: string; input: unknown; at: string }
+interface ActiveRun {
+  child: ChildProcess; runId: string; cancelled: boolean
+  pending: Map<string, PendingApproval & { respond: (allow: boolean, message?: string) => void; timer?: ReturnType<typeof setTimeout> }>
+  allowedTools: Set<string>
+}
+const APPROVAL_TIMEOUT_MS = 10 * 60_000
+
+const active = new Map<string, ActiveRun>()
+
+export function getPendingApprovals(issueId: string): PendingApproval[] {
+  const entry = active.get(issueId)
+  return entry ? [...entry.pending.values()].map(({ id, tool, input, at }) => ({ id, tool, input, at })) : []
+}
+
+/** decision: allow once, allow this tool for the rest of the run, or deny. */
+export function answerApproval(issueId: string, approvalId: string, decision: 'allow' | 'allow_tool' | 'deny'): boolean {
+  const entry = active.get(issueId)
+  const p = entry?.pending.get(approvalId)
+  if (!entry || !p) return false
+  if (decision === 'allow_tool') entry.allowedTools.add(p.tool)
+  p.respond(decision !== 'deny', decision === 'deny' ? 'Denied by the user' : undefined)
+  // Same tool may have queued more requests
+  if (decision === 'allow_tool') for (const q of [...entry.pending.values()]) if (q.tool === p.tool) q.respond(true)
+  return true
+}
 
 export const isRunning = (issueId: string) => active.has(issueId)
 
@@ -27,6 +52,25 @@ export function reapStaleRuns(issue: Issue): Issue {
   }) ?? issue
 }
 
+const toUsage = (u: any): RunUsage => ({
+  input: u?.input_tokens ?? 0, output: u?.output_tokens ?? 0,
+  cacheRead: u?.cache_read_input_tokens ?? 0, cacheWrite: u?.cache_creation_input_tokens ?? 0,
+})
+
+/** Keep transcripts small: tool output can be huge, and the page only needs the start of it. */
+function shrinkForTranscript(m: any) {
+  const MAX = 8_000
+  const cut = (v: unknown) => (typeof v === 'string' && v.length > MAX ? `${v.slice(0, MAX)}\n... (${v.length - MAX} more characters)` : v)
+  const content = m.message?.content
+  if (!Array.isArray(content)) return m
+  return {
+    type: m.type, parent_tool_use_id: m.parent_tool_use_id,
+    message: { content: content.map((b: any) => b.type === 'tool_result'
+      ? { ...b, content: Array.isArray(b.content) ? b.content.map((c: any) => ({ ...c, text: cut(c.text) })) : cut(b.content) }
+      : b.type === 'thinking' ? { type: 'thinking' } : b) },
+  }
+}
+
 export function buildPrompt(issue: Issue): string {
   const parts = [
     `You are working on issue ${issue.id}: ${issue.title}`,
@@ -42,14 +86,17 @@ export function buildPrompt(issue: Issue): string {
 }
 
 /** Start a run for the issue. Returns the run id, or null when one is already active. */
-export function startRun(issueId: string): string | null {
+export function startRun(issueId: string, trigger?: string): string | null {
   if (active.has(issueId)) return null
   const issue = readIssue(issueId)
   if (!issue) return null
 
   const runId = newEntryId()
   const startedAt = new Date()
-  const run: IssueRun = { id: runId, agent: issue.assignee, status: 'running', startedAt: startedAt.toISOString() }
+  const run: IssueRun = {
+    id: runId, agent: issue.assignee, status: 'running', startedAt: startedAt.toISOString(),
+    trigger: (trigger?.trim().replace(/\s+/g, ' ').slice(0, 160)) || (issue.runs.length ? 'Run agent' : 'Initial run'),
+  }
 
   const prompt = buildPrompt(issue)
   updateIssue(issueId, (i) => {
@@ -81,6 +128,8 @@ export function startRun(issueId: string): string | null {
   // wait until every server has left "pending" and only then send the prompt.
   const args = ['-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose',
     '--permission-mode', issue.permissionMode || 'acceptEdits', '--max-budget-usd', String(BUDGET_USD),
+    // Tools that need approval come to us as can_use_tool requests (answered from the issue page)
+    '--permission-prompt-tool', 'stdio',
     // No saved session: the issue description and comments are the only context a run gets, so every run starts fresh
     '--no-session-persistence']
   if (issue.assignee) args.push('--agent', issue.assignee)
@@ -94,15 +143,34 @@ export function startRun(issueId: string): string | null {
   let statusSeq = 0
   const waitStart = Date.now()
   const child = spawn('claude', args, { cwd: issue.projectDir, env: process.env, stdio: ['pipe', 'pipe', 'pipe'] })
-  active.set(issueId, { child, runId, cancelled: false })
+  active.set(issueId, { child, runId, cancelled: false, pending: new Map(), allowedTools: new Set() })
   const timer = setTimeout(() => { timedOut = true; child.kill('SIGTERM') }, TIMEOUT_MS)
   child.stdin.on('error', () => { /* child exited before reading */ })
 
   const write = (o: unknown) => { if (!child.stdin.destroyed) child.stdin.write(JSON.stringify(o) + '\n') }
   const askStatus = () => write({ type: 'control_request', request_id: `mcp-${statusSeq++}`, request: { subtype: 'mcp_status' } })
+  // The CLI asks the host before a tool that is not pre-approved. Show it on the issue page and wait for the user.
+  const askApproval = (m: any) => {
+    const entry = active.get(issueId)
+    const req = m.request
+    if (!entry) return
+    let answered = false
+    const reply = (allow: boolean, message?: string) => {
+      if (answered) return
+      answered = true
+      clearTimeout(entry.pending.get(m.request_id)?.timer)
+      entry.pending.delete(m.request_id)
+      write({ type: 'control_response', response: { subtype: 'success', request_id: m.request_id,
+        response: allow ? { behavior: 'allow', updatedInput: req.input ?? {} } : { behavior: 'deny', message: message || 'Denied' } } })
+    }
+    if (entry.allowedTools.has(req.tool_name)) return reply(true)
+    const timer = setTimeout(() => reply(false, 'No answer in 10 minutes'), APPROVAL_TIMEOUT_MS)
+    entry.pending.set(m.request_id, { id: m.request_id, tool: req.tool_name, input: req.input, at: new Date().toISOString(), respond: reply, timer } as any)
+  }
   const sendPrompt = () => {
     if (promptSent) return
     promptSent = true
+    appendTranscript(issueId, runId, { type: 'prompt', text: prompt })
     write({ type: 'user', message: { role: 'user', content: prompt } })
   }
 
@@ -115,11 +183,14 @@ export function startRun(issueId: string): string | null {
       if (!line) continue
       let m: any
       try { m = JSON.parse(line) } catch { continue }
+      if (m.type === 'assistant' || m.type === 'user' || m.type === 'result') appendTranscript(issueId, runId, shrinkForTranscript(m))
       if (m.type === 'control_response' && !promptSent) {
         const servers: { status: string }[] = m.response?.response?.mcpServers ?? []
         const settled = servers.length > 0 && servers.every(sv => sv.status !== 'pending')
         if (settled || Date.now() - waitStart > MCP_WAIT_MS) sendPrompt()
         else setTimeout(askStatus, MCP_POLL_MS)
+      } else if (m.type === 'control_request' && m.request?.subtype === 'can_use_tool') {
+        askApproval(m)
       } else if (m.type === 'system' && m.subtype === 'init' && issue.assignee && Array.isArray(m.agents) && !m.agents.includes(issue.assignee)) {
         // Stream mode silently falls back to the default agent for an unknown --agent. Stop instead of running the wrong one.
         badAgent = `Agent "${issue.assignee}" not found. Available: ${m.agents.slice(0, 15).join(', ')}`
@@ -150,6 +221,11 @@ export function startRun(issueId: string): string | null {
       const result = String(resultMsg.result ?? '').slice(0, MAX_RESULT_CHARS)
       finish({
         status: failed ? 'error' : 'success',
+        usage: toUsage(resultMsg.usage),
+        models: Object.entries(resultMsg.modelUsage ?? {}).map(([model, u]: [string, any]) => ({
+          model, costUsd: u.costUSD ?? 0, input: u.inputTokens ?? 0, output: u.outputTokens ?? 0,
+          cacheRead: u.cacheReadInputTokens ?? 0, cacheWrite: u.cacheCreationInputTokens ?? 0,
+        })),
         costUsd: resultMsg.total_cost_usd,
         numTurns: resultMsg.num_turns,
         permissionDenials: (resultMsg.permission_denials || []).map((d: any) => d.tool_name || String(d)),

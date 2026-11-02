@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { resolveClaudePath } from '../claudeDir'
@@ -12,6 +12,9 @@ export type IssuePermissionMode = typeof PERMISSION_MODES[number]
 
 export type IssueRunStatus = 'running' | 'success' | 'error' | 'timeout' | 'cancelled'
 
+export interface RunUsage { input: number; output: number; cacheRead: number; cacheWrite: number }
+export interface RunModelUsage extends RunUsage { model: string; costUsd: number }
+
 export interface IssueRun {
   id: string
   agent: string | null
@@ -20,6 +23,10 @@ export interface IssueRun {
   finishedAt?: string
   durationMs?: number
   sessionId?: string
+  /** What started the run: the comment text, or "Initial run" / "Run agent" */
+  trigger?: string
+  usage?: RunUsage
+  models?: RunModelUsage[]
   costUsd?: number
   numTurns?: number
   permissionDenials?: string[]
@@ -57,6 +64,24 @@ const KEY_RE = /^ISS-\d+$/
 const issuesDir = () => resolveClaudePath('issues')
 const counterFile = () => join(issuesDir(), '_counter.json')
 const issueFile = (id: string) => join(issuesDir(), `${id}.json`)
+
+// Read-only run transcripts live next to the issues, not in the project's Claude sessions.
+const transcriptDir = (id: string) => join(issuesDir(), '_transcripts', id)
+const transcriptFile = (id: string, runId: string) => join(transcriptDir(id), `${runId.replace(/[^\w-]/g, '')}.jsonl`)
+
+export function appendTranscript(id: string, runId: string, record: unknown) {
+  try {
+    mkdirSync(transcriptDir(id), { recursive: true })
+    appendFileSync(transcriptFile(id, runId), JSON.stringify(record) + '\n')
+  } catch { /* a transcript failure must never break a run */ }
+}
+
+export function readTranscript(id: string, runId: string): unknown[] {
+  if (!isValidKey(id)) return []
+  try {
+    return readFileSync(transcriptFile(id, runId), 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l))
+  } catch { return [] }
+}
 
 export const isValidKey = (id: string) => KEY_RE.test(id)
 // A function declaration, not an arrow with a comma: Nitro's auto-import scanner mis-splits "(0, 8)" in exported consts
@@ -141,6 +166,7 @@ export function updateIssue(id: string, mutate: (issue: Issue) => void): Issue |
 export function deleteIssue(id: string): boolean {
   if (!readIssue(id)) return false
   rmSync(issueFile(id), { force: true })
+  rmSync(transcriptDir(id), { recursive: true, force: true })
   return true
 }
 
