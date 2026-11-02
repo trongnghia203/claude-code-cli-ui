@@ -2,10 +2,10 @@
 import type { IssueInput, IssuePermissionMode, IssuePriority, IssueStatus } from '~/composables/useIssues'
 import { ISSUE_PRIORITIES, ISSUE_PRIORITY_META, ISSUE_STATUS_META, ISSUE_STATUSES } from '~/composables/useIssues'
 
-const props = defineProps<{ projectDir: string; agents: { slug: string; name: string }[]; busy?: boolean }>()
+const props = defineProps<{ projectDir: string; projects?: { path: string; name: string }[]; agents: { slug: string; name: string }[]; busy?: boolean }>()
 const emit = defineEmits<{
   save: [input: IssueInput, another: boolean]
-  'agent-create': [prompt: string, another: boolean, draftAgent: string]
+  'agent-create': [prompt: string, another: boolean, draftAgent: string, projectDir: string]
   cancel: []
 }>()
 
@@ -26,10 +26,17 @@ const status = ref<IssueStatus>('todo')
 const priority = ref<IssuePriority>('none')
 const assignee = ref('')
 const permissionMode = ref<IssuePermissionMode>('acceptEdits')
+const dir = ref(props.projectDir)
+// The selected project first, then the others; a folder with no entry still shows by its last segment
+const baseName = (d: string) => d.split('/').filter(Boolean).pop() || d
+const projectChoices = computed(() => {
+  const list = (props.projects ?? []).map(p => ({ path: p.path, name: p.name || baseName(p.path) }))
+  if (dir.value && !list.some(p => p.path === dir.value)) list.unshift({ path: dir.value, name: baseName(dir.value) })
+  return list
+})
 const ic = useIssueConfig()
-const config = computed(() => ic.configFor(props.projectDir))
-const activeProperties = computed(() => ic.activePropertiesFor(props.projectDir))
-onMounted(() => ic.load(props.projectDir))
+const config = computed(() => ic.configFor(dir.value))
+const activeProperties = computed(() => ic.activePropertiesFor(dir.value))
 const labelIds = ref<string[]>([])
 const props_ = ref<Record<string, string | number | boolean>>({})
 const toggleLabel = (id: string) => { labelIds.value = labelIds.value.includes(id) ? labelIds.value.filter(x => x !== id) : [...labelIds.value, id] }
@@ -39,10 +46,16 @@ const setProp = (id: string, v: string | number | boolean | null) => {
   else next[id] = v
   props_.value = next
 }
+// Labels and properties belong to a project: load them for the chosen one and drop picks made for another
+watch(dir, (d) => {
+  labelIds.value = []
+  props_.value = {}
+  if (d) ic.load(d)
+}, { immediate: true })
 const another = ref(false)
 
 const willRun = computed(() => !!assignee.value && (status.value === 'todo' || status.value === 'in_progress'))
-const canSubmit = computed(() => !props.busy && (mode.value === 'agent' ? !!request.value.trim() : !!title.value.trim()))
+const canSubmit = computed(() => !props.busy && !!dir.value && (mode.value === 'agent' ? !!request.value.trim() : !!title.value.trim()))
 
 function toManual() {
   // Keep what was typed: a failed or unwanted agent request becomes the title
@@ -57,7 +70,7 @@ function toAgent() {
 
 function submit() {
   if (!canSubmit.value) return
-  if (mode.value === 'agent') return emit('agent-create', request.value.trim(), another.value, draftAgent.value)
+  if (mode.value === 'agent') return emit('agent-create', request.value.trim(), another.value, draftAgent.value, dir.value)
   emit('save', {
     title: title.value.trim(),
     description: description.value,
@@ -67,7 +80,7 @@ function submit() {
     permissionMode: permissionMode.value,
     labels: labelIds.value,
     properties: props_.value,
-    projectDir: props.projectDir,
+    projectDir: dir.value,
   }, another.value)
 }
 </script>
@@ -78,16 +91,16 @@ function submit() {
 
     <template v-if="mode === 'agent'">
       <textarea v-model="request" rows="6" autofocus :disabled="busy" class="w-full px-3 py-2 rounded-lg text-[14px]" style="background: var(--surface-base); border: 1px solid var(--border-subtle)"
-        placeholder='Tell the agent what to do, e.g. "let code-reviewer fix the slow inbox loading in the web app"' />
-      <label class="flex items-center gap-2 text-[12px]">
-        <span class="text-label shrink-0">Read sources with</span>
-        <select v-model="draftAgent" class="flex-1 min-w-0 px-2 py-1.5 rounded-lg" style="background: var(--surface-base); border: 1px solid var(--border-subtle)" :disabled="busy">
+        placeholder='Tell the agent what to do, e.g. "fix the session mismatch error, see SURI-249"' />
+      <label class="field-group">
+        <span class="field-label">Read sources with</span>
+        <select v-model="draftAgent" class="field-select" :disabled="busy">
           <option v-for="a in agents" :key="a.slug" :value="a.slug">{{ a.name }}</option>
         </select>
       </label>
-      <p class="text-[12px]" :style="hasSources ? 'color: #3b82f6' : ''" :class="hasSources ? '' : 'text-label'">
-        <template v-if="hasSources">Links or ticket keys found. The issue is filed now, then the agent reads them (read-only) and rewrites the title and description.</template>
-        <template v-else>The agent writes the title and description, picks an agent if you name one, and starts working after creation. Add a link, a Jira key or a Slack thread and it reads them first.</template>
+      <p class="text-[13px] leading-relaxed" :style="hasSources ? 'color: #3b82f6' : 'color: var(--text-secondary)'">
+        <template v-if="hasSources">Link or ticket key found. The issue is filed now, then the agent reads it (read-only) and rewrites the text.</template>
+        <template v-else>The agent writes the title and description. Add a link or Jira key and it reads them first.</template>
       </p>
     </template>
 
@@ -128,7 +141,14 @@ function submit() {
       <p v-if="willRun" class="text-[12px]" style="color: #3b82f6">The agent starts working as soon as you create this issue.</p>
     </template>
 
-    <p class="flex items-center gap-1.5 text-[11px] text-meta font-mono truncate"><UIcon name="i-lucide-folder" class="size-3.5 shrink-0" />{{ projectDir }}</p>
+    <label class="field-group">
+      <span class="field-label">Project</span>
+      <select v-model="dir" class="field-select" :disabled="busy" :title="dir">
+        <option v-if="!dir" value="" disabled>Select a project</option>
+        <option v-for="p in projectChoices" :key="p.path" :value="p.path">{{ p.name }}</option>
+      </select>
+      <span class="field-hint font-mono truncate" :title="dir">{{ dir }}</span>
+    </label>
 
     <div class="flex items-center gap-3 pt-1" style="border-top: 1px solid var(--border-subtle)">
       <button type="button" class="flex items-center gap-1.5 mt-3 px-2.5 py-1.5 rounded-lg text-[12px] font-medium hover-bg" :disabled="busy"

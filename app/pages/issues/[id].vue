@@ -497,6 +497,7 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
             </div>
             <p v-if="clearing" class="text-[12px]" style="color: #d97706">Hides {{ liveCount }} {{ liveCount === 1 ? 'comment' : 'comments' }} from later runs. Nothing is deleted. Use /distill to keep what they say in the description.</p>
             <div class="flex justify-end gap-2">
+              <UButton v-if="running" label="Stop run" icon="i-lucide-square" color="error" variant="soft" size="sm" title="Stop the agent that is running now" @click="onCancel" />
               <UButton label="Comment" size="sm" variant="soft" color="neutral" :disabled="!newComment.trim() || busy" @click="send(false)" />
               <UButton label="Comment and run" size="sm" icon="i-lucide-play" :disabled="!newComment.trim() || busy || running || (!issue.assignee && !mentionedAgent)" :title="issue.assignee || mentionedAgent ? (mentionedAgent ? `Run @${mentionedAgent}` : '') : 'Assign an agent or @mention one'" @click="send(true)" />
             </div>

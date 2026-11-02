@@ -124,6 +124,14 @@ const openNewView = () => { newViewKey.value++; showNewView.value = true }
 
 const busy = ref(false)
 const formKey = ref(0)
+// Projects the new-issue form can pick from: the Claude Code projects, most recent first
+const pickable = ref<{ path: string; name: string }[]>([])
+async function loadPickable() {
+  try {
+    pickable.value = (await $fetch<{ path: string; displayName: string }[]>('/api/projects')).map(p => ({ path: p.path, name: p.displayName }))
+  } catch { pickable.value = [] }
+}
+const openForm = () => { loadPickable(); showForm.value = true }
 
 async function afterCreate(issue: { id: string } | null, another: boolean) {
   busy.value = false
@@ -137,9 +145,9 @@ async function onCreate(input: IssueInput, another: boolean) {
   busy.value = true
   await afterCreate(await create(input), another)
 }
-async function onAgentCreate(prompt: string, another: boolean, draftAgent: string) {
+async function onAgentCreate(prompt: string, another: boolean, draftAgent: string, projectDir: string) {
   busy.value = true
-  await afterCreate(await createWithAgent(prompt, workingDir.value, agents.value.map(a => ({ slug: a.slug, name: a.frontmatter.name || a.slug, description: a.frontmatter.description || '' })), draftAgent), another)
+  await afterCreate(await createWithAgent(prompt, projectDir, agents.value.map(a => ({ slug: a.slug, name: a.frontmatter.name || a.slug, description: a.frontmatter.description || '' })), draftAgent), another)
 }
 
 // Drag a card to another column. Only when grouped by status: other groupings would silently set priority or assignee.
@@ -169,7 +177,10 @@ const FRESH_MS = 60 * 60_000
 const tick = ref(Date.now())
 let tickTimer: ReturnType<typeof setInterval> | null = null
 const isFresh = (i: { id: string; updatedAt: string }) => tick.value - Date.parse(i.updatedAt) < FRESH_MS && isUnseen(i.id, i.updatedAt)
-const cardStyle = (i: { id: string; updatedAt: string }) => (isFresh(i)
+// Orange wins over blue: a run waiting for Allow or Deny needs you now
+const cardStyle = (i: { id: string; updatedAt: string; awaitingApproval?: boolean }) => (i.awaitingApproval
+  ? 'background: color-mix(in srgb, #f97316 16%, var(--surface-base)); border: 1px solid color-mix(in srgb, #f97316 55%, var(--border-subtle))'
+  : isFresh(i)
   ? 'background: color-mix(in srgb, #3b82f6 15%, var(--surface-base)); border: 1px solid color-mix(in srgb, #3b82f6 45%, var(--border-subtle))'
   : 'background: var(--surface-base); border: 1px solid var(--border-subtle)')
 onUnmounted(() => { if (timer) clearInterval(timer); if (tickTimer) clearInterval(tickTimer) })
@@ -202,7 +213,7 @@ useHead({ title: 'Issues | Agent Manager' })
       </div>
       <NuxtLink to="/issues/settings" :class="iconBtn" title="Issue settings" style="color: var(--text-tertiary)"><UIcon name="i-lucide-settings-2" class="size-4 block" /></NuxtLink>
       <button :class="iconBtn" title="Refresh" style="color: var(--text-tertiary)" @click="refresh"><UIcon name="i-lucide-refresh-cw" class="size-4 block" :class="{ 'animate-spin': loading }" /></button>
-      <button class="flex items-center gap-2 px-3 py-2 rounded-xl text-[13px] font-semibold disabled:opacity-50" style="background: var(--accent); color: white" :disabled="!workingDir" :title="workingDir ? '' : 'Select a project first'" @click="showForm = true">
+      <button class="flex items-center gap-2 px-3 py-2 rounded-xl text-[13px] font-semibold disabled:opacity-50" style="background: var(--accent); color: white" @click="openForm">
         <UIcon name="i-lucide-plus" class="size-4" /> New issue
       </button>
     </div>
@@ -220,7 +231,7 @@ useHead({ title: 'Issues | Agent Manager' })
         :title="activeView ? `Save the changes to ${activeView.name}` : 'Save these filters as a view'" @click="onSave">{{ activeView ? 'Save' : 'Save as view' }}</button>
     </div>
 
-    <p v-if="!workingDir" class="px-6 pt-3 text-[12px] text-meta">Select a project to create issues. Agents run in that folder.</p>
+    <p v-if="!workingDir" class="px-6 pt-3 text-[12px] text-meta">Select a project to see its issues. New issues let you pick the project.</p>
 
     <!-- Board -->
     <div v-if="view === 'board'" class="flex-1 min-h-0 overflow-x-auto overflow-y-hidden p-4 flex gap-3">
@@ -235,12 +246,13 @@ useHead({ title: 'Issues | Agent Manager' })
         </header>
         <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 pb-2 space-y-2">
           <article v-for="i in cardsIn(c)" :key="i.id" :draggable="canDrag" class="rounded-lg p-3 cursor-pointer"
-            :style="cardStyle(i)" :title="isFresh(i) ? 'Updated since you last opened it' : undefined"
+            :style="cardStyle(i)" :title="i.awaitingApproval ? 'Waiting for your approval' : isFresh(i) ? 'Updated since you last opened it' : undefined"
             @dragstart="dragId = i.id" @dragend="dragId = overKey = null" @click="open(i)">
             <div class="flex items-center gap-3 text-[12px] text-meta font-mono">
               <template v-if="shows('id')">{{ i.id }}</template>
               <span v-if="shows('assignee')" class="flex items-center gap-1.5 min-w-0 font-sans text-[12px] text-label" :title="agentName(i.assignee)"><UIcon name="i-lucide-cpu" class="size-3.5 shrink-0" /><span class="truncate">{{ agentName(i.assignee) }}</span></span>
-              <UIcon v-if="i.running || i.drafting" name="i-lucide-loader-2" class="size-3 animate-spin" style="color: #3b82f6" :title="i.drafting ? 'Agent is reading sources' : undefined" />
+              <UIcon v-if="i.awaitingApproval" name="i-lucide-shield-question" class="size-3.5" style="color: #ea580c" title="Waiting for your approval" />
+              <UIcon v-else-if="i.running || i.drafting" name="i-lucide-loader-2" class="size-3 animate-spin" style="color: #3b82f6" :title="i.drafting ? 'Agent is reading sources' : undefined" />
               <span class="ml-auto flex items-center gap-2 shrink-0">
                 <span v-if="shows('comments') && i.commentCount" class="flex items-center gap-1 font-sans text-[12px] text-label" title="Comments"><UIcon name="i-lucide-message-square" class="size-3.5" />{{ i.commentCount }}</span>
                 <span v-if="shows('priority')" class="size-2.5 rounded-full" :title="ISSUE_PRIORITY_META[i.priority].label" :style="{ background: ISSUE_PRIORITY_META[i.priority].color }" />
@@ -275,7 +287,7 @@ useHead({ title: 'Issues | Agent Manager' })
             <span class="text-meta font-normal">{{ cardsIn(c).length }}</span>
           </h2>
           <div class="rounded-xl overflow-hidden" style="border: 1px solid var(--border-subtle)">
-            <button v-for="i in cardsIn(c)" :key="i.id" class="w-full flex items-center gap-3 px-3 py-2 text-left hover-bg text-[13px]" style="border-bottom: 1px solid var(--border-subtle)" @click="open(i)">
+            <button v-for="i in cardsIn(c)" :key="i.id" class="w-full flex items-center gap-3 px-3 py-2 text-left hover-bg text-[13px]" :style="{ borderBottom: '1px solid var(--border-subtle)', ...(i.awaitingApproval ? { background: 'color-mix(in srgb, #f97316 16%, var(--surface-base))' } : {}) }" :title="i.awaitingApproval ? 'Waiting for your approval' : undefined" @click="open(i)">
               <span v-if="shows('priority')" class="size-2 rounded-full shrink-0" :style="{ background: ISSUE_PRIORITY_META[i.priority].color }" />
               <span v-if="shows('id')" class="font-mono text-[11px] text-meta w-16 shrink-0">{{ i.id }}</span>
               <span class="flex-1 truncate">{{ i.title }}</span>
@@ -309,7 +321,7 @@ useHead({ title: 'Issues | Agent Manager' })
 
     <UModal v-model:open="showForm" :dismissible="!busy">
       <template #content>
-        <IssueForm :key="formKey" :project-dir="workingDir" :agents="agentOptions" :busy="busy" @save="onCreate" @agent-create="onAgentCreate" @cancel="showForm = false" />
+        <IssueForm :key="formKey" :project-dir="workingDir" :projects="pickable" :agents="agentOptions" :busy="busy" @save="onCreate" @agent-create="onAgentCreate" @cancel="showForm = false" />
       </template>
     </UModal>
   </div>
