@@ -71,6 +71,28 @@ function shrinkForTranscript(m: any) {
   }
 }
 
+// The description is the relay between runs: a run keeps no session, so the next run sees only the description and comments.
+// Detail that does not fit belongs in the project's own notes (for a Jira ticket: its impl-notes file).
+const RELAY_INSTRUCTION = `
+## Before you finish: hand over to the next run
+
+The next run starts fresh with no memory. The issue description is its main context, so write what it needs there.
+
+1. Read the latest text: \`claude-ui issue get {ID}\`
+2. Rewrite it: \`claude-ui issue update {ID} --body-file - <<'EOF'\` ... \`EOF\`
+
+Keep the original request at the top, unchanged. Below it keep these sections. Rewrite stale parts, do not append a log:
+- **Context**: 2-5 sentences. Current state, constraints.
+- **Steps**: short list with the files touched.
+- **Checklist**: tick-boxes only. \`- [x]\` done, \`- [ ]\` open. No code or nested detail inside items.
+- **Findings**: non-obvious facts, dead approaches and why.
+- **Next**: what the next run should pick up first.
+
+Put long detail (command output, diffs, step observations) in the project's notes file if there is one, and link it from Steps.
+If the description names a Jira key (CSI-, ICU-, ONE-), that ticket's impl-notes file is the notes file. Keep it current too.
+
+Last, finish with a 2-3 line summary: what changed, what needs review. That summary is posted as the comment. Do not post comments with the CLI.`
+
 export function buildPrompt(issue: Issue, extra?: string): string {
   const parts = [
     `You are working on issue ${issue.id}: ${issue.title}`,
@@ -82,7 +104,8 @@ export function buildPrompt(issue: Issue, extra?: string): string {
     for (const c of comments) if (c.type === 'comment') parts.push(`**${c.author}** (${c.at}):\n${c.body}`)
   }
   if (extra?.trim()) parts.push(`\n## Wakeup\n${extra.trim()}`)
-  parts.push('\nDo the work in the current directory. When done, finish with a short summary of what you changed and anything that needs review.')
+  parts.push('\nDo the work in the current directory.')
+  parts.push(RELAY_INSTRUCTION.replaceAll('{ID}', issue.id))
   return parts.filter(Boolean).join('\n')
 }
 

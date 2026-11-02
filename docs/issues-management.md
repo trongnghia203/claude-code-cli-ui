@@ -44,6 +44,19 @@ The New issue dialog opens in **Create with agent** mode. Type one line, press C
 
 Assigning no agent means you own it. No run is created.
 
+### Context a run receives
+
+A run keeps no session (`--no-session-persistence`). The prompt is built by `buildPrompt()` in `server/utils/issues/runner.ts`:
+title, description, all comments, the wakeup text if any, then the hand-over instruction.
+"Run agent" and "Comment and run" use the same prompt. Your comment is already in the timeline, so it appears under Discussion.
+
+**The description is the relay between runs.** Before finishing, the agent reads the issue with `claude-ui issue get` and rewrites
+the description with `claude-ui issue update`. It keeps your original request at the top, then Context, Steps, Checklist, Findings, Next.
+Long detail goes to the project notes file (for a Jira ticket: its impl-notes). The agent's final message is only a 2-3 line summary,
+posted as the comment.
+The agent needs `Bash(claude-ui issue *)` allowed in `~/.claude/settings.json`, or it asks for approval on the issue page.
+You can edit the description between runs. The next run reads your edit.
+
 ## Run settings
 
 Per issue: permission mode (`plan`, `default`, `acceptEdits`). Default `acceptEdits`.
