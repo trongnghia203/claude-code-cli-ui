@@ -5,7 +5,7 @@
 **Issue runs hand over through the description**
 - Add a hand-over instruction to the run prompt - the agent rewrites the issue description (Context, Steps, Checklist, Findings, Next) with `claude-ui issue update`
 - Keep the original request at the top; the final message is now a 2-3 line summary posted as the comment
-- Document the run context in `docs/issues-management.md`
+- Document the run context and the `claude-ui issue` CLI in `docs/issues-management.md`; add a pointer in `CLAUDE.md`
 
 **Issue filters, display and views (`/issues`)**
 - Add Filter menu - status, priority, assignee, label, project (All scope), date (created, updated or any date property) and select, checkbox, text properties; AND between filters, OR inside one [`9bb6375`](https://github.com/trongnghia203/claude-code-cli-ui/commit/9bb6375)

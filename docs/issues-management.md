@@ -63,6 +63,26 @@ Per issue: permission mode (`plan`, `default`, `acceptEdits`). Default `acceptEd
 Use `plan` for investigation issues where the agent should not edit files.
 Fixed: budget $5, timeout 30 minutes.
 
+## CLI: `claude-ui issue`
+
+Agent-safe way to read and write issues from a terminal or from a run. Source: `scripts/claude-ui-issue.mjs`, dispatched by `scripts/claude-ui`.
+It talks to the local server (`CLAUDE_UI_URL`, or `CLAUDE_UI_PORT`, default 3030). Start it first: `claude-ui start --no-open`.
+
+```bash
+claude-ui issue list    [--status S] [--label L] [--limit N] [--json]
+claude-ui issue get     ISS-1 [--comments N] [--json]
+claude-ui issue create  --title T [--body TEXT | --body-file FILE|-] [--status S] [--priority P] [--label a,b] [--project DIR] [--parent ISS-1]
+claude-ui issue update  ISS-1 [--title T] [--body TEXT | --body-file FILE|-] [--priority P] [--label a,b] [--add-label L] [--remove-label L]
+claude-ui issue move    ISS-1 STATUS
+claude-ui issue comment ISS-1 [--body TEXT | --body-file FILE|-]
+```
+
+- `--body-file -` reads stdin. `update --body` replaces the whole description.
+- `create` makes an unassigned issue in `plan` mode, default project is the current directory or `CLAUDE_UI_PROJECT`.
+- There is no run, cancel, assign or delete verb on purpose. An agent can't start runs or hand work to another agent.
+- `move` to `todo` or `in_progress` is refused on an assigned issue, because that status starts a run.
+- To let runs use it without a prompt, allow `Bash(claude-ui issue *)` in `~/.claude/settings.json`.
+
 ## Views
 
 - **Board**: one column per status. Change status with the card menu or on the detail page.
