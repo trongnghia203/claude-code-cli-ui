@@ -487,6 +487,7 @@ function getTaskActionColor(action: string): string {
 }
 
 // Check if this is a Bash tool
+const showFullCommand = ref(false)
 const isBash = computed(() => (props.message.toolName || '').toLowerCase() === 'bash')
 
 // Get bash command and description
@@ -504,6 +505,9 @@ const bashCommand = computed(() => {
 
   return input.command || null
 })
+
+// Long commands (heredocs) fold to two lines
+const isLongCommand = computed(() => !!bashCommand.value && (bashCommand.value.length > 220 || bashCommand.value.split('\n').length > 3))
 
 const bashDescription = computed(() => {
   if (!isBash.value || !props.message.toolInput) return null
@@ -688,9 +692,22 @@ function getTodoStatusBadge(status: string): { bg: string; color: string; label:
           style="background: #1a1b26;"
         >
           <!-- Command -->
-          <div class="font-mono text-[11px] md:text-[12px] break-all" style="color: #9ece6a;">
+          <div
+            class="font-mono text-[11px] md:text-[12px] break-all"
+            :class="showFullCommand ? 'whitespace-pre-wrap' : 'line-clamp-2'"
+            style="color: #9ece6a;"
+          >
             <span style="color: #7aa2f7;">$</span> {{ bashCommand }}
           </div>
+          <button
+            v-if="isLongCommand"
+            class="mt-1.5 inline-flex items-center gap-1 text-[11px]"
+            style="color: #7aa2f7;"
+            @click="showFullCommand = !showFullCommand"
+          >
+            <UIcon :name="showFullCommand ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'" class="size-3" />
+            {{ showFullCommand ? 'Collapse command' : `Show full command (${bashCommand.length} chars)` }}
+          </button>
         </div>
 
         <!-- Description -->
