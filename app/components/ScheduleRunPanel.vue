@@ -79,7 +79,7 @@ const resultHtml = computed(() =>
     <template v-else>
       <!-- Header -->
       <div class="shrink-0 px-6 min-h-[56px] py-2 flex items-center gap-3" style="border-bottom: 1px solid var(--border-subtle)">
-        <button class="p-1.5 rounded-lg hover-bg focus-ring flex items-center justify-center" style="color: var(--text-secondary)" title="Back to schedule" @click="emit('back')">
+        <button class="size-8 shrink-0 rounded-lg hover-bg focus-ring flex items-center justify-center" style="color: var(--text-secondary); border: 1px solid var(--border-subtle)" title="Back to schedule" @click="emit('back')">
           <UIcon name="i-lucide-arrow-left" class="size-4 block" />
         </button>
         <div class="min-w-0 flex-1">
