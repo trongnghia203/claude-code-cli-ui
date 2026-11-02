@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+**Comment commands `/adhoc` and `/last` for lighter runs**
+- Add `/adhoc`: a run gets only the issue id, title and the new comment, no description or history
+- Add `/last` and `/last N`: same, plus the N+1 comments before yours (default 2, max 11), so a reply like `go` keeps the proposal
+- Use a short hand-over for these runs: at most a few bullets under Findings, no description rewrite
+- Add a `/` popup with the commands in the comment box
+- Document it in `docs/issues-management.md` and `docs/adr/0005-comment-commands.md`
+
 **Issue runs hand over through the description**
 - Add a hand-over instruction to the run prompt - the agent rewrites the issue description (Context, Steps, Checklist, Findings, Next) with `claude-ui issue update`
 - Keep the original request at the top; the final message is now a 2-3 line summary posted as the comment
