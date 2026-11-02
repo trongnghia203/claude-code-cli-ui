@@ -4,6 +4,7 @@ import { WAKE_REPEAT_LABEL, ISSUE_PRIORITIES, ISSUE_PRIORITY_META, ISSUE_RUN_MET
 import type { IssueWakeup, WakeupInput } from '~/composables/useIssues'
 import { formatWakeAt } from '~/utils/wakeupFormat'
 import { renderMarkdown } from '~/utils/markdown'
+import { emojify, searchEmoji } from '~/utils/emoji'
 import { projectSlug } from '~/utils/projectSlug'
 
 const route = useRoute()
@@ -188,12 +189,29 @@ const mentionedAgent = computed(() => {
   }
   return null
 })
+// :emoji shortcodes in the comment box (needs 2+ letters so times like 10:30 stay quiet)
+const emojiQuery = ref<string | null>(null)
+const emojiIdx = ref(0)
+const emojiOptions = computed(() => (emojiQuery.value === null ? [] : searchEmoji(emojiQuery.value)))
 function updateMention() {
   const el = commentEl.value
   if (!el) return
-  const m = /(^|\s)@([\w-]*)$/.exec(newComment.value.slice(0, el.selectionStart))
+  const upto = newComment.value.slice(0, el.selectionStart)
+  const m = /(^|\s)@([\w-]*)$/.exec(upto)
   mentionQuery.value = m ? (m[2] ?? '').toLowerCase() : null
   mentionIdx.value = 0
+  const e = /(^|\s):([a-z0-9_+-]{2,})$/i.exec(upto)
+  emojiQuery.value = e ? e[2]!.toLowerCase() : null
+  emojiIdx.value = 0
+}
+function pickEmoji(name: string, emoji: string) {
+  const el = commentEl.value
+  if (!el) return
+  const pos = el.selectionStart
+  const before = newComment.value.slice(0, pos).replace(/:[a-z0-9_+-]*$/i, emoji + ' ')
+  newComment.value = before + newComment.value.slice(pos)
+  emojiQuery.value = null
+  nextTick(() => { el.focus(); el.setSelectionRange(before.length, before.length) })
 }
 function pickMention(slug: string) {
   const el = commentEl.value
@@ -205,6 +223,13 @@ function pickMention(slug: string) {
   nextTick(() => { el.focus(); el.setSelectionRange(before.length, before.length) })
 }
 function onCommentKey(e: KeyboardEvent) {
+  const em = emojiOptions.value
+  if (em.length) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); emojiIdx.value = (emojiIdx.value + 1) % em.length; return }
+    if (e.key === 'ArrowUp') { e.preventDefault(); emojiIdx.value = (emojiIdx.value - 1 + em.length) % em.length; return }
+    if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); pickEmoji(em[emojiIdx.value]!.name, em[emojiIdx.value]!.emoji); return }
+    if (e.key === 'Escape') { emojiQuery.value = null; return }
+  }
   const opts = mentionOptions.value
   if (opts.length) {
     if (e.key === 'ArrowDown') { e.preventDefault(); mentionIdx.value = (mentionIdx.value + 1) % opts.length; return }
@@ -286,7 +311,7 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
               <button class="p-1.5 rounded-lg hover-bg" title="Edit" style="color: var(--text-tertiary)" @click="startEdit"><UIcon name="i-lucide-pencil" class="size-4 block" /></button>
             </div>
             <p v-if="issue.draftNote" class="text-[12px] mb-2" style="color: #d97706">{{ issue.draftNote }}</p>
-            <div v-if="issue.description.trim()" class="md-prose issue-prose rounded-xl px-4 py-3" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)" v-html="renderMarkdown(issue.description)" />
+            <div v-if="issue.description.trim()" class="md-prose issue-prose rounded-xl px-4 py-3" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)" v-html="renderMarkdown(emojify(issue.description))" />
             <p v-else class="text-[13px] text-meta">No description.</p>
           </template>
         </section>
@@ -301,7 +326,7 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
                   <UIcon :name="b.comment.author === 'agent' ? 'i-lucide-cpu' : 'i-lucide-user'" class="size-3.5" />
                   {{ b.comment.author === 'agent' ? agentName(issue.assignee) : 'You' }} &middot; {{ when(b.comment.at) }}
                 </div>
-                <div class="md-prose issue-prose" v-html="renderMarkdown(mentionize(withBreaks(b.comment.body, b.comment.author === 'user')))" />
+                <div class="md-prose issue-prose" v-html="renderMarkdown(mentionize(withBreaks(emojify(b.comment.body), b.comment.author === 'user')))" />
               </div>
               <!-- run and status activity, folded into one line -->
               <div v-else>
@@ -371,7 +396,13 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
                   <span class="text-meta truncate min-w-0 flex-1">{{ a.frontmatter.description }}</span>
                 </button>
               </div>
-              <textarea ref="commentEl" spellcheck="false" v-model="newComment" rows="3" placeholder="Leave a comment. Type @ to hand the next run to an agent" class="w-full px-2 py-1.5 rounded-lg text-[13px]" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)" @input="updateMention" @click="updateMention" @keydown="onCommentKey" @blur="mentionQuery = null" />
+              <div v-if="emojiOptions.length" class="absolute bottom-full mb-1 left-0 z-20 w-[260px] max-w-full rounded-lg overflow-hidden shadow-lg" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)">
+                <button v-for="(o, i) in emojiOptions" :key="o.name" type="button" class="w-full text-left px-3 py-1.5 text-[12px] flex items-center gap-2" :style="{ background: i === emojiIdx ? 'var(--surface-base)' : 'transparent' }" @mousedown.prevent="pickEmoji(o.name, o.emoji)">
+                  <span class="text-[15px] shrink-0">{{ o.emoji }}</span>
+                  <span class="text-meta truncate">:{{ o.name }}:</span>
+                </button>
+              </div>
+              <textarea ref="commentEl" spellcheck="false" v-model="newComment" rows="3" placeholder="Leave a comment. Type @ to hand the next run to an agent" class="w-full px-2 py-1.5 rounded-lg text-[13px]" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)" @input="updateMention" @click="updateMention" @keydown="onCommentKey" @blur="mentionQuery = null; emojiQuery = null" />
             </div>
             <div class="flex justify-end gap-2">
               <UButton label="Comment" size="sm" variant="soft" color="neutral" :disabled="!newComment.trim() || busy" @click="send(false)" />
