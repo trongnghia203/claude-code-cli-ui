@@ -26,7 +26,19 @@ const status = ref<IssueStatus>('todo')
 const priority = ref<IssuePriority>('none')
 const assignee = ref('')
 const permissionMode = ref<IssuePermissionMode>('acceptEdits')
-const labels = ref('')
+const ic = useIssueConfig()
+const config = computed(() => ic.configFor(props.projectDir))
+const activeProperties = computed(() => ic.activePropertiesFor(props.projectDir))
+onMounted(() => ic.load(props.projectDir))
+const labelIds = ref<string[]>([])
+const props_ = ref<Record<string, string | number | boolean>>({})
+const toggleLabel = (id: string) => { labelIds.value = labelIds.value.includes(id) ? labelIds.value.filter(x => x !== id) : [...labelIds.value, id] }
+const setProp = (id: string, v: string | number | boolean | null) => {
+  const next = { ...props_.value }
+  if (v === null) delete next[id]
+  else next[id] = v
+  props_.value = next
+}
 const another = ref(false)
 
 const willRun = computed(() => !!assignee.value && (status.value === 'todo' || status.value === 'in_progress'))
@@ -53,7 +65,8 @@ function submit() {
     priority: priority.value,
     assignee: assignee.value || null,
     permissionMode: permissionMode.value,
-    labels: labels.value.split(',').map(l => l.trim()).filter(Boolean),
+    labels: labelIds.value,
+    properties: props_.value,
     projectDir: props.projectDir,
   }, another.value)
 }
@@ -101,8 +114,16 @@ function submit() {
             <option value="default">Default (asks, edits blocked headless)</option>
             <option value="acceptEdits">Accept edits</option>
           </select></label>
-        <label class="space-y-1 col-span-2"><span class="text-label">Labels (comma separated)</span>
-          <input v-model="labels" class="w-full px-2 py-1.5 rounded-lg" style="background: var(--surface-base); border: 1px solid var(--border-subtle)" placeholder="bug, ui" /></label>
+        <div class="space-y-1 col-span-2"><span class="text-label">Labels</span>
+          <div class="flex flex-wrap gap-1.5">
+            <button v-for="l in config.labels" :key="l.id" type="button" class="flex items-center gap-1.5 px-2 py-1 rounded-full text-[12px]"
+              :style="{ background: 'var(--surface-base)', border: '1px solid ' + (labelIds.includes(l.id) ? l.color : 'var(--border-subtle)'), opacity: labelIds.includes(l.id) ? 1 : 0.65 }" @click="toggleLabel(l.id)">
+              <span class="size-2 rounded-full" :style="{ background: l.color }" />{{ l.name }}
+            </button>
+            <NuxtLink v-if="!config.labels.length" to="/issues/settings?tab=labels" class="text-meta underline">No labels yet. Create some in issue settings.</NuxtLink>
+          </div></div>
+        <label v-for="p in activeProperties" :key="p.id" class="space-y-1"><span class="text-label">{{ p.name }}</span>
+          <IssuePropertyField :property="p" :model-value="props_[p.id]" @update:model-value="setProp(p.id, $event)" /></label>
       </div>
       <p v-if="willRun" class="text-[12px]" style="color: #3b82f6">The agent starts working as soon as you create this issue.</p>
     </template>

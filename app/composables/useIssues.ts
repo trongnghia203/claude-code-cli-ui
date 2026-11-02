@@ -40,7 +40,10 @@ export interface IssueSummary {
   status: IssueStatus
   priority: IssuePriority
   assignee: string | null
+  /** Label ids. Resolve with useIssueConfig().labelById */
   labels: string[]
+  properties?: Record<string, string | number | boolean>
+  wakeups?: { subIssuesFinish?: 'default' | 'on' | 'off' }
   parentId: string | null
   projectDir: string
   permissionMode: IssuePermissionMode
@@ -59,7 +62,7 @@ export interface IssueDetail extends Omit<IssueSummary, 'commentCount' | 'runCou
   runs: IssueRun[]
 }
 
-export type IssueInput = Partial<Pick<IssueDetail, 'title' | 'description' | 'status' | 'priority' | 'assignee' | 'labels' | 'parentId' | 'projectDir' | 'permissionMode'>>
+export type IssueInput = Partial<Pick<IssueDetail, 'title' | 'description' | 'status' | 'priority' | 'assignee' | 'labels' | 'properties' | 'wakeups' | 'parentId' | 'projectDir' | 'permissionMode'>>
 
 export const ISSUE_STATUS_META: Record<IssueStatus, { label: string; color: string; icon: string }> = {
   backlog: { label: 'Backlog', color: '#71717a', icon: 'i-lucide-circle-dashed' },

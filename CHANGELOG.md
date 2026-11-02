@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+**Issue settings (`/issues/settings`)**
+- Add Labels (name, color, description, usage count), Properties (6 field types, archive, 20 active) and Wakeups tabs
+- Store settings per project in `~/.config/claude-ui/issues/<project>/_config.json`, falling back to `~/.claude/issues/_config.json`
+- Change `Issue.labels` from names to label ids, migrated once from existing issues
+- Wake the parent's agent when every sub-issue is closed, with a per-issue override
+- Add ADR 0002
+
 - Add macOS launcher (`scripts/`) - Swift+WKWebView app, `claude-ui` CLI, `install.sh` [`b929e24`](https://github.com/trongnghia203/claude-code-cli-ui/commit/b929e24)
 
 **Memory page (`/memory`)**

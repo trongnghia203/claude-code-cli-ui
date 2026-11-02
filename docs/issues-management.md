@@ -1,7 +1,7 @@
 # Issues management
 
 Track units of work and hand them to agents. Modeled on Multica issues (https://multica.ai/docs/issues).
-Design decisions are in `docs/adr/0001-issues-management.md`.
+Design decisions are in `docs/adr/0001-issues-management.md`. Settings are in `docs/adr/0002-issue-settings.md`.
 
 ## Concepts
 
@@ -77,3 +77,17 @@ Fixed: budget $5, timeout 30 minutes.
 ## Not built yet
 
 Sub-issue stages, custom properties, saved views, Gantt and swimlane, batch edit, file deliverables, duplicates.
+
+## Settings
+
+Open the gear icon on the Issues page (`/issues/settings`). Tabs: Labels, Properties, Wakeups.
+
+- **Scope**: the default settings, or one project's own. A project follows the default until you press
+  **Customize for this project**. Then it has its own labels, properties and wakeups, copied from the default.
+  **Reset to default** removes them, and is blocked while issues use labels or properties only the project has.
+- **Labels**: name, color, description. The table shows how many issues use each. A label in use cannot be deleted.
+- **Properties**: custom fields (text, number, select, date, checkbox, URL). Archive instead of delete, only when no issue has a value. 20 active at most.
+- **Wakeups**: when every sub-issue is closed, the parent's agent runs again with an instruction. Turn it on or off for all
+  issues, or per issue in its Wakeups row.
+
+Files: default `~/.claude/issues/_config.json`, project `~/.config/claude-ui/issues/<project>/_config.json`.

@@ -71,7 +71,7 @@ function shrinkForTranscript(m: any) {
   }
 }
 
-export function buildPrompt(issue: Issue): string {
+export function buildPrompt(issue: Issue, extra?: string): string {
   const parts = [
     `You are working on issue ${issue.id}: ${issue.title}`,
     issue.description.trim() ? `\n## Description\n${issue.description.trim()}` : '',
@@ -81,12 +81,13 @@ export function buildPrompt(issue: Issue): string {
     parts.push('\n## Discussion')
     for (const c of comments) if (c.type === 'comment') parts.push(`**${c.author}** (${c.at}):\n${c.body}`)
   }
+  if (extra?.trim()) parts.push(`\n## Wakeup\n${extra.trim()}`)
   parts.push('\nDo the work in the current directory. When done, finish with a short summary of what you changed and anything that needs review.')
   return parts.filter(Boolean).join('\n')
 }
 
 /** Start a run for the issue. Returns the run id, or null when one is already active. */
-export function startRun(issueId: string, trigger?: string): string | null {
+export function startRun(issueId: string, trigger?: string, extraInstruction?: string): string | null {
   if (active.has(issueId)) return null
   const issue = readIssue(issueId)
   if (!issue) return null
@@ -98,7 +99,7 @@ export function startRun(issueId: string, trigger?: string): string | null {
     trigger: (trigger?.trim().replace(/\s+/g, ' ').slice(0, 160)) || (issue.runs.length ? 'Run agent' : 'Initial run'),
   }
 
-  const prompt = buildPrompt(issue)
+  const prompt = buildPrompt(issue, extraInstruction)
   updateIssue(issueId, (i) => {
     i.runs.push(run)
     i.timeline.push({ id: newEntryId(), at: run.startedAt, type: 'run', runId })

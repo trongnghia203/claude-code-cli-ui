@@ -9,6 +9,9 @@ const router = useRouter()
 const toast = useToast()
 const { fetchOne, update, remove, comment, run, cancel, answerApproval } = useIssues()
 const { agents, fetchAll: fetchAgents } = useAgents()
+const ic = useIssueConfig()
+const issueConfig = computed(() => ic.configFor(issue.value?.projectDir ?? ''))
+const activeProperties = computed(() => ic.activePropertiesFor(issue.value?.projectDir ?? ''))
 
 const id = computed(() => String(route.params.id))
 const issue = ref<IssueDetail | null>(null)
@@ -93,6 +96,20 @@ watch(() => running.value || drafting.value, (r) => {
 }, { immediate: true })
 onUnmounted(() => { if (timer) clearInterval(timer) })
 onMounted(() => { fetchAgents(); load() })
+watch(() => issue.value?.projectDir, (d) => { if (d) ic.load(d) })
+const toggleLabel = (labelId: string) => {
+  if (!issue.value) return
+  const cur = issue.value.labels
+  patch({ labels: cur.includes(labelId) ? cur.filter(x => x !== labelId) : [...cur, labelId] })
+}
+const setProp = (propId: string, v: string | number | boolean | null) => {
+  const next = { ...(issue.value?.properties ?? {}) }
+  if (v === null) delete next[propId]
+  else next[propId] = v
+  patch({ properties: next })
+}
+const wakeValue = computed(() => issue.value?.wakeups?.subIssuesFinish ?? 'default')
+const wakeDefault = computed(() => (issueConfig.value.wakeups.subIssuesFinish.enabled ? 'on' : 'off'))
 
 async function patch(input: Parameters<typeof update>[1]) {
   const res = await update(id.value, input)
@@ -357,8 +374,26 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
             </select></div>
           <div class="prop-row"><span class="prop-label">Project</span>
             <span class="flex items-center gap-1.5 min-w-0" :title="issue.projectDir"><UIcon name="i-lucide-folder" class="size-3.5 shrink-0 text-meta" /><span class="truncate">{{ issue.projectDir.split('/').filter(Boolean).pop() }}</span></span></div>
-          <div v-if="issue.labels.length" class="prop-row"><span class="prop-label">Labels</span>
-            <span class="flex flex-wrap gap-1"><span v-for="l in issue.labels" :key="l" class="px-1.5 py-0.5 rounded text-[11px]" style="background: var(--accent-muted)">{{ l }}</span></span></div>
+          <div class="prop-row items-start"><span class="prop-label pt-1">Labels</span>
+            <span class="flex flex-wrap gap-1">
+              <button v-for="l in issueConfig.labels" :key="l.id" type="button" class="flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px]"
+                :style="{ background: issue.labels.includes(l.id) ? 'var(--accent-muted)' : 'transparent', border: '1px solid ' + (issue.labels.includes(l.id) ? l.color : 'var(--border-subtle)'), opacity: issue.labels.includes(l.id) ? 1 : 0.6 }" @click="toggleLabel(l.id)">
+                <span class="size-1.5 rounded-full" :style="{ background: l.color }" />{{ l.name }}
+              </button>
+              <NuxtLink v-if="!issueConfig.labels.length" to="/issues/settings?tab=labels" class="text-meta underline pt-0.5">Create labels</NuxtLink>
+            </span></div>
+          <div v-for="p in activeProperties" :key="p.id" class="prop-row"><span class="prop-label" :title="p.name">{{ p.name }}</span>
+            <IssuePropertyField compact :property="p" :model-value="issue.properties?.[p.id]" @update:model-value="setProp(p.id, $event)" /></div>
+        </section>
+
+        <section class="space-y-1">
+          <h3 class="font-semibold text-[13px] mb-1.5">Wakeups</h3>
+          <div class="prop-row"><span class="prop-label" title="Wake the assignee when every sub-issue is closed">Sub-issues</span>
+            <select :value="wakeValue" class="prop-select" @change="patch({ wakeups: { subIssuesFinish: ($event.target as HTMLSelectElement).value as 'default' | 'on' | 'off' } })">
+              <option value="default">Workspace default ({{ wakeDefault }})</option>
+              <option value="on">On</option>
+              <option value="off">Off</option>
+            </select></div>
         </section>
 
         <IssueExecutionLog :issue-id="issue.id" :title="issue.title" :runs="issue.runs" :agent-name="agentName" />

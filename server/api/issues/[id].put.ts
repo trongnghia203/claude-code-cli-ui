@@ -1,12 +1,13 @@
 import { newEntryId, readIssue, setStatus, updateIssue } from '../../utils/issues/store'
 import { startRun } from '../../utils/issues/runner'
+import { onStatusChanged } from '../../utils/issues/wakeups'
 import { parseFields, shouldAutoRun } from '../../utils/issues/validate'
 
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')!
   const before = readIssue(id)
   if (!before) throw createError({ statusCode: 404, message: 'Issue not found' })
-  const f = parseFields(await readBody(event))
+  const f = parseFields(await readBody(event), before.projectDir)
   if (f.parentId) {
     if (f.parentId === id) throw createError({ statusCode: 400, message: 'An issue cannot be its own parent' })
     if (!readIssue(f.parentId)) throw createError({ statusCode: 400, message: `Parent ${f.parentId} not found` })
@@ -23,5 +24,6 @@ export default defineEventHandler(async (event) => {
     if (status !== undefined) setStatus(i, status, 'user')
   })!
   if (shouldAutoRun(prev, issue)) startRun(id)
+  if (f.status !== undefined && f.status !== before.status) onStatusChanged(id, before.status)
   return { issue: readIssue(id) }
 })

@@ -3,6 +3,7 @@ import { createIssue, readIssue, updateIssue } from '../../utils/issues/store'
 import { startRun } from '../../utils/issues/runner'
 import { detectSources, draftIssue, type DraftAgent } from '../../utils/issues/draft'
 import { shouldAutoRun } from '../../utils/issues/validate'
+import { readConfig } from '../../utils/issues/config'
 
 /**
  * One-line request in, filed issue out.
@@ -52,7 +53,9 @@ export default defineEventHandler(async (event) => {
         i.title = draft.title
         i.description = draft.description
         i.priority = draft.priority
-        i.labels = draft.labels
+        // The draft names labels. Keep only names that exist in the workspace labels, as ids.
+        const byName = new Map(readConfig(projectDir).labels.map(l => [l.name.toLowerCase(), l.id]))
+        i.labels = [...new Set(draft.labels.map(n => byName.get(n.toLowerCase())).filter((x): x is string => !!x))]
         if (draft.assignee && !i.assignee) {
           i.assignee = draft.assignee
           i.timeline.push({ id: crypto.randomUUID().slice(0, 8), at: new Date().toISOString(), type: 'assign', from: null, to: draft.assignee })

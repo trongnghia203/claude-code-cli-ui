@@ -48,7 +48,12 @@ export interface Issue {
   status: IssueStatus
   priority: IssuePriority
   assignee: string | null
+  /** Label ids from the workspace config */
   labels: string[]
+  /** Custom property values keyed by property id */
+  properties?: Record<string, string | number | boolean>
+  /** Per-issue wakeup override. Missing means follow the workspace default. */
+  wakeups?: { subIssuesFinish?: 'on' | 'off' }
   parentId: string | null
   projectDir: string
   permissionMode: IssuePermissionMode
@@ -137,7 +142,9 @@ export function listIssues(): Issue[] {
   return out
 }
 
-export function createIssue(input: Pick<Issue, 'title' | 'description' | 'status' | 'priority' | 'assignee' | 'labels' | 'parentId' | 'projectDir' | 'permissionMode'>): Issue {
+export const CLOSED_STATUSES: readonly IssueStatus[] = ['done', 'cancelled']
+
+export function createIssue(input: Pick<Issue, 'title' | 'description' | 'status' | 'priority' | 'assignee' | 'labels' | 'parentId' | 'projectDir' | 'permissionMode'> & Partial<Pick<Issue, 'properties' | 'wakeups'>>): Issue {
   const number = nextNumber()
   const now = new Date().toISOString()
   const issue: Issue = {

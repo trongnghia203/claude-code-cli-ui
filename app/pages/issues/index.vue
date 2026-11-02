@@ -6,6 +6,8 @@ import { formatRelativeTime } from '~/utils/messageFormatting'
 const { issues, loading, load, create, createWithAgent, update } = useIssues()
 const { workingDir } = useWorkingDir()
 const { agents, fetchAll: fetchAgents } = useAgents()
+const ic = useIssueConfig()
+const labelsOf = (i: IssueSummary) => ic.labelsOf(i.labels, i.projectDir)
 const router = useRouter()
 const toast = useToast()
 
@@ -23,7 +25,7 @@ watch(workingDir, (d) => { if (!d) scope.value = 'all' }, { immediate: true })
 
 const filtered = computed(() => {
   const q = query.value.trim().toLowerCase()
-  return issues.value.filter(i => !q || i.title.toLowerCase().includes(q) || i.id.toLowerCase().includes(q) || i.labels.some(l => l.toLowerCase().includes(q)))
+  return issues.value.filter(i => !q || i.title.toLowerCase().includes(q) || i.id.toLowerCase().includes(q) || labelsOf(i).some(l => l.name.toLowerCase().includes(q)))
 })
 const byStatus = (s: IssueStatus) => filtered.value
   .filter(i => i.status === s)
@@ -72,6 +74,8 @@ watch(anyRunning, (r) => {
 }, { immediate: true })
 onUnmounted(() => { if (timer) clearInterval(timer) })
 onMounted(() => { fetchAgents(); refresh() })
+// Each project may have its own labels: load the settings of every project on the board
+watch(issues, (list) => { for (const d of new Set(list.map(i => i.projectDir))) if (!(d in ic.entries.value)) ic.load(d) })
 
 const open = (i: IssueSummary) => router.push(`/issues/${i.id}`)
 useHead({ title: 'Issues | Agent Manager' })
@@ -93,6 +97,7 @@ useHead({ title: 'Issues | Agent Manager' })
         <button class="p-1 rounded-md" title="Board" :style="view === 'board' ? 'background: var(--accent-muted)' : ''" @click="view = 'board'"><UIcon name="i-lucide-columns-3" class="size-4 block" /></button>
         <button class="p-1 rounded-md" title="List" :style="view === 'list' ? 'background: var(--accent-muted)' : ''" @click="view = 'list'"><UIcon name="i-lucide-list" class="size-4 block" /></button>
       </div>
+      <NuxtLink to="/issues/settings" class="p-2 rounded-lg hover-bg" title="Issue settings" style="color: var(--text-tertiary)"><UIcon name="i-lucide-settings-2" class="size-4 block" /></NuxtLink>
       <button class="p-2 rounded-lg hover-bg" title="Refresh" style="color: var(--text-tertiary)" @click="refresh"><UIcon name="i-lucide-refresh-cw" class="size-4 block" :class="{ 'animate-spin': loading }" /></button>
       <button class="flex items-center gap-2 px-3 py-2 rounded-xl text-[13px] font-semibold disabled:opacity-50" style="background: var(--accent); color: white" :disabled="!workingDir" :title="workingDir ? '' : 'Select a project first'" @click="showForm = true">
         <UIcon name="i-lucide-plus" class="size-4" /> New issue
@@ -125,8 +130,8 @@ useHead({ title: 'Issues | Agent Manager' })
               <UIcon name="i-lucide-cpu" class="size-3" /><span class="truncate">{{ agentName(i.assignee) }}</span>
               <span v-if="i.commentCount" class="ml-auto flex items-center gap-0.5"><UIcon name="i-lucide-message-square" class="size-3" />{{ i.commentCount }}</span>
             </div>
-            <div v-if="i.labels.length" class="mt-1.5 flex flex-wrap gap-1">
-              <span v-for="l in i.labels" :key="l" class="px-1.5 py-0.5 rounded text-[10px]" style="background: var(--accent-muted)">{{ l }}</span>
+            <div v-if="labelsOf(i).length" class="mt-1.5 flex flex-wrap gap-1">
+              <span v-for="l in labelsOf(i)" :key="l.id" class="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px]" style="background: var(--accent-muted)"><span class="size-1.5 rounded-full" :style="{ background: l.color }" />{{ l.name }}</span>
             </div>
           </article>
         </div>
