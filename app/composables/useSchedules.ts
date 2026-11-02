@@ -86,6 +86,19 @@ export function useSchedules() {
     }
   }
 
+  /** One-line request: an agent drafts the schedule and it is saved at once. Returns the new job id, or null (toasted). */
+  async function createWithAgent(prompt: string, workingDir: string, scope: 'global' | 'project', agents: { slug: string; name: string; description: string }[]): Promise<{ id: string; name: string; scheduleText: string } | null> {
+    try {
+      const res = await $fetch<{ job: { id: string; name: string }; scheduleText: string }>('/api/schedules/agent-create', { method: 'POST', body: { prompt, workingDir, scope, agents } })
+      await load()
+      return { id: res.job.id, name: res.job.name, scheduleText: res.scheduleText }
+    } catch (e) {
+      toast.add({ title: 'Could not create schedule', description: errorText(e), color: 'error', duration: 8000 })
+      await load()
+      return null
+    }
+  }
+
   async function setEnabled(job: ScheduleItem, enabled: boolean) {
     try {
       await $fetch(`/api/schedules/${job.id}`, { method: 'PUT', body: { enabled } })
@@ -130,5 +143,5 @@ export function useSchedules() {
     }
   }
 
-  return { jobs, supported, mode, loading, load, save, setEnabled, remove, runNow, fetchRuns, fetchRun }
+  return { jobs, supported, mode, loading, load, save, createWithAgent, setEnabled, remove, runNow, fetchRuns, fetchRun }
 }

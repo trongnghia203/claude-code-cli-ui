@@ -2,7 +2,7 @@
 import { formatRelativeTime } from '~/utils/messageFormatting'
 import type { RunStatus, ScheduleInput, ScheduleItem, ScheduleRunItem } from '~/composables/useSchedules'
 
-const { jobs, supported, mode, loading, load, save, setEnabled, remove, runNow, fetchRuns } = useSchedules()
+const { jobs, supported, mode, loading, load, save, createWithAgent, setEnabled, remove, runNow, fetchRuns } = useSchedules()
 const { workingDir } = useWorkingDir()
 const { agents, fetchAll: fetchAgents } = useAgents()
 const route = useRoute()
@@ -14,22 +14,15 @@ const selectedJobId = computed(() => (typeof route.query.job === 'string' ? rout
 const selectedRunId = computed(() => (typeof route.query.run === 'string' ? route.query.run : null))
 const selectedJob = computed(() => jobs.value.find(j => j.id === selectedJobId.value) ?? null)
 
-// Same scope toggle as Memory: Project = schedules scoped to the current project, Global = the global ones
-type Scope = 'global' | 'project'
+// Same scope toggle as the Issues page: this project's schedules, or all of them
+type Scope = 'project' | 'all'
 const scope = ref<Scope>('project')
-const scopeTabs: { value: Scope; label: string; icon: string }[] = [
-  { value: 'global', label: 'Global', icon: 'i-lucide-globe' },
-  { value: 'project', label: 'Project', icon: 'i-lucide-folder' },
-]
 const trimDir = (d?: string | null) => (d ?? '').replace(/\/+$/, '')
-// Global lists only global schedules, Project only the ones scoped to the selected project (same split as Memory)
 const visibleJobs = computed(() =>
-  scope.value === 'project'
-    ? jobs.value.filter(j => j.scope === 'project' && trimDir(j.workingDir) === trimDir(workingDir.value))
-    : jobs.value.filter(j => j.scope === 'global'),
+  scope.value === 'project' ? jobs.value.filter(j => trimDir(j.workingDir) === trimDir(workingDir.value)) : jobs.value,
 )
 // With no project set there is no "this project": show everything
-watch(workingDir, (dir) => { if (!dir) scope.value = 'global' }, { immediate: true })
+watch(workingDir, (dir) => { if (!dir) scope.value = 'all' }, { immediate: true })
 // Leaving a schedule that the new scope hides would show a ghost selection
 watch(visibleJobs, (list) => {
   if (selectedJobId.value && jobs.value.length && !list.some(j => j.id === selectedJobId.value)) select(null)
@@ -75,6 +68,23 @@ async function onSave(input: ScheduleInput) {
     toast.add({ title: wasEditing ? 'Schedule updated' : 'Schedule created', color: 'success', duration: 2000 })
     await loadRuns()
   }
+}
+const drafting = ref(false)
+async function onAgentCreate(prompt: string) {
+  drafting.value = true
+  const created = await createWithAgent(
+    prompt,
+    workingDir.value,
+    'project',
+    agents.value.map(a => ({ slug: a.slug, name: a.frontmatter.name || a.slug, description: a.frontmatter.description || '' })),
+  )
+  drafting.value = false
+  if (!created) return // the composable already toasted the error; the form keeps what was typed
+  showEditor.value = false
+  toast.add({ title: 'Schedule created', description: `${created.name} - ${created.scheduleText}`, color: 'success', duration: 4000 })
+  scope.value = workingDir.value ? 'project' : 'all'
+  select(created.id)
+  await loadRuns()
 }
 async function doDelete() {
   const job = confirmDelete.value
@@ -146,14 +156,14 @@ useHead({ title: 'Schedules | Agent Manager' })
       <div class="shrink-0 px-3 pt-3">
         <div class="grid grid-cols-2 gap-1 p-1 rounded-lg" style="background: var(--surface-raised); border: 1px solid var(--border-subtle);">
           <button
-            v-for="tab in scopeTabs"
-            :key="tab.value"
-            class="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-[12px] font-medium transition-colors focus-ring"
-            :style="scope === tab.value ? 'background: var(--accent-muted); color: var(--text-primary);' : 'color: var(--text-secondary);'"
-            @click="scope = tab.value"
+            v-for="s in (['project', 'all'] as const)"
+            :key="s"
+            class="px-2.5 py-1.5 rounded-md text-[12px] font-medium transition-colors focus-ring disabled:opacity-50"
+            :disabled="s === 'project' && !workingDir"
+            :style="scope === s ? 'background: var(--accent-muted); color: var(--text-primary);' : 'color: var(--text-secondary);'"
+            @click="scope = s"
           >
-            <UIcon :name="tab.icon" class="size-3.5" />
-            {{ tab.label }}
+            {{ s === 'project' ? 'This project' : 'All' }}
           </button>
         </div>
       </div>
@@ -176,7 +186,7 @@ useHead({ title: 'Schedules | Agent Manager' })
         <p v-if="!supported" class="text-[12px] px-1" style="color: #d97706;">Scheduled runs need macOS (launchd).</p>
         <p v-else-if="mode === 'inprocess' && visibleJobs.length" class="text-[11px] px-1 text-meta">Schedules run while Claude UI is open. Missed runs are not made up.</p>
         <p v-else-if="!visibleJobs.length && !loading" class="text-[12px] text-meta px-1 py-6 text-center">
-          {{ scope === 'project' ? 'No schedules for this project yet. Create one to run a prompt or an agent on a timer.' : 'No global schedules yet.' }}
+          {{ scope === 'project' ? 'No schedules for this project yet. Create one to run a prompt or an agent on a timer.' : 'No schedules yet.' }}
         </p>
 
         <div v-for="job in visibleJobs" :key="job.id">
@@ -359,7 +369,7 @@ useHead({ title: 'Schedules | Agent Manager' })
     <!-- Create / edit -->
     <UModal v-model:open="showEditor">
       <template #content>
-        <ScheduleEditor :job="editing ?? undefined" :default-dir="workingDir" :default-scope="scope" @save="onSave" @cancel="showEditor = false" />
+        <ScheduleEditor :job="editing ?? undefined" :default-dir="workingDir" :default-scope="'project'" :busy="drafting" @save="onSave" @agent-create="onAgentCreate" @cancel="showEditor = false" />
       </template>
     </UModal>
 

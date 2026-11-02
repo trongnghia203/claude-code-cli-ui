@@ -1,8 +1,23 @@
 <script setup lang="ts">
 import type { ScheduleInput, ScheduleItem, ScheduleSpec } from '~/composables/useSchedules'
 
-const props = defineProps<{ job?: ScheduleItem; defaultDir?: string; defaultScope?: 'global' | 'project'; inline?: boolean }>()
-const emit = defineEmits<{ save: [input: ScheduleInput]; cancel: [] }>()
+const props = defineProps<{ job?: ScheduleItem; defaultDir?: string; defaultScope?: 'global' | 'project'; inline?: boolean; busy?: boolean }>()
+const emit = defineEmits<{ save: [input: ScheduleInput]; 'agent-create': [prompt: string]; cancel: [] }>()
+
+// Creating offers a one-line request like the issue form. The last used mode sticks.
+const canAgent = computed(() => !props.job && !props.inline)
+const modeCookie = useCookie<'agent' | 'manual'>('schedule-create-mode', { default: () => 'agent', maxAge: 60 * 60 * 24 * 365 })
+const agentMode = computed(() => canAgent.value && modeCookie.value === 'agent')
+const request = ref('')
+function toManual() {
+  // Keep what was typed: it becomes the prompt
+  if (!form.prompt.trim() && request.value.trim()) form.prompt = request.value.trim()
+  modeCookie.value = 'manual'
+}
+function toAgent() {
+  if (!request.value.trim()) request.value = form.prompt
+  modeCookie.value = 'agent'
+}
 
 const { agents, fetchAll: fetchAgents } = useAgents()
 const { options: modelOptions, load: loadModels } = useAvailableModels()
@@ -57,6 +72,11 @@ const error = ref('')
 
 function submit() {
   error.value = ''
+  if (agentMode.value) {
+    if (props.busy) return
+    if (!request.value.trim()) return (error.value = 'Tell the agent what to schedule')
+    return emit('agent-create', request.value.trim())
+  }
   if (!form.name.trim()) return (error.value = 'Give the schedule a name')
   if (!form.prompt.trim()) return (error.value = 'The prompt is empty')
   if (form.scope === 'project' && !form.workingDir.trim()) return (error.value = 'Pick a project folder')
@@ -85,11 +105,28 @@ function submit() {
 <template>
   <form
     :class="inline ? 'h-full flex flex-col min-h-0' : 'p-6 space-y-4 bg-overlay w-[560px] max-w-full max-h-[calc(100dvh-4rem)] flex flex-col'"
-    @submit.prevent="submit"
+    @submit.prevent="submit" @keydown.meta.enter.prevent="submit" @keydown.ctrl.enter.prevent="submit"
   >
-    <h3 v-if="!inline" class="text-page-title shrink-0">{{ job ? 'Edit schedule' : 'New schedule' }}</h3>
+    <h3 v-if="!inline" class="text-page-title shrink-0">{{ job ? 'Edit schedule' : agentMode ? 'Create with agent' : 'New schedule' }}</h3>
 
-    <div class="overflow-y-auto flex-1 min-h-0 custom-scrollbar" :class="inline ? '' : '-mx-6 px-6 py-1.5'">
+    <template v-if="agentMode">
+      <textarea
+        v-model="request"
+        rows="5"
+        autofocus
+        :disabled="busy"
+        class="w-full px-3 py-2 rounded-lg text-[14px]"
+        style="background: var(--surface-base); border: 1px solid var(--border-subtle)"
+        placeholder='Describe it in one line, e.g. "every weekday at 8:30 run the suri:ticket-status skill and save the snapshot"'
+      />
+      <p class="text-[13px] leading-relaxed" style="color: var(--text-secondary)">
+        The agent writes the name and prompt, sets the time, and picks permissions and tools. The schedule is saved and enabled at once.
+        Check it afterwards and use Edit to change anything.
+      </p>
+      <p v-if="defaultDir" class="flex items-center gap-2 text-[12px] font-mono truncate" style="color: var(--text-tertiary)" :title="defaultDir"><UIcon name="i-lucide-folder" class="size-3.5 shrink-0" />{{ defaultDir.split('/').filter(Boolean).pop() }}</p>
+    </template>
+
+    <div v-else class="overflow-y-auto flex-1 min-h-0 custom-scrollbar" :class="inline ? '' : '-mx-6 px-6 py-1.5'">
      <div :class="inline ? 'space-y-5 px-6 py-5' : 'space-y-4'">
       <div :class="inline ? 'grid grid-cols-2 gap-4' : 'space-y-4'">
         <div class="field-group">
@@ -209,9 +246,20 @@ function submit() {
     </div>
 
     <p v-if="error" class="text-[12px] shrink-0" :class="inline ? 'px-6 pb-2' : ''" style="color: var(--error)">{{ error }}</p>
-    <div class="flex justify-end gap-2 shrink-0" :class="inline ? 'px-6 py-3' : ''" :style="inline ? 'border-top: 1px solid var(--border-subtle)' : ''">
-      <UButton label="Cancel" variant="ghost" color="neutral" size="sm" type="button" @click="emit('cancel')" />
-      <UButton :label="job ? 'Save' : 'Create'" size="sm" type="submit" />
+    <div class="flex items-center gap-2 shrink-0" :class="inline ? 'px-6 py-3' : ''" :style="inline ? 'border-top: 1px solid var(--border-subtle)' : ''">
+      <button
+        v-if="canAgent"
+        type="button"
+        class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium hover-bg"
+        :disabled="busy"
+        :title="agentMode ? 'Fill in the fields yourself' : 'Describe in one line and let the agent set it up'"
+        @click="agentMode ? toManual() : toAgent()"
+      >
+        <UIcon name="i-lucide-arrow-left-right" class="size-3.5" /> {{ agentMode ? 'Switch to Manual' : 'Switch to Agent' }}
+      </button>
+      <div class="flex-1" />
+      <UButton label="Cancel" variant="ghost" color="neutral" size="sm" type="button" :disabled="busy" @click="emit('cancel')" />
+      <UButton :label="busy ? 'Drafting...' : job ? 'Save' : 'Create'" size="sm" type="submit" :loading="busy" :disabled="agentMode && !request.trim()" />
     </div>
   </form>
 </template>
