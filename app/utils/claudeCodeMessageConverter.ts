@@ -74,7 +74,12 @@ function parseSlashCommand(text: string): string | null {
 
 /** Text of a local command's output, without its <local-command-stdout> wrapper */
 function stripLocalCommandTags(text: string): string {
-  return text.replace(/<\/?local-command-(?:stdout|stderr)>/g, '').trim()
+  return text
+    .replace(/<\/?local-command-(?:stdout|stderr)>/g, '')
+    // Strip ANSI SGR color/style codes (e.g. /context output); the chat view cannot render them
+    // eslint-disable-next-line no-control-regex
+    .replace(/\x1b\[[0-9;]*m/g, '')
+    .trim()
 }
 
 /**
@@ -168,12 +173,25 @@ export function convertClaudeCodeMessages(messages: ClaudeCodeMessage[]): Displa
 
     // Output of a local slash command (/mcp, /cost, ...): no model call, so this is the whole response
     if (msg.type === 'system' && (msg as any).subtype === 'local_command' && typeof (msg as any).content === 'string') {
+      // The typed command itself is also logged as a local_command (<command-name>...): show it as the user message
+      const typed = parseSlashCommand((msg as any).content)
+      if (typed) {
+        seenToolCalls.clear()
+        displayMessages.push({
+          id: msg.uuid || `user-${msg.timestamp}`,
+          role: 'user',
+          content: typed,
+          timestamp: msg.timestamp,
+          kind: 'text'
+        })
+        continue
+      }
       const text = stripLocalCommandTags((msg as any).content)
       if (text) {
         displayMessages.push({
           id: msg.uuid || `local-command-${msg.timestamp}`,
           role: 'assistant',
-          content: text,
+          content: '```text\n' + text + '\n```', // keep terminal layout (monospace, line breaks)
           timestamp: msg.timestamp,
           kind: 'text'
         })
@@ -183,6 +201,9 @@ export function convertClaudeCodeMessages(messages: ClaudeCodeMessage[]): Displa
 
     // Handle user messages
     if (msg.type === 'user' || msg.message?.role === 'user') {
+      // isMeta = CLI-injected text for the model (e.g. markdown copy of /context), not typed by the user
+      if ((msg as any).isMeta === true) continue
+
       let textContent = ''
 
       if (typeof content === 'string') {

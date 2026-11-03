@@ -30,7 +30,7 @@ watchEffect(async () => {
     return
   }
   const formatted = formatContent(props.message.content)
-  renderedContent.value = await renderMarkdownWithHighlighting(linkify(formatted))
+  renderedContent.value = await renderMarkdownWithHighlighting(linkify(formatted), { collapseLines: 4 })
 })
 
 // Extract filename from tool input
@@ -1505,6 +1505,51 @@ function getTodoStatusBadge(status: string): { bg: string; color: string; label:
   white-space: pre-wrap;
   word-break: break-all;
   overflow-wrap: break-word;
+}
+
+/* Collapsible long text blocks (terminal output): clamped until the checkbox in the label is checked */
+.md-prose :deep(.code-collapse) {
+  margin: 1rem 0;
+}
+.md-prose :deep(.code-collapse .shiki-wrapper) {
+  margin: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.md-prose :deep(.code-collapse:not(:has(.cc-toggle:checked)) .shiki-wrapper pre) {
+  max-height: 7.5rem; /* ~4 lines + padding */
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 80%, transparent);
+  mask-image: linear-gradient(to bottom, #000 80%, transparent);
+}
+.md-prose :deep(.cc-btn) {
+  display: block;
+  cursor: pointer;
+  user-select: none;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  color: rgba(205, 214, 244, 0.7);
+  background: #1e1e2e;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-top: none;
+  border-radius: 0 0 0.5rem 0.5rem;
+  text-align: center;
+}
+.md-prose :deep(.cc-btn:hover) {
+  color: rgba(205, 214, 244, 1);
+}
+.md-prose :deep(.cc-toggle) {
+  display: none;
+}
+.md-prose :deep(.cc-less) {
+  display: none;
+}
+.md-prose :deep(.code-collapse:has(.cc-toggle:checked) .cc-more) {
+  display: none;
+}
+.md-prose :deep(.code-collapse:has(.cc-toggle:checked) .cc-less) {
+  display: inline;
 }
 
 /* Shiki inline spans carry their own color — don't override */

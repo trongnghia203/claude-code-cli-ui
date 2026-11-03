@@ -6,7 +6,14 @@ export function stripLocalCommandTags(content: unknown): string {
   if (typeof content !== 'string') return ''
   return content
     .replace(/<\/?local-command-(?:stdout|stderr)>/g, '')
+    // eslint-disable-next-line no-control-regex
+    .replace(/\x1b\[[0-9;]*m/g, '')
     .trim()
+}
+
+/** Wrap terminal-style output in a code fence so markdown keeps its line breaks and spacing. */
+export function fenceTerminalOutput(text: string): string {
+  return '```text\n' + text + '\n```'
 }
 
 /**
@@ -104,7 +111,7 @@ export function normalizeSDKMessage(
         sessionId,
         timestamp,
         role: 'assistant',
-        content: text,
+        content: fenceTerminalOutput(text),
       })
     }
   }
@@ -115,7 +122,9 @@ export function normalizeSDKMessage(
     // wrapped in <local-command-stdout> tags. Local commands never call the model, so this
     // output is the only "response" the user gets.
     if (sdkMessage.subtype === 'local_command_output' || sdkMessage.subtype === 'local_command') {
-      const text = stripLocalCommandTags(sdkMessage.content)
+      // Echo of the typed command (<command-name>...), not output: the client already shows the user's input
+      const isCommandEcho = typeof sdkMessage.content === 'string' && sdkMessage.content.includes('<command-name>')
+      const text = isCommandEcho ? '' : stripLocalCommandTags(sdkMessage.content)
       if (text) {
         messages.push({
           kind: 'text',
@@ -123,7 +132,7 @@ export function normalizeSDKMessage(
           sessionId,
           timestamp,
           role: 'assistant',
-          content: text,
+          content: fenceTerminalOutput(text),
         })
       }
     }

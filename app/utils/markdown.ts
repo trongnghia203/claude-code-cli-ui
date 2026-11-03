@@ -105,8 +105,12 @@ export function renderMarkdownWithMath(text: string): string {
  * Render markdown with math AND Shiki syntax highlighting.
  * Async — returns a Promise<string>.
  */
-export async function renderMarkdownWithHighlighting(text: string): Promise<string> {
+export async function renderMarkdownWithHighlighting(
+  text: string,
+  options: { collapseLines?: number } = {}
+): Promise<string> {
   if (!text) return ''
+  const { collapseLines } = options
 
   const { text: protectedText, blocks } = protectMathBlocks(text)
 
@@ -127,8 +131,13 @@ export async function renderMarkdownWithHighlighting(text: string): Promise<stri
   // Now resolve all code blocks in parallel
   await Promise.all(
     codeBlocks.map(async ({ placeholder, lang, code }) => {
-      const highlighted = await highlightCode(code, lang)
-      html = html.replace(placeholder, highlighted)
+      let highlighted = await highlightCode(code, lang)
+      // Opt-in: long plain-text blocks (terminal output such as /context) start clamped, toggled by CSS only
+      const lineCount = code.split('\n').length
+      if (collapseLines && (lang || 'text') === 'text' && lineCount > collapseLines) {
+        highlighted = `<div class="code-collapse">${highlighted}<label class="cc-btn"><input type="checkbox" class="cc-toggle"><span class="cc-more">Show full (${lineCount} lines)</span><span class="cc-less">Show less</span></label></div>`
+      }
+      html = html.replace(placeholder, () => highlighted)
     })
   )
 
