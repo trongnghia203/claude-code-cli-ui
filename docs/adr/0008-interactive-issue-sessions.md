@@ -25,7 +25,7 @@ result back when done.
   - `/claude-ui:issue-wrap`: distill, ask, update, comment.
 - Session history and resume (added 2026-11-03):
   - The wrapper starts `claude --session-id <uuid>` and registers `{ id, cwd, label?, startedAt }` on the issue (`issue.sessions`,
-    `POST /api/issues/:id/sessions`). It is never trimmed. No UI button removes a row. Only the API does (`DELETE .../sessions/:sessionId`).
+    `POST /api/issues/:id/sessions`). It is never trimmed. Nothing removes a row, by design.
   - The issue sidebar lists them, newest first, with a green dot when an iTerm2 tab runs the session (`GET .../sessions`).
   - **Resume** (**Open** when live) calls `launch-session` with `resume`. A live tab is focused. Otherwise a new tab runs
     `claude-ui iterm2 ISS-n --resume <id> --cwd <cwd> --label <label>`. Plain `claude --resume` would lose the plugin,
