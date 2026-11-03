@@ -13,11 +13,13 @@ const RUNNING = ['todo', 'in_progress']
 const USAGE = `claude-ui issue <command>
 
   list    [--status S] [--label L] [--limit N] [--json]
-  get     KEY [--comments N] [--json]
+  get     KEY [--comments N] [--live] [--json]   (--live: only comments no distill or clear folded)
   create  --title T [--body TEXT | --body-file FILE|-] [--status S] [--priority P] [--label a,b] [--project DIR] [--parent KEY]
   update  KEY [--title T] [--body TEXT | --body-file FILE|-] [--priority P] [--label a,b] [--add-label L] [--remove-label L]
   move    KEY STATUS            (close = move KEY done)
   comment KEY [--body TEXT | --body-file FILE|-]
+  fold    KEY [--ids a,b] [--note T] [--body TEXT | --body-file FILE|-] [--if-hash H]
+          (folds live comments like /distill, without a run. --body also replaces the description)
 
 Statuses: ${STATUSES.join(', ')}
 Priorities: ${PRIORITIES.join(', ')}
@@ -33,7 +35,7 @@ function parse(argv) {
     const a = argv[i]
     if (!a.startsWith('--')) { pos.push(a); continue }
     const k = a.slice(2)
-    if (k === 'json') { opt.json = true; continue }
+    if (k === 'json' || k === 'live') { opt[k] = true; continue }
     const v = argv[++i]
     if (v === undefined) die(`--${k} needs a value`, 2)
     if (multi.has(k)) (opt[k] ??= []).push(v)
@@ -91,13 +93,17 @@ if (cmd === 'list') {
   out(rows.map(({ description, ...r }) => r), opt.json, rows.length ? rows.map(line).join('\n') : 'no issues')
 } else if (cmd === 'get') {
   const key = needKey(pos[0])
-  const { issue } = await api(`/api/issues/${key}`)
+  const { issue, liveCommentIds, descriptionHash } = await api(`/api/issues/${key}`)
   const n = Number(opt.comments ?? 5)
-  const comments = issue.timeline.filter(e => e.type === 'comment').slice(-n)
-  if (opt.json) out({ ...issue, timeline: undefined, comments }, true)
+  const live = new Set(liveCommentIds)
+  const all = issue.timeline.filter(e => e.type === 'comment')
+  const comments = (opt.live ? all.filter(c => live.has(c.id)) : all).slice(-n)
+  const folded = all.length - all.filter(c => live.has(c.id)).length
+  if (opt.json) out({ ...issue, timeline: undefined, comments, descriptionHash, foldedComments: folded }, true)
   else {
-    console.log(`${line(issue)}\nproject: ${issue.projectDir}  updated: ${issue.updatedAt}\n\n${issue.description || '(no description)'}`)
-    if (comments.length) console.log(`\n--- last ${comments.length} comment(s) ---\n` + comments.map(c => `[${c.author} ${c.at}]\n${c.body}`).join('\n\n'))
+    console.log(`${line(issue)}\nproject: ${issue.projectDir}  updated: ${issue.updatedAt}  hash: ${descriptionHash}\n\n${issue.description || '(no description)'}`)
+    if (comments.length) console.log(`\n--- ${opt.live ? 'live' : 'last'} ${comments.length} comment(s) ---\n` + comments.map(c => `[${c.id} ${c.author} ${c.at}]\n${c.body}`).join('\n\n'))
+    if (opt.live && folded) console.log(`\n(${folded} older comment(s) are folded into the description. Read them with: claude-ui issue get ${key} --comments 200)`)
   }
 } else if (cmd === 'create') {
   if (!opt.title) die('--title is required', 2)
@@ -144,6 +150,16 @@ if (cmd === 'list') {
   if (!text || !text.trim()) die('comment is empty. Pass --body or --body-file', 2)
   await api(`/api/issues/${key}/comments`, { method: 'POST', body: JSON.stringify({ body: text }) })
   console.log(`commented on ${key}`)
+} else if (cmd === 'fold') {
+  const key = needKey(pos[0])
+  const payload = {}
+  if (opt.ids !== undefined) payload.commentIds = csv(opt.ids)
+  if (opt.note !== undefined) payload.note = opt.note
+  if (opt['if-hash'] !== undefined) payload.ifDescriptionHash = opt['if-hash']
+  const b = body(opt)
+  if (b !== undefined) payload.description = b
+  const { folded } = await api(`/api/issues/${key}/fold`, { method: 'POST', body: JSON.stringify(payload) })
+  console.log(`folded ${folded} comment(s) on ${key}${b !== undefined ? ', description replaced' : ''}`)
 } else {
   die(`unknown command "${cmd}". Run: claude-ui issue help`, 2)
 }

@@ -96,17 +96,20 @@ It talks to the local server (`CLAUDE_UI_URL`, or `CLAUDE_UI_PORT`, default 3030
 
 ```bash
 claude-ui issue list    [--status S] [--label L] [--limit N] [--json]
-claude-ui issue get     ISS-1 [--comments N] [--json]
+claude-ui issue get     ISS-1 [--comments N] [--live] [--json]
 claude-ui issue create  --title T [--body TEXT | --body-file FILE|-] [--status S] [--priority P] [--label a,b] [--project DIR] [--parent ISS-1]
 claude-ui issue update  ISS-1 [--title T] [--body TEXT | --body-file FILE|-] [--priority P] [--label a,b] [--add-label L] [--remove-label L]
 claude-ui issue move    ISS-1 STATUS
 claude-ui issue comment ISS-1 [--body TEXT | --body-file FILE|-]
+claude-ui issue fold    ISS-1 [--ids a,b] [--note T] [--body TEXT | --body-file FILE|-] [--if-hash H]
 ```
 
 - `--body-file -` reads stdin. `update --body` replaces the whole description.
 - `create` makes an unassigned issue in `plan` mode, default project is the current directory or `CLAUDE_UI_PROJECT`.
 - There is no run, cancel, assign or delete verb on purpose. An agent can't start runs or hand work to another agent.
 - `move` to `todo` or `in_progress` is refused on an assigned issue, because that status starts a run.
+- `get --live` shows only comments no distill or clear folded, with ids and the description hash.
+- `fold` folds live comments like `/distill`, with no run. `--body` also replaces the description. `--if-hash` refuses with 409 if the description changed since `get` printed that hash.
 - To let runs use it without a prompt, allow `Bash(claude-ui issue *)` in `~/.claude/settings.json`.
 
 ## Views
