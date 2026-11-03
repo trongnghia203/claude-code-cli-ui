@@ -81,7 +81,7 @@ interface ProjectNames {
 /**
  * Load custom session names from storage
  */
-async function loadSessionNames(): Promise<SessionNames> {
+export async function loadSessionNames(): Promise<SessionNames> {
   const filePath = join(getClaudeDir(), 'custom-session-names.json')
   try {
     const data = await fs.readFile(filePath, 'utf8')

@@ -618,8 +618,8 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
           <p v-if="!sessions.length" class="text-meta">None yet. Sessions you start with Start iTerm2 are listed here, so you can resume them.</p>
           <div v-for="row in sessions" :key="row.id" class="flex items-center gap-2 rounded-lg px-2 py-1.5" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)">
             <span class="size-2 rounded-full shrink-0" :style="{ background: row.live ? '#16a34a' : 'var(--text-meta, #9ca3af)' }" :title="row.live ? 'Open in iTerm2' : 'Not open'" />
-            <span class="flex-1 min-w-0 flex items-baseline justify-between gap-1.5" :title="(row.label ? row.label + ' - ' : '') + row.cwd">
-              <span class="min-w-0 truncate font-medium">{{ shortDir(row.cwd) }}</span>
+            <span class="flex-1 min-w-0 flex items-baseline justify-between gap-1.5" :title="[row.label, row.cwd].filter(Boolean).join(' - ')">
+              <span class="min-w-0 truncate font-medium">{{ row.name || shortDir(row.cwd) }}</span>
               <span class="shrink-0 text-meta">{{ sessWhen(row.startedAt) }}</span>
             </span>
             <UButton :label="row.live ? 'Open' : 'Resume'" size="xs" variant="soft" color="neutral" :loading="resumingId === row.id" :disabled="!row.transcript" :title="row.transcript ? '' : 'Transcript is gone, Claude Code cannot resume it'" @click="resumeSession(row)" />

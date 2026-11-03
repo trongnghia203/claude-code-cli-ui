@@ -1,11 +1,21 @@
-import { existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { delimiter, join, resolve } from 'node:path'
 import { findResumeTty, openInIterm, shellQuote } from '../../../utils/iterm'
 import { SESSION_ID_RE, transcriptExists } from '../../../utils/issues/sessions'
 import { readIssue } from '../../../utils/issues/store'
 
 const LABEL_RE = /^[\w. -]{1,40}$/
+/** True when `claude-ui` on PATH is this app's own `scripts/claude-ui`, so the short command runs the same version. */
+function claudeUiOnPath(cli: string): boolean {
+  try {
+    const own = realpathSync(cli)
+    return (process.env.PATH ?? '').split(delimiter).some((dir) => {
+      try { return !!dir && realpathSync(join(dir, 'claude-ui')) === own } catch { return false }
+    })
+  } catch { return false }
+}
+
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]'])
 
 /**
@@ -46,12 +56,15 @@ export default defineEventHandler(async (event) => {
     writeFileSync(promptFile, prompt, { mode: 0o600 })
   }
 
-  // The CLI next to this app, so it matches the running version; PATH `claude-ui` is the fallback
+  // Short `claude-ui iterm2` when PATH has this app's own CLI, else the script by absolute path so the version always matches
+  const cli = resolve(process.env.CLAUDE_UI_DIR || process.cwd(), 'scripts', 'claude-ui')
   const script = resolve(process.env.CLAUDE_UI_DIR || process.cwd(), 'scripts', 'claude-ui-iterm2.mjs')
-  const runner = existsSync(script) ? `node ${shellQuote(script)}` : 'claude-ui iterm2'
+  const short = claudeUiOnPath(cli)
+  const runner = short ? 'claude-ui iterm2' : existsSync(script) ? `node ${shellQuote(script)}` : 'claude-ui iterm2'
+  // The script defaults to port 3030, so the URL is only needed for another port
   const port = /:(\d+)$/.exec(host)?.[1]
   const cmd = [
-    port ? `CLAUDE_UI_URL=http://localhost:${port}` : '',
+    port && port !== '3030' ? `CLAUDE_UI_URL=http://localhost:${port}` : '',
     runner, id, ...(resume ? ['--resume', resume] : []), '--cwd', shellQuote(cwd), ...(label ? ['--label', shellQuote(label)] : []),
     ...(promptFile ? ['--prompt-file', shellQuote(promptFile)] : []),
   ].filter(Boolean).join(' ')
