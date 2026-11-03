@@ -367,7 +367,7 @@ const canRun = computed(() => !!issue.value?.assignee && !running.value && issue
 const sessOpen = ref(false)
 const sessCwd = ref('')
 const sessLabel = ref('')
-const SESS_PROMPT = 'Start with a short summary of what is open (3-5 bullets)'
+const SESS_PROMPT = 'Start with a short summary of what is open'
 const sessPrompt = ref('')
 const sessBusy = ref(false)
 const sessProjects = ref<{ path: string; name: string }[]>([])

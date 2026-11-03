@@ -104,7 +104,7 @@ const args = [
 ]
 let filePrompt
 if (opt['prompt-file'] !== undefined) { try { filePrompt = readFileSync(opt['prompt-file'], 'utf8').trim() } catch (e) { die(`cannot read prompt file: ${e.message}`) } }
-const firstPrompt = opt.noPrompt ? '' : (filePrompt ?? opt.prompt ?? (resuming ? '' : 'Start with a short summary of what is open (3-5 bullets)'))
+const firstPrompt = opt.noPrompt ? '' : (filePrompt ?? opt.prompt ?? (resuming ? '' : 'Start with a short summary of what is open'))
 if (opt.print) {
   console.log(`cd ${cwd} && CLAUDE_UI_ISSUE=${key}${label ? ` CLAUDE_UI_SESSION_LABEL='${label}'` : ''} claude ${args.join(' ')}${firstPrompt ? " '<first prompt>'" : ''}`)
   console.log(`context: ${ctxFile}`)

@@ -187,7 +187,7 @@ For long jobs that need you in the loop. Design in `docs/adr/0008-interactive-is
 - `--cwd DIR` starts it elsewhere. `--label inhouse` names the session. Run two for two repos, each with its own label.
 - On the issue page, **Start iTerm2** (sidebar) opens a panel: pick the folder, optionally name the session, press Start.
   It opens a new iTerm2 tab running this command. macOS and iTerm2 only.
-- The first message asks for a short summary of what is open (3-5 bullets). `--prompt TEXT` or `--prompt-file FILE` replaces it, `--no-prompt` skips it.
+- The first message asks for a short summary of what is open. `--prompt TEXT` or `--prompt-file FILE` replaces it, `--no-prompt` skips it.
   In the panel it is a multi-line field. Empty uses the default shown as the placeholder.
 - Every session is listed under **Sessions** in the sidebar, newest first, with no limit. **Resume** (or **Open**, when its tab is
   still running) brings it back with fresh issue context. The x removes a row from the list only. CLI: `--resume ID`.
