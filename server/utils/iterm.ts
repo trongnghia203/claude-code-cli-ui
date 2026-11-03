@@ -93,9 +93,13 @@ export async function listResumeSessionIds(): Promise<string[]> {
   return ids
 }
 
-export async function launchInIterm(sessionId: string, cwd: string): Promise<ItermLaunchResult> {
-  const tty = await findResumeTty(sessionId)
-  const shellCmd = `cd ${shellQuote(cwd)} && claude --resume ${sessionId}`
+// Run a shell command in a new iTerm2 tab (or focus the tab on `tty`)
+export async function openInIterm(shellCmd: string, tty = ''): Promise<ItermLaunchResult> {
   const { stdout } = await run('osascript', ['-e', ITERM_SCRIPT, tty, shellCmd])
   return stdout.trim() as ItermLaunchResult
+}
+
+export async function launchInIterm(sessionId: string, cwd: string): Promise<ItermLaunchResult> {
+  const tty = await findResumeTty(sessionId)
+  return openInIterm(`cd ${shellQuote(cwd)} && claude --resume ${sessionId}`, tty)
 }

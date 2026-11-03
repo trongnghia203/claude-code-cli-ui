@@ -363,6 +363,41 @@ const duration = (ms?: number) => (ms == null ? '' : Math.round(ms / 1000) < 60 
 const sessionLink = (sid?: string) => (sid && issue.value ? `/cli/project/${encodeURIComponent(projectSlug(issue.value.projectDir))}/session/${encodeURIComponent(sid)}` : null)
 const canRun = computed(() => !!issue.value?.assignee && !running.value && issue.value.status !== 'done' && issue.value.status !== 'cancelled')
 
+// Interactive Claude Code session in iTerm2 (ADR 0008). Folder defaults to the issue's project, the label names the session.
+const sessOpen = ref(false)
+const sessCwd = ref('')
+const sessLabel = ref('')
+const sessBusy = ref(false)
+const sessProjects = ref<{ path: string; name: string }[]>([])
+const baseName = (p: string) => p.split('/').filter(Boolean).pop() ?? p
+const sessChoices = computed(() => {
+  const list = [...sessProjects.value]
+  for (const d of [sessCwd.value, issue.value?.projectDir]) if (d && !list.some(p => p.path === d)) list.unshift({ path: d, name: baseName(d) })
+  return list
+})
+async function toggleSession() {
+  sessOpen.value = !sessOpen.value
+  if (!sessOpen.value) return
+  sessCwd.value ||= issue.value?.projectDir ?? ''
+  try { sessProjects.value = (await $fetch<{ path: string; displayName: string }[]>('/api/projects')).map(p => ({ path: p.path, name: p.displayName })) } catch { /* the issue's folder still works */ }
+}
+async function browseSession() {
+  try {
+    const res = await $fetch<{ path: string | null }>('/api/utils/pick-folder', { method: 'POST' })
+    if (res.path) sessCwd.value = res.path
+  } catch (e: any) { toast.add({ title: 'Folder picker failed', description: e?.data?.message || e?.message, color: 'error' }) }
+}
+async function startSession() {
+  sessBusy.value = true
+  try {
+    await $fetch(`/api/issues/${id.value}/launch-session`, { method: 'POST', body: { cwd: sessCwd.value, label: sessLabel.value.trim() } })
+    toast.add({ title: 'Session opened in iTerm2', description: 'Run /claude-ui:issue-wrap there when done.', color: 'success', duration: 3000 })
+    sessLabel.value = ''
+  } catch (e: any) {
+    toast.add({ title: 'Could not start the session', description: e?.data?.message || e?.message, color: 'error' })
+  } finally { sessBusy.value = false }
+}
+
 useHead({ title: computed(() => `${id.value} | Agent Manager`) })
 </script>
 
@@ -520,7 +555,25 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
         <div class="flex gap-2">
           <UButton v-if="running" label="Stop run" icon="i-lucide-square" color="error" variant="soft" size="sm" @click="onCancel" />
           <UButton v-else label="Run agent" icon="i-lucide-play" size="sm" :disabled="!canRun" @click="onRun" />
+          <UButton label="Start iTerm2" icon="i-lucide-terminal" size="sm" variant="soft" color="neutral" title="Open an interactive Claude Code session with this issue's context" @click="toggleSession" />
         </div>
+        <section v-if="sessOpen" class="space-y-2 rounded-lg p-2.5" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)">
+          <p class="text-meta">Opens Claude Code in iTerm2 with the description and live comments. Run <span class="font-mono">/claude-ui:issue-wrap</span> there to save the work back.</p>
+          <label class="block space-y-1"><span class="prop-label">Folder</span>
+            <span class="flex gap-1.5">
+              <select v-model="sessCwd" class="prop-select flex-1 min-w-0" :title="sessCwd">
+                <option v-for="p in sessChoices" :key="p.path" :value="p.path">{{ p.name }}</option>
+              </select>
+              <UButton icon="i-lucide-folder-open" size="xs" variant="soft" color="neutral" title="Pick another folder" @click="browseSession" />
+            </span>
+            <span class="block font-mono text-meta truncate" :title="sessCwd">{{ sessCwd }}</span></label>
+          <label class="block space-y-1"><span class="prop-label">Label (optional)</span>
+            <input v-model="sessLabel" maxlength="40" placeholder="e.g. inhouse, olda-utils" class="w-full px-2 py-1 rounded-lg" style="background: var(--surface-base); border: 1px solid var(--border-subtle)" @keydown.enter.prevent="startSession" /></label>
+          <div class="flex justify-end gap-2">
+            <UButton label="Cancel" size="xs" variant="soft" color="neutral" @click="() => { sessOpen = false }" />
+            <UButton label="Start" icon="i-lucide-terminal" size="xs" :loading="sessBusy" :disabled="!sessCwd" @click="startSession" />
+          </div>
+        </section>
         <section class="space-y-1">
           <h3 class="font-semibold text-[13px] mb-1.5">Properties</h3>
           <div class="prop-row"><span class="prop-label">Status</span>

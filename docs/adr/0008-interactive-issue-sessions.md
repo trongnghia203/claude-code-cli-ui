@@ -1,6 +1,6 @@
 # ADR 0008: Interactive Claude Code sessions started from an issue
 
-- Status: Accepted (CLI and plugin done, "Start iTerm2" button not built yet)
+- Status: Accepted
 - Date: 2026-11-03
 
 ## Context
@@ -31,4 +31,8 @@ result back when done.
 - Two sessions fold only the comment ids they read, and `--if-hash` returns 409 if the description moved. The session merges and retries.
 - The plugin is named `claude-ui`, which the marketplace validator reserves (`claude-` prefix). It works with `--plugin-dir`.
   Submitting it to a marketplace needs a rename, and the command namespace changes with it.
-- Planned: a "Start iTerm2" button with a project picker. It runs this command through `osascript`.
+- The issue sidebar has a **Start iTerm2** button. It opens a panel with a folder picker (known projects, issue's project first,
+  plus a Browse button) and an optional label. `POST /api/issues/:id/launch-session` runs the CLI in a new iTerm2 tab
+  through `osascript` (`openInIterm` in `server/utils/iterm.ts`).
+- The route starts a process, so it needs a loopback `Host` header and, when the browser sends `Origin`, one that matches the host.
+  The folder must exist and the label is limited to letters, digits, space, `.`, `_`, `-`. Both are shell-quoted. macOS only.
