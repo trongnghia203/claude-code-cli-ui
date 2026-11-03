@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+**Interactive Claude Code sessions from an issue (`claude-ui session`)**
+- Add `claude-ui session ISS-n [--cwd DIR] [--label L] [--resume ID] [--prompt TEXT | --prompt-file FILE | --no-prompt]`: starts `claude` with the description and live comments
+- Add the `plugins/claude-ui` plugin: `/claude-ui:issue-wrap`, `issue-distill`, `issue-update`, `issue-comment` write the work back from inside the session
+- Add a **Start iTerm2** button on the issue page with a folder picker, label and first message, and `POST /api/issues/:id/launch-session`
+- Add a **Sessions** list on the issue page: newest first, no limit, green dot while the tab runs, **Resume** or **Open** per row
+- Register each session on the issue (`POST /api/issues/:id/sessions`); resume goes through the wrapper and needs the Claude transcript
+- Document it in `docs/issues-management.md` and `docs/adr/0008-interactive-issue-sessions.md`
+
+**`claude-ui issue fold` and `get --live`**
+- Add `fold`: folds live comments like `/distill` without a run, optionally replacing the description; `--if-hash` returns 409 if it changed
+- Add `get --live`: only comments no distill or clear folded, with comment ids and the description hash
+- Document it in `docs/issues-management.md` and `docs/adr/0009-issue-fold-verb.md`
+
 **Comment command `/clear` hides old comments without a run**
 - Add `/clear` (alias `/reset`): later runs and `/last` skip the comments, no run and no agent needed, nothing deleted
 - Show it as a folded row `clear-<timestamp>` with the optional note, and a hint with the comment count while typing
