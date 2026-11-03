@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { IssueInput, IssueSummary } from '~/composables/useIssues'
-import { ISSUE_PRIORITY_META } from '~/composables/useIssues'
+import { ISSUE_PRIORITIES, ISSUE_PRIORITY_META, ISSUE_STATUSES, ISSUE_STATUS_META } from '~/composables/useIssues'
+import type { ContextMenuItem } from '@nuxt/ui'
 import type { IssueViewDef } from '~/composables/useIssueConfig'
 import { propertyColor } from '~/composables/useIssueConfig'
 import type { Column } from '~/composables/useIssueView'
@@ -164,6 +165,57 @@ async function onDrop(status: string) {
   await refresh()
 }
 
+// ---- Right-click menu on a card or list row ----
+// Each item saves straight away: the card changes first, a failed save puts it back.
+async function patch(i: IssueSummary, input: IssueInput) {
+  const prev = { status: i.status, priority: i.priority, assignee: i.assignee, labels: [...i.labels] }
+  Object.assign(i, input)
+  if (!(await update(i.id, input))) Object.assign(i, prev)
+  await refresh()
+}
+async function copy(text: string, what: string) {
+  try {
+    await navigator.clipboard.writeText(text)
+    toast.add({ title: `${what} copied`, color: 'success', duration: 1500 })
+  } catch { toast.add({ title: 'Could not copy', color: 'error', duration: 3000 }) }
+}
+function menuFor(i: IssueSummary): ContextMenuItem[][] {
+  const labels = ic.configFor(i.projectDir).labels
+  return [
+    [{ label: 'Open', icon: 'i-lucide-arrow-up-right', onSelect: () => open(i) }],
+    [
+      {
+        label: 'Change status', icon: 'i-lucide-circle-dot',
+        children: ISSUE_STATUSES.map(s => ({ label: ISSUE_STATUS_META[s].label, icon: ISSUE_STATUS_META[s].icon, type: 'checkbox' as const, checked: i.status === s, onSelect: () => { if (i.status !== s) void patch(i, { status: s }) } })),
+      },
+      {
+        label: 'Change priority', icon: 'i-lucide-signal',
+        children: ISSUE_PRIORITIES.map(p => ({ label: ISSUE_PRIORITY_META[p].label, type: 'checkbox' as const, checked: i.priority === p, onSelect: () => { if (i.priority !== p) void patch(i, { priority: p }) } })),
+      },
+      {
+        label: 'Assign', icon: 'i-lucide-cpu',
+        children: [
+          { label: 'Unassigned', type: 'checkbox' as const, checked: !i.assignee, onSelect: () => { if (i.assignee) void patch(i, { assignee: null }) } },
+          ...agentOptions.value.map(a => ({ label: a.name, type: 'checkbox' as const, checked: i.assignee === a.slug, onSelect: () => { if (i.assignee !== a.slug) void patch(i, { assignee: a.slug }) } })),
+        ],
+      },
+      {
+        label: 'Labels', icon: 'i-lucide-tag',
+        children: labels.length
+          ? labels.map(l => ({
+            label: l.name, type: 'checkbox' as const, checked: i.labels.includes(l.id),
+            onSelect: () => void patch(i, { labels: i.labels.includes(l.id) ? i.labels.filter(x => x !== l.id) : [...i.labels, l.id] }),
+          }))
+          : [{ label: 'No labels yet. Create one in Issue settings.', disabled: true }],
+      },
+    ],
+    [
+      { label: 'Copy link', icon: 'i-lucide-link', onSelect: () => void copy(`${window.location.origin}/issues/${i.id}`, 'Link') },
+      { label: 'Copy key', icon: 'i-lucide-hash', onSelect: () => void copy(i.id, 'Key') },
+    ],
+  ]
+}
+
 // Poll while a run is active
 let timer: ReturnType<typeof setInterval> | null = null
 const anyRunning = computed(() => issues.value.some(i => i.running || i.drafting))
@@ -245,7 +297,8 @@ useHead({ title: 'Issues | Agent Manager' })
           <span class="text-meta font-normal">{{ cardsIn(c).length }}</span>
         </header>
         <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 pb-2 space-y-2">
-          <article v-for="i in cardsIn(c)" :key="i.id" :draggable="canDrag" class="rounded-lg p-3 cursor-pointer"
+          <UContextMenu v-for="i in cardsIn(c)" :key="i.id" :items="menuFor(i)">
+          <article :draggable="canDrag" class="rounded-lg p-3 cursor-pointer"
             :style="cardStyle(i)" :title="i.awaitingApproval ? 'Waiting for your approval' : isFresh(i) ? 'Updated since you last opened it' : undefined"
             @dragstart="dragId = i.id" @dragend="dragId = overKey = null" @click="open(i)">
             <div class="flex items-center gap-3 text-[12px] text-meta font-mono">
@@ -272,6 +325,7 @@ useHead({ title: 'Issues | Agent Manager' })
               <span v-for="l in labelsOf(i)" :key="l.id" class="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[12px]" style="background: var(--accent-muted)"><span class="size-1.5 rounded-full" :style="{ background: l.color }" />{{ l.name }}</span>
             </div>
           </article>
+          </UContextMenu>
         </div>
       </section>
       <p v-if="!columns.length" class="text-[13px] text-meta p-6">All columns are hidden. Show some in Display.</p>
@@ -287,7 +341,8 @@ useHead({ title: 'Issues | Agent Manager' })
             <span class="text-meta font-normal">{{ cardsIn(c).length }}</span>
           </h2>
           <div class="rounded-xl overflow-hidden" style="border: 1px solid var(--border-subtle)">
-            <button v-for="i in cardsIn(c)" :key="i.id" class="w-full flex items-center gap-3 px-3 py-2 text-left hover-bg text-[13px]" :style="{ borderBottom: '1px solid var(--border-subtle)', ...(i.awaitingApproval ? { background: 'color-mix(in srgb, #f97316 16%, var(--surface-base))' } : {}) }" :title="i.awaitingApproval ? 'Waiting for your approval' : undefined" @click="open(i)">
+            <UContextMenu v-for="i in cardsIn(c)" :key="i.id" :items="menuFor(i)">
+            <button class="w-full flex items-center gap-3 px-3 py-2 text-left hover-bg text-[13px]" :style="{ borderBottom: '1px solid var(--border-subtle)', ...(i.awaitingApproval ? { background: 'color-mix(in srgb, #f97316 16%, var(--surface-base))' } : {}) }" :title="i.awaitingApproval ? 'Waiting for your approval' : undefined" @click="open(i)">
               <span v-if="shows('priority')" class="size-2 rounded-full shrink-0" :style="{ background: ISSUE_PRIORITY_META[i.priority].color }" />
               <span v-if="shows('id')" class="font-mono text-[11px] text-meta w-16 shrink-0">{{ i.id }}</span>
               <span class="flex-1 truncate">{{ i.title }}</span>
@@ -297,6 +352,7 @@ useHead({ title: 'Issues | Agent Manager' })
               <span v-if="shows('assignee')" class="text-[11px] text-label w-32 truncate">{{ agentName(i.assignee) }}</span>
               <span class="text-[11px] text-meta w-20 text-right">{{ formatRelativeTime(i.updatedAt) }}</span>
             </button>
+            </UContextMenu>
           </div>
         </template>
       </section>
