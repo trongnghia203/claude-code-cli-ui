@@ -9,6 +9,13 @@
 - Add a **Sessions** list on the issue page: newest first, no limit, green dot while the tab runs, **Resume** or **Open** per row
 - Register each session on the issue (`POST /api/issues/:id/sessions`); resume goes through the wrapper and needs the Claude transcript
 - Document it in `docs/issues-management.md` and `docs/adr/0008-interactive-issue-sessions.md`
+- Name the command `iterm2` (was `session`) and its dry run `--dry-run` (was `--print`); the script is `scripts/claude-ui-iterm2.mjs`
+- Session rows are one line: the session name (Chat page rename, else the `/rename` title in the transcript) or the short folder, `~/ataccama/../dir` at most 25 chars, and the time at the right
+- Row tooltip shows the label and the full folder path
+- Remove the x button and `DELETE /api/issues/:id/sessions/:sessionId`: a listed session stays; a deleted transcript leaves a greyed-out row
+- Resume and Start type `claude-ui iterm2 ...` when `claude-ui` on PATH is this app's own CLI, else `node <script>`; `CLAUDE_UI_URL` only on a port other than 3030
+- Fix `claude-ui --help` so it lists `issue` and `iterm2`
+- Rename the sidebar item **CLI** to **Chat** and move it above **Issues** (route `/cli` unchanged)
 
 **`claude-ui issue fold` and `get --live`**
 - Add `fold`: folds live comments like `/distill` without a run, optionally replacing the description; `--if-hash` returns 409 if it changed

@@ -3,7 +3,7 @@ import { transcriptExists, transcriptTitle } from '../../../utils/issues/session
 import { listResumeSessionIds } from '../../../utils/iterm'
 import { loadSessionNames } from '../../../utils/claudeCodeHistory'
 
-/** The issue's interactive sessions, newest first, with `name` (CLI page rename, else the `/rename` title in the transcript), `live` (an iTerm2 tab runs it) and `transcript` (resume still works). */
+/** The issue's interactive sessions, newest first, with `name` (Chat page rename, else the `/rename` title in the transcript), `live` (an iTerm2 tab runs it) and `transcript` (resume still works). */
 export default defineEventHandler(async (event) => {
   const issue = readIssue(getRouterParam(event, 'id')!)
   if (!issue) throw createError({ statusCode: 404, message: 'Issue not found' })

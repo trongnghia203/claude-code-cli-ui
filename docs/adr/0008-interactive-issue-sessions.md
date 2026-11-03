@@ -27,9 +27,14 @@ result back when done.
   - The wrapper starts `claude --session-id <uuid>` and registers `{ id, cwd, label?, startedAt }` on the issue (`issue.sessions`,
     `POST /api/issues/:id/sessions`). It is never trimmed. Nothing removes a row, by design.
   - The issue sidebar lists them, newest first, with a green dot when an iTerm2 tab runs the session (`GET .../sessions`).
+    A row is one line: `name` (custom name from the Chat page, else the last `custom-title` in the transcript tail, written by `/rename`)
+    or the folder shortened to 25 characters, and the time at the right. Label and full path are in the tooltip.
+    The name is looked up on every list call, not stored on the issue, so a rename shows up without a sync.
   - **Resume** (**Open** when live) calls `launch-session` with `resume`. A live tab is focused. Otherwise a new tab runs
     `claude-ui iterm2 ISS-n --resume <id> --cwd <cwd> --label <label>`. Plain `claude --resume` would lose the plugin,
-    the env vars and the context file, which are per run, so resume goes through the wrapper. The context file says the session
+    the env vars and the context file, which are per run, so resume goes through the wrapper. The server types the short
+    `claude-ui iterm2` when `claude-ui` on PATH is this app's own CLI, else `node <abs path>/claude-ui-iterm2.mjs`, and sets
+    `CLAUDE_UI_URL` only for a port other than 3030. The context file says the session
     was resumed and that the issue text may have changed. No first message by default.
   - Resume needs the Claude transcript (`~/.claude/projects/*/<id>.jsonl`). When it is gone the button is disabled, `410` from the route.
 - Write-back is a slash command the user runs, not an exit hook.

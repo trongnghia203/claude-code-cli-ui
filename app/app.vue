@@ -208,10 +208,10 @@ const navTop = [
 ]
 
 const navMid = [
+  { key: 'cli', label: 'Chat', icon: 'i-lucide-terminal-square', to: '/cli' },
   { key: 'issues', label: 'Issues', icon: 'i-lucide-circle-dot', to: '/issues' },
   { key: 'schedules', label: 'Schedules', icon: 'i-lucide-clock', to: '/schedules' },
   { key: 'artifacts', label: 'Artifacts', icon: 'i-lucide-folder-root', to: '/project-artifacts' },
-  { key: 'cli', label: 'CLI', icon: 'i-lucide-terminal-square', to: '/cli' },
 ]
 
 const navBottom = [
@@ -226,7 +226,7 @@ const navBottom = [
 const mounted = ref(false)
 onMounted(() => { mounted.value = true })
 
-/** Where a nav link goes: "CLI" opens the current project's sessions when one is set, else the project list */
+/** Where a nav link goes: "Chat" opens the current project's sessions when one is set, else the project list */
 function linkTarget(link: { key?: string; to: string }): string {
   if (link.key === 'cli' && mounted.value && workingDir.value) {
     return `/cli/project/${encodeURIComponent(projectSlug(workingDir.value.replace(/\/+$/, '')))}`
@@ -243,7 +243,7 @@ function refreshProjectData() {
 watch(workingDir, (dir, prev) => {
   if (!mounted.value || dir === prev) return
   refreshProjectData()
-  // Switching project while on a CLI page: follow it, otherwise the session list keeps showing the old project
+  // Switching project while on a Chat page: follow it, otherwise the session list keeps showing the old project
   if (route.path === '/cli' || route.path.startsWith('/cli/')) {
     navigateTo(linkTarget({ key: 'cli', to: '/cli' }))
   }
@@ -540,7 +540,7 @@ function badgeFor(to: string) {
           <!-- Separator 1 -->
           <div class="my-3" :class="sidebarCollapsed ? 'mx-1' : 'mx-2'" style="border-top: 1px solid var(--border-subtle);" />
 
-          <!-- Mid Section: Projects & CLI -->
+          <!-- Mid Section: Chat, Issues, Schedules, Artifacts -->
           <NuxtLink
             v-for="link in navMid"
             :key="link.key"
