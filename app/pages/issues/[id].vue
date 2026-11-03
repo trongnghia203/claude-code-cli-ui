@@ -372,21 +372,23 @@ const sessPrompt = ref('')
 const sessBusy = ref(false)
 const sessProjects = ref<{ path: string; name: string }[]>([])
 const baseName = (p: string) => p.split('/').filter(Boolean).pop() ?? p
+// Many projects share a last folder name (worktree, workdir), so show the whole path with the home folder as ~
+const tilde = (p: string) => p.replace(/^\/(?:Users|home)\/[^/]+(?=\/|$)/, '~')
 const sessChoices = computed(() => {
-  const list = [...sessProjects.value]
-  for (const d of [sessCwd.value, issue.value?.projectDir]) if (d && !list.some(p => p.path === d)) list.unshift({ path: d, name: baseName(d) })
-  return list
+  const own = issue.value?.projectDir
+  const rest = sessProjects.value.map(p => p.path).filter(p => p !== own)
+  return [...new Set([...(own ? [own] : []), ...rest.sort()])].map(tilde)
 })
 async function toggleSession() {
   sessOpen.value = !sessOpen.value
   if (!sessOpen.value) return
-  sessCwd.value ||= issue.value?.projectDir ?? ''
+  sessCwd.value ||= tilde(issue.value?.projectDir ?? '')
   try { sessProjects.value = (await $fetch<{ path: string; displayName: string }[]>('/api/projects')).map(p => ({ path: p.path, name: p.displayName })) } catch { /* the issue's folder still works */ }
 }
 async function browseSession() {
   try {
     const res = await $fetch<{ path: string | null }>('/api/utils/pick-folder', { method: 'POST' })
-    if (res.path) sessCwd.value = res.path
+    if (res.path) sessCwd.value = tilde(res.path)
   } catch (e: any) { toast.add({ title: 'Folder picker failed', description: e?.data?.message || e?.message, color: 'error' }) }
 }
 async function startSession() {
@@ -591,12 +593,10 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
         <section v-if="sessOpen" class="space-y-2 rounded-lg p-2.5" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)">
           <label class="block space-y-1"><span class="prop-label">Folder</span>
             <span class="flex gap-1.5">
-              <select v-model="sessCwd" class="prop-select flex-1 min-w-0" :title="sessCwd">
-                <option v-for="p in sessChoices" :key="p.path" :value="p.path">{{ p.name }}</option>
-              </select>
+              <input v-model="sessCwd" list="sess-dirs" spellcheck="false" placeholder="Type to filter, or Browse" @focus="($event.target as HTMLInputElement).select()" class="flex-1 min-w-0 px-2 py-1 rounded-lg font-mono text-[11px]" style="background: var(--surface-base); border: 1px solid var(--border-subtle)" :title="sessCwd" />
               <UButton icon="i-lucide-folder-open" size="xs" variant="soft" color="neutral" title="Pick another folder" @click="browseSession" />
             </span>
-            <span class="block font-mono text-meta truncate" :title="sessCwd">{{ sessCwd }}</span></label>
+            <datalist id="sess-dirs"><option v-for="d in sessChoices" :key="d" :value="d" /></datalist></label>
           <label class="block space-y-1"><span class="prop-label">Label (optional)</span>
             <input v-model="sessLabel" maxlength="40" placeholder="e.g. inhouse, olda-utils" class="w-full px-2 py-1 rounded-lg" style="background: var(--surface-base); border: 1px solid var(--border-subtle)" @keydown.enter.prevent="startSession" /></label>
           <label class="block space-y-1"><span class="prop-label">First message (optional)</span>
