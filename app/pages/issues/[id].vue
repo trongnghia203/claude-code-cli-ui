@@ -555,10 +555,9 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
         <div class="flex gap-2">
           <UButton v-if="running" label="Stop run" icon="i-lucide-square" color="error" variant="soft" size="sm" @click="onCancel" />
           <UButton v-else label="Run agent" icon="i-lucide-play" size="sm" :disabled="!canRun" @click="onRun" />
-          <UButton label="Start iTerm2" icon="i-lucide-terminal" size="sm" variant="soft" color="neutral" title="Open an interactive Claude Code session with this issue's context" @click="toggleSession" />
+          <UButton label="Start iTerm2" icon="i-lucide-terminal" size="sm" variant="soft" color="neutral" style="background: color-mix(in srgb, currentColor 12%, transparent)" title="Open an interactive Claude Code session with this issue's context" @click="toggleSession" />
         </div>
         <section v-if="sessOpen" class="space-y-2 rounded-lg p-2.5" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)">
-          <p class="text-meta">Opens Claude Code in iTerm2 with the description and live comments. Run <span class="font-mono">/claude-ui:issue-wrap</span> there to save the work back.</p>
           <label class="block space-y-1"><span class="prop-label">Folder</span>
             <span class="flex gap-1.5">
               <select v-model="sessCwd" class="prop-select flex-1 min-w-0" :title="sessCwd">
@@ -569,9 +568,10 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
             <span class="block font-mono text-meta truncate" :title="sessCwd">{{ sessCwd }}</span></label>
           <label class="block space-y-1"><span class="prop-label">Label (optional)</span>
             <input v-model="sessLabel" maxlength="40" placeholder="e.g. inhouse, olda-utils" class="w-full px-2 py-1 rounded-lg" style="background: var(--surface-base); border: 1px solid var(--border-subtle)" @keydown.enter.prevent="startSession" /></label>
+          <p class="text-meta">Opens Claude Code in iTerm2 with the description and live comments. Run <span class="font-mono">/claude-ui:issue-wrap</span> there to save the work back.</p>
           <div class="flex justify-end gap-2">
             <UButton label="Cancel" size="xs" variant="soft" color="neutral" @click="() => { sessOpen = false }" />
-            <UButton label="Start" icon="i-lucide-terminal" size="xs" :loading="sessBusy" :disabled="!sessCwd" @click="startSession" />
+            <UButton label="Start" icon="i-lucide-terminal" size="xs" :loading="sessBusy" :disabled="!sessCwd" style="background: #b45309; color: #fff" @click="startSession" />
           </div>
         </section>
         <section class="space-y-1">
