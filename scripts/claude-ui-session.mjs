@@ -14,7 +14,7 @@ const USAGE = `claude-ui session ISS-n [--cwd DIR] [--label L] [--prompt TEXT | 
 
   --cwd DIR   where claude starts (default: the issue's project). Use it for a second session in another repo.
   --label L   name of this session, e.g. inhouse or olda-utils. Added to comments so two sessions stay apart.
-  --prompt T  first message sent to claude (default: summarize what is open in 3 lines, then wait).
+  --prompt T  first message sent to claude (default: a short summary of what is open).
   --no-prompt start with no first message.
   --print     write the context file, print the claude command, do not start it.`
 
@@ -93,7 +93,7 @@ const args = [
   '--plugin-dir', PLUGIN_DIR,
   '--append-system-prompt-file', ctxFile,
 ]
-const firstPrompt = opt.noPrompt ? '' : (opt.prompt ?? `Issue ${key} context is loaded. In 3 lines say what is open, then wait for me.`)
+const firstPrompt = opt.noPrompt ? '' : (opt.prompt ?? 'Start with a short summary of what is open (3-5 bullets)')
 if (firstPrompt) args.push(firstPrompt)
 if (opt.print) {
   console.log(`cd ${cwd} && CLAUDE_UI_ISSUE=${key}${label ? ` CLAUDE_UI_SESSION_LABEL='${label}'` : ''} claude ${args.slice(0, 4).join(' ')} ${firstPrompt ? "'<first prompt>'" : ''}`)

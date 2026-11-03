@@ -29,6 +29,9 @@ export default defineEventHandler(async (event) => {
   const label = typeof body.label === 'string' ? body.label.trim() : ''
   if (label && !LABEL_RE.test(label)) throw createError({ statusCode: 400, message: 'Label: letters, digits, space, . _ - only, max 40' })
 
+  // First message: absent = the CLI default, empty = none. One line, so it cannot run a second command in the tab.
+  const prompt = typeof body.prompt === 'string' ? body.prompt.replace(/\s+/g, ' ').trim().slice(0, 300) : null
+
   // The CLI next to this app, so it matches the running version; PATH `claude-ui` is the fallback
   const script = resolve(process.env.CLAUDE_UI_DIR || process.cwd(), 'scripts', 'claude-ui-session.mjs')
   const runner = existsSync(script) ? `node ${shellQuote(script)}` : 'claude-ui session'
@@ -36,7 +39,7 @@ export default defineEventHandler(async (event) => {
   const cmd = [
     port ? `CLAUDE_UI_URL=http://localhost:${port}` : '',
     runner, id, '--cwd', shellQuote(cwd), ...(label ? ['--label', shellQuote(label)] : []),
-    ...(body.summary === false ? ['--no-prompt'] : []),
+    ...(prompt === null ? [] : prompt ? ['--prompt', shellQuote(prompt)] : ['--no-prompt']),
   ].filter(Boolean).join(' ')
 
   try {
