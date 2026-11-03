@@ -189,8 +189,8 @@ For long jobs that need you in the loop. Design in `docs/adr/0008-interactive-is
   It opens a new iTerm2 tab running this command. macOS and iTerm2 only.
 - The first message asks for a short summary of what is open. `--prompt TEXT` or `--prompt-file FILE` replaces it, `--no-prompt` skips it.
   In the panel it is a multi-line field. Empty uses the default shown as the placeholder.
-- Every session is listed under **Sessions** in the sidebar, newest first, with no limit. **Resume** (or **Open**, when its tab is
-  still running) brings it back with fresh issue context. CLI: `--resume ID`. Resume works while Claude Code still has the transcript.
+- Every session is listed under **Sessions** in the sidebar, newest first, with no limit. **Open** focuses the iTerm2 tab if it is
+  still running, or reopens the session in a new tab, with fresh issue context. CLI: `--resume ID`. Resume works while Claude Code still has the transcript.
   - One line per row: the session name, then the time at the right. The name is the Chat page rename, else the `/rename` title
     from the transcript. With no name the row shows the folder, shortened to 25 characters (`~/ataccama/../dir`).
   - The tooltip shows the label and the full folder path. Names refresh with the list (every 15 seconds).

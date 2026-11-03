@@ -30,7 +30,7 @@ result back when done.
     A row is one line: `name` (custom name from the Chat page, else the last `custom-title` in the transcript tail, written by `/rename`)
     or the folder shortened to 25 characters, and the time at the right. Label and full path are in the tooltip.
     The name is looked up on every list call, not stored on the issue, so a rename shows up without a sync.
-  - **Resume** (**Open** when live) calls `launch-session` with `resume`. A live tab is focused. Otherwise a new tab runs
+  - **Open** (one label for live and closed rows) calls `launch-session` with `resume`. A live tab is focused. Otherwise a new tab runs
     `claude-ui iterm2 ISS-n --resume <id> --cwd <cwd> --label <label>`. Plain `claude --resume` would lose the plugin,
     the env vars and the context file, which are per run, so resume goes through the wrapper. The server types the short
     `claude-ui iterm2` when `claude-ui` on PATH is this app's own CLI, else `node <abs path>/claude-ui-iterm2.mjs`, and sets

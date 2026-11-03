@@ -622,7 +622,7 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
               <span class="min-w-0 truncate font-medium">{{ row.name || shortDir(row.cwd) }}</span>
               <span class="shrink-0 text-meta">{{ sessWhen(row.startedAt) }}</span>
             </span>
-            <UButton :label="row.live ? 'Open' : 'Resume'" size="xs" variant="soft" color="neutral" :loading="resumingId === row.id" :disabled="!row.transcript" :title="row.transcript ? '' : 'Transcript is gone, Claude Code cannot resume it'" @click="resumeSession(row)" />
+            <UButton :label="'Open'" size="xs" variant="soft" color="neutral" :loading="resumingId === row.id" :disabled="!row.transcript" :title="row.transcript ? (row.live ? 'Focus the running iTerm2 tab' : 'Reopen this session in a new iTerm2 tab') : 'Transcript is gone, Claude Code cannot resume it'" @click="resumeSession(row)" />
           </div>
         </section>
         <section class="space-y-1">

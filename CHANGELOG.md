@@ -6,7 +6,7 @@
 - Add `claude-ui iterm2 ISS-n [--cwd DIR] [--label L] [--resume ID] [--prompt TEXT | --prompt-file FILE | --no-prompt]`: starts `claude` with the description and live comments
 - Add the `plugins/claude-ui` plugin: `/claude-ui:issue-wrap`, `issue-distill`, `issue-update`, `issue-comment` write the work back from inside the session
 - Add a **Start iTerm2** button on the issue page with a folder picker, label and first message, and `POST /api/issues/:id/launch-session`
-- Add a **Sessions** list on the issue page: newest first, no limit, green dot while the tab runs, **Resume** or **Open** per row
+- Add a **Sessions** list on the issue page: newest first, no limit, green dot while the tab runs, an **Open** button per row (focuses the live tab or resumes the session)
 - Register each session on the issue (`POST /api/issues/:id/sessions`); resume goes through the wrapper and needs the Claude transcript
 - Document it in `docs/issues-management.md` and `docs/adr/0008-interactive-issue-sessions.md`
 - Name the command `iterm2` (was `session`) and its dry run `--dry-run` (was `--print`); the script is `scripts/claude-ui-iterm2.mjs`
