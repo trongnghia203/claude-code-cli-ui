@@ -374,6 +374,16 @@ const sessProjects = ref<{ path: string; name: string }[]>([])
 const baseName = (p: string) => p.split('/').filter(Boolean).pop() ?? p
 // Many projects share a last folder name (worktree, workdir), so show the whole path with the home folder as ~
 const tilde = (p: string) => p.replace(/^\/(?:Users|home)\/[^/]+(?=\/|$)/, '~')
+// Short form for tight rows: ~/ataccama/ai/suri stays, a long path becomes ~/ataccama/../suri (max 25 chars, full path in the tooltip)
+function shortDir(p: string, max = 25) {
+  const t = tilde(p)
+  if (t.length <= max) return t
+  const parts = t.split('/').filter(Boolean)
+  const last = parts.pop() ?? t
+  const head = parts.slice(0, parts[0] === '~' ? 2 : 1).join('/')
+  const out = head ? `${head}/../${last}` : last
+  return out.length <= max ? out : `${out.slice(0, max - 1)}\u2026`
+}
 const sessChoices = computed(() => {
   const own = issue.value?.projectDir
   const rest = sessProjects.value.map(p => p.path).filter(p => p !== own)
@@ -425,10 +435,6 @@ async function resumeSession(row: IssueSessionRow) {
     toast.add({ title: 'Could not resume', description: e?.data?.message || e?.message, color: 'error' })
     loadSessions()
   } finally { resumingId.value = '' }
-}
-async function forgetSession(row: IssueSessionRow) {
-  try { await $fetch(`/api/issues/${id.value}/sessions/${row.id}`, { method: 'DELETE' }) } catch { /* list refresh shows the truth */ }
-  await loadSessions()
 }
 
 useHead({ title: computed(() => `${id.value} | Agent Manager`) })
@@ -612,12 +618,11 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
           <p v-if="!sessions.length" class="text-meta">None yet. Sessions you start with Start iTerm2 are listed here, so you can resume them.</p>
           <div v-for="row in sessions" :key="row.id" class="flex items-center gap-2 rounded-lg px-2 py-1.5" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)">
             <span class="size-2 rounded-full shrink-0" :style="{ background: row.live ? '#16a34a' : 'var(--text-meta, #9ca3af)' }" :title="row.live ? 'Open in iTerm2' : 'Not open'" />
-            <span class="flex-1 min-w-0">
-              <span class="block truncate font-medium" :title="row.cwd">{{ row.label || row.cwd.split('/').filter(Boolean).pop() }}</span>
-              <span class="block truncate text-meta" :title="row.cwd">{{ row.label ? row.cwd.split('/').filter(Boolean).pop() + ' - ' : '' }}{{ sessWhen(row.startedAt) }}</span>
+            <span class="flex-1 min-w-0 flex items-baseline justify-between gap-1.5" :title="(row.label ? row.label + ' - ' : '') + row.cwd">
+              <span class="min-w-0 truncate font-medium">{{ shortDir(row.cwd) }}</span>
+              <span class="shrink-0 text-meta">{{ sessWhen(row.startedAt) }}</span>
             </span>
             <UButton :label="row.live ? 'Open' : 'Resume'" size="xs" variant="soft" color="neutral" :loading="resumingId === row.id" :disabled="!row.transcript" :title="row.transcript ? '' : 'Transcript is gone, Claude Code cannot resume it'" @click="resumeSession(row)" />
-            <UButton icon="i-lucide-x" size="xs" variant="ghost" color="neutral" title="Remove from this list" @click="forgetSession(row)" />
           </div>
         </section>
         <section class="space-y-1">
