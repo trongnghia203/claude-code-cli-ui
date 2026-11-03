@@ -241,6 +241,7 @@ const SLASH_COMMANDS = [
   { name: 'adhoc', hint: 'Run with only this comment, no description or history' },
   { name: 'clear', hint: 'Hide the old comments from later runs. No run, nothing deleted' },
   { name: 'distill', hint: 'Fold the new comments into the description. Later runs skip them' },
+  { name: 'redraft', hint: 'Re-read the links, rewrite title and description. Press Comment, no run. @agent picks reader' },
   { name: 'last', hint: 'This comment plus the 2 before it. /last N sends N+1. No description' },
 ]
 const slashQuery = ref<string | null>(null)

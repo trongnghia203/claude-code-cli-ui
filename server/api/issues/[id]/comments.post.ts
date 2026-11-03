@@ -1,5 +1,7 @@
 import { liveComments, newEntryId, readIssue, updateIssue } from '../../../utils/issues/store'
 import { buildDistillPrompt, startRun, isRunning } from '../../../utils/issues/runner'
+import { applyDraft } from '../../../utils/issues/applyDraft'
+import { detectSources, draftIssue } from '../../../utils/issues/draft'
 
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')!
@@ -21,6 +23,23 @@ export default defineEventHandler(async (event) => {
   const earlier = liveComments(issue)
   if (distill && !earlier.length) throw createError({ statusCode: 400, message: 'Nothing to distill: no new comments since the last distill' })
   if (clear && !earlier.length) throw createError({ statusCode: 400, message: 'Nothing to clear: no new comments since the last distill or clear' })
+  // `/redraft` as first word (after optional @mentions): read the issue's sources again and rewrite title and description.
+  // An @mention picks the agent that reads them. No run starts; the page shows "Agent is reading sources" meanwhile.
+  const redraft = !clear && /^\s*(?:@[\w-]+\s+)*\/redraft(?:\s|$)/i.test(text)
+  if (redraft && issue.drafting) throw createError({ statusCode: 409, message: 'A draft is already running' })
+  const hint = redraft ? text.replace(/^\s*(?:@[\w-]+\s+)*/, '').replace(/^\/redraft/i, '').trim() : ''
+  // Re-evaluate the whole issue: title, description and comments, not just the links in them. Links only, no bare ticket keys.
+  const redraftText = redraft
+    ? [
+        'This issue was filed earlier and is being redrafted. Below is its current content.',
+        'An earlier draft may have failed to open a source: re-open every link and ignore any "could not open" note.',
+        `Title: ${issue.title}`,
+        `Description:\n${issue.description}`,
+        ...earlier.flatMap(c => (c.type === 'comment' ? [`Comment by ${c.author}:\n${c.body}`] : [])),
+        ...(hint ? [`Hint from the user: ${hint}`] : []),
+      ].join('\n\n').slice(0, 6000)
+    : ''
+  const draftSources = redraft ? detectSources(redraftText, { keys: false }) : []
   const commentId = newEntryId()
   updateIssue(id, (i) => {
     const at = new Date().toISOString()
@@ -40,7 +59,18 @@ export default defineEventHandler(async (event) => {
   const previous = cmd === 'last'
     ? earlier.slice(-(count + 1)).flatMap(c => (c.type === 'comment' ? [{ author: c.author, at: c.at, body: c.body }] : []))
     : undefined
-  if (clear) {
+  if (redraft) {
+    updateIssue(id, (i) => { i.drafting = true; delete i.draftNote })
+    // Background: the issue page polls while `drafting` is set. Failure keeps the current text.
+    draftIssue(redraftText, [], issue.projectDir, { agent: mention ?? /^\s*@([\w-]+)/.exec(text)?.[1], sources: draftSources })
+      .then(draft => { applyDraft(id, draft, issue.projectDir) })
+      .catch((e: any) => {
+        updateIssue(id, (i) => {
+          delete i.drafting
+          i.draftNote = `Redraft failed: ${e.message}. Title and description are unchanged.`
+        })
+      })
+  } else if (clear) {
     const note = text.replace(/^\s*(?:@[\w-]+\s+)*/, '').replace(/^\/(?:clear|reset)/i, '').trim().slice(0, 200)
     updateIssue(id, (i) => {
       i.timeline.push({ id: newEntryId(), at: new Date().toISOString(), type: 'distill', kind: 'clear', ...(note ? { note } : {}), foldedIds: [...earlier.map(c => c.id), commentId], descriptionBefore: i.description })

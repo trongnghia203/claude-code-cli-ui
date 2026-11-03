@@ -65,6 +65,13 @@ On success the comments it saw are folded: later runs and `/last` skip them, and
 Nothing is deleted. Example: `@issue-watcher /distill focus on the rollback decision`.
 With no new comments since the last distill, the command is refused.
 
+**Redraft.** Start a comment with `/redraft` (an `@agent` mention may come first) and press "Comment". No run starts.
+The agent gets the whole issue: title, description, comments and the hint. It opens every link in them read-only
+(bare ticket keys do not count, paste the full URL) and rewrites the title, description, priority and labels.
+The `@agent` is the one that reads them. Text after `/redraft` is a hint.
+With no links it redrafts from the text alone. It is refused while a draft is running.
+On failure the text stays as it was and a note shows why.
+
 **Clear.** Start a comment with `/clear` (or `/reset`) and press "Comment". No run starts and no agent is needed.
 The comments so far are folded like after a distill, but the description is not touched. Text after `/clear` is kept as a note on the folded row.
 Use it for noise. Use `/distill` when the comments hold facts the description should keep.

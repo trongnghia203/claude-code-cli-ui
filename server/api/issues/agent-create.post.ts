@@ -3,7 +3,7 @@ import { createIssue, readIssue, updateIssue } from '../../utils/issues/store'
 import { startRun } from '../../utils/issues/runner'
 import { detectSources, draftIssue, type DraftAgent } from '../../utils/issues/draft'
 import { shouldAutoRun } from '../../utils/issues/validate'
-import { readConfig } from '../../utils/issues/config'
+import { applyDraft } from '../../utils/issues/applyDraft'
 
 /**
  * One-line request in, filed issue out.
@@ -49,20 +49,7 @@ export default defineEventHandler(async (event) => {
   // Background: do not await. The board and issue page poll while `drafting` is set.
   draftIssue(prompt, agents, projectDir, { agent: draftAgent, sources })
     .then((draft) => {
-      const done = updateIssue(created.id, (i) => {
-        i.title = draft.title
-        i.description = draft.description
-        i.priority = draft.priority
-        // The draft names labels. Keep only names that exist in the workspace labels, as ids.
-        const byName = new Map(readConfig(projectDir).labels.map(l => [l.name.toLowerCase(), l.id]))
-        i.labels = [...new Set(draft.labels.map(n => byName.get(n.toLowerCase())).filter((x): x is string => !!x))]
-        if (draft.assignee && !i.assignee) {
-          i.assignee = draft.assignee
-          i.timeline.push({ id: crypto.randomUUID().slice(0, 8), at: new Date().toISOString(), type: 'assign', from: null, to: draft.assignee })
-        }
-        delete i.drafting
-        delete i.draftNote
-      })
+      const done = applyDraft(created.id, draft, projectDir)
       if (done && shouldAutoRun(null, done)) startRun(done.id)
     })
     .catch((e: any) => {

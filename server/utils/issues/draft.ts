@@ -14,6 +14,8 @@ export interface IssueDraft {
 
 const TIMEOUT_MS = 120_000
 const TOOL_TIMEOUT_MS = 180_000
+const MCP_WAIT_MS = 60_000
+const MCP_POLL_MS = 2_000
 
 /** Read-only tools a drafting agent may use to open sources. Exact names: a server-level rule would also allow writes. */
 export const DRAFT_READ_TOOLS = [
@@ -25,10 +27,10 @@ export const DRAFT_READ_TOOLS = [
 ]
 
 /** Links, Jira keys and Slack permalinks the agent could open to understand the request. */
-export function detectSources(request: string): string[] {
+export function detectSources(request: string, opts: { keys?: boolean } = {}): string[] {
   const out = new Set<string>()
   for (const m of request.matchAll(/https?:\/\/[^\s<>"')\]]+/g)) out.add(m[0])
-  for (const m of request.matchAll(/\b[A-Z][A-Z0-9]{1,9}-\d{1,6}\b/g)) if (!/^ISS-/.test(m[0])) out.add(m[0])
+  if (opts.keys !== false) for (const m of request.matchAll(/\b[A-Z][A-Z0-9]{1,9}-\d{1,6}\b/g)) if (!/^ISS-/.test(m[0])) out.add(m[0])
   return [...out].slice(0, 8)
 }
 
@@ -111,23 +113,62 @@ export function draftIssue(request: string, agents: DraftAgent[], cwd: string, o
   return new Promise((resolve, reject) => {
     const args = ['-p', '--output-format', 'json', '--permission-mode', 'plan', '--model', withTools ? MODEL_ALIAS_KEY.SONNET : MODEL_ALIAS_KEY.HAIKU, '--max-budget-usd', '0.5', '--no-session-persistence']
     if (withTools) {
+      // Stream-json input: connector MCP servers (claude.ai Slack, Notion, ...) connect in the background, and a one-shot
+      // run starts before they are up ("no Slack tool"). Wait until none is pending, then send the prompt.
+      args.push('--input-format', 'stream-json', '--verbose')
+      args[args.indexOf('json')] = 'stream-json'
       if (opts.agent && /^[\w.-]+$/.test(opts.agent)) args.push('--agent', opts.agent)
       args.push('--allowedTools', DRAFT_READ_TOOLS.join(','))
     }
     let stdout = ''
     let stderr = ''
+    let resultMsg: any = null
+    let buf = ''
+    let promptSent = false
+    let statusSeq = 0
+    const waitStart = Date.now()
+    const prompt = buildPrompt(request, agents, sources, cwd)
     const child = spawn('claude', args, { cwd, env: process.env, stdio: ['pipe', 'pipe', 'pipe'] })
     const timer = setTimeout(() => { child.kill('SIGTERM'); reject(new Error('The agent took too long to draft the issue')) }, withTools ? TOOL_TIMEOUT_MS : TIMEOUT_MS)
-    child.stdout.on('data', d => { stdout += d })
-    child.stderr.on('data', d => { stderr += d })
     child.stdin.on('error', () => { /* child exited early */ })
-    child.stdin.end(buildPrompt(request, agents, sources, cwd))
+    const write = (o: unknown) => { if (!child.stdin.destroyed) child.stdin.write(JSON.stringify(o) + '\n') }
+    const askStatus = () => write({ type: 'control_request', request_id: `mcp-${statusSeq++}`, request: { subtype: 'mcp_status' } })
+    child.stdout.on('data', (d) => {
+      if (!withTools) { stdout += d; return }
+      buf += d
+      let nl: number
+      while ((nl = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, nl).trim()
+        buf = buf.slice(nl + 1)
+        if (!line) continue
+        let m: any
+        try { m = JSON.parse(line) } catch { continue }
+        if (m.type === 'control_response' && !promptSent) {
+          const servers: { status: string }[] = m.response?.response?.mcpServers ?? []
+          const settled = servers.length > 0 && servers.every(sv => sv.status !== 'pending')
+          if (settled || Date.now() - waitStart > MCP_WAIT_MS) {
+            promptSent = true
+            write({ type: 'user', message: { role: 'user', content: prompt } })
+          } else setTimeout(askStatus, MCP_POLL_MS)
+        } else if (m.type === 'result') {
+          resultMsg = m
+          child.stdin.end()
+        }
+      }
+    })
+    child.stderr.on('data', d => { stderr += d })
+    if (withTools) askStatus()
+    else child.stdin.end(prompt)
     child.on('error', (e) => { clearTimeout(timer); reject(new Error(`Could not start claude: ${e.message}`)) })
     child.on('close', (code) => {
       clearTimeout(timer)
       try {
         let reply = stdout
-        try {
+        if (withTools) {
+          if (!resultMsg) throw new Error(stderr.trim().slice(-300) || 'claude exited without a result')
+          if (resultMsg.is_error) throw new Error(String(resultMsg.result || 'claude reported an error'))
+          reply = String(resultMsg.result ?? '')
+        } else try {
           const parsed = JSON.parse(stdout)
           if (parsed.is_error) throw new Error(String(parsed.result || 'claude reported an error'))
           reply = String(parsed.result ?? '')
