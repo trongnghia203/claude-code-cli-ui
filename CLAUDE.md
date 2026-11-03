@@ -17,8 +17,9 @@ bun run typecheck    # nuxt typecheck
 
 There is no test or lint script. Verify changes by typechecking and exercising the UI. For file CRUD, check that files appear, change and disappear under `~/.claude/`.
 
-Issues have a CLI, `claude-ui issue <list|get|create|update|move|comment>` (`scripts/claude-ui-issue.mjs`, talks to the running server).
+Issues have a CLI, `claude-ui issue <list|get|create|update|move|comment|fold>` (`scripts/claude-ui-issue.mjs`, talks to the running server).
 Runs use it to rewrite the issue description at the end. It has no run, assign or delete verb on purpose. Details: `docs/issues-management.md`.
+`claude-ui session ISS-n` starts an interactive Claude Code session on an issue. Its plugin lives in `plugins/claude-ui/` (`docs/adr/0008-interactive-issue-sessions.md`).
 
 Env: `CLAUDE_DIR` overrides the default `~/.claude` (resolved in `server/utils/claudeDir.ts`).
 
