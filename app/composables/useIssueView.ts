@@ -218,7 +218,9 @@ export function useIssueViewState() {
   const route = useRoute()
   const router = useRouter()
   const filters = ref<IssueFilters>(parseJson(route.query.f, {}))
-  const display = ref<DisplayOptions>(parseJson(route.query.d, defaultDisplay()))
+  // Display survives fresh opens: URL wins, else the last used display from a cookie.
+  const displayCookie = useCookie<DisplayOptions | null>('issues-display', { default: () => null, maxAge: 60 * 60 * 24 * 365 })
+  const display = ref<DisplayOptions>(parseJson(route.query.d, { ...defaultDisplay(), ...(displayCookie.value ?? {}) }))
   const layoutCookie = useCookie<Layout>('issues-view', { default: () => 'board', maxAge: 60 * 60 * 24 * 365 })
   const layout = computed<Layout>({ get: () => (route.query.l === 'list' || route.query.l === 'board' ? route.query.l : layoutCookie.value), set: (v) => { layoutCookie.value = v; push({ l: v }) } })
   const viewId = ref<string | null>(typeof route.query.view === 'string' ? route.query.view : null)
@@ -226,6 +228,7 @@ export function useIssueViewState() {
   function push(extra: Record<string, string | undefined> = {}) {
     const empty = !filterCount(filters.value)
     const isDefaultDisplay = JSON.stringify(display.value) === JSON.stringify(defaultDisplay())
+    displayCookie.value = isDefaultDisplay ? null : JSON.parse(JSON.stringify(display.value))
     router.replace({ query: {
       ...route.query,
       f: empty ? undefined : JSON.stringify(filters.value),
