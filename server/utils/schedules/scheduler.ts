@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process'
-import { resolve } from 'node:path'
+import { mkdirSync, openSync, closeSync, readdirSync, rmSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 import { scheduleCore, type ScheduleJob } from './core'
 import * as launchd from './launchd'
 
@@ -51,7 +52,27 @@ function isDue(core: Awaited<ReturnType<typeof scheduleCore>>, job: ScheduleJob,
   return !!next && next.getTime() <= now
 }
 
+/**
+ * Several app servers can run at once (dev server plus packaged app), each with its own loop.
+ * First one to create the per-minute lock file fires the job; the others skip it.
+ */
+function claimFire(core: Awaited<ReturnType<typeof scheduleCore>>, jobId: string): boolean {
+  const dir = join(core.CONFIG_DIR, 'locks')
+  try {
+    mkdirSync(dir, { recursive: true })
+    const minute = Math.floor(Date.now() / 60_000)
+    closeSync(openSync(join(dir, `${jobId}-${minute}`), 'wx'))
+    for (const f of readdirSync(dir)) {
+      if (Number(f.split('-').pop()) < minute - 10) rmSync(join(dir, f), { force: true })
+    }
+    return true
+  } catch (e: any) {
+    return e?.code !== 'EEXIST'
+  }
+}
+
 async function fire(core: Awaited<ReturnType<typeof scheduleCore>>, job: ScheduleJob) {
+  if (!claimFire(core, job.id)) return
   const runId = core.createRunId()
   core.writeRun({ id: runId, jobId: job.id, jobName: job.name, trigger: 'schedule', status: 'running', startedAt: new Date().toISOString() })
   const runner = resolve(process.cwd(), 'scripts', 'run-schedule.mjs')
