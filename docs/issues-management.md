@@ -189,6 +189,9 @@ For long jobs that need you in the loop. Design in `docs/adr/0008-interactive-is
   It opens a new iTerm2 tab running this command. macOS and iTerm2 only.
 - The first message asks for a short summary of what is open (3-5 bullets). `--prompt TEXT` or `--prompt-file FILE` replaces it, `--no-prompt` skips it.
   In the panel it is a multi-line field. Empty uses the default shown as the placeholder.
+- Every session is listed under **Sessions** in the sidebar, newest first, with no limit. **Resume** (or **Open**, when its tab is
+  still running) brings it back with fresh issue context. The x removes a row from the list only. CLI: `--resume ID`.
+  Resume works while Claude Code still has the transcript.
 - `--print` writes the context file and prints the command without starting it.
 - Inside, `/claude-ui:issue-wrap` drafts a new description, asks, writes it, folds the comments it covered and posts a result comment.
   The parts are `/claude-ui:issue-distill` (preview only), `/claude-ui:issue-update` and `/claude-ui:issue-comment`.

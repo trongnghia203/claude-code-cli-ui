@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { openInIterm, shellQuote } from '../../../utils/iterm'
+import { findResumeTty, openInIterm, shellQuote } from '../../../utils/iterm'
+import { SESSION_ID_RE, transcriptExists } from '../../../utils/issues/sessions'
 import { readIssue } from '../../../utils/issues/store'
 
 const LABEL_RE = /^[\w. -]{1,40}$/
@@ -24,6 +25,12 @@ export default defineEventHandler(async (event) => {
   }
 
   const body = (await readBody(event)) ?? {}
+  // Resume: a session this issue lists. Its folder and label are reused, a live tab is focused instead of opening a second one.
+  const resume = typeof body.resume === 'string' ? body.resume.toLowerCase() : ''
+  const known = resume ? issue.sessions?.find(x => x.id === resume) : undefined
+  if (resume && (!SESSION_ID_RE.test(resume) || !known)) throw createError({ statusCode: 404, message: 'Session not listed on this issue' })
+  if (resume && !transcriptExists(resume)) throw createError({ statusCode: 410, message: 'Transcript is gone, Claude Code cannot resume it' })
+  if (known) { body.cwd = known.cwd; body.label = known.label ?? ''; body.prompt = '' }
   const cwd = resolve(String(body.cwd || issue.projectDir).replace(/^~(?=\/|$)/, homedir()))
   if (!existsSync(cwd) || !statSync(cwd).isDirectory()) throw createError({ statusCode: 400, message: `Working directory does not exist: ${cwd}` })
   const label = typeof body.label === 'string' ? body.label.trim() : ''
@@ -45,12 +52,12 @@ export default defineEventHandler(async (event) => {
   const port = /:(\d+)$/.exec(host)?.[1]
   const cmd = [
     port ? `CLAUDE_UI_URL=http://localhost:${port}` : '',
-    runner, id, '--cwd', shellQuote(cwd), ...(label ? ['--label', shellQuote(label)] : []),
+    runner, id, ...(resume ? ['--resume', resume] : []), '--cwd', shellQuote(cwd), ...(label ? ['--label', shellQuote(label)] : []),
     ...(promptFile ? ['--prompt-file', shellQuote(promptFile)] : []),
   ].filter(Boolean).join(' ')
 
   try {
-    const result = await openInIterm(cmd)
+    const result = await openInIterm(cmd, resume ? await findResumeTty(resume) : '')
     return { success: true, result, cwd }
   } catch (error: any) {
     throw createError({ statusCode: 500, message: error.stderr?.trim() || error.message || 'Failed to launch iTerm2' })

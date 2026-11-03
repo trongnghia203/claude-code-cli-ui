@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { IssueApproval, IssueDetail, IssueRun, IssuePermissionMode, IssuePriority, IssueStatus } from '~/composables/useIssues'
 import { WAKE_REPEAT_LABEL, ISSUE_PRIORITIES, ISSUE_PRIORITY_META, ISSUE_RUN_META, ISSUE_STATUS_META, ISSUE_STATUSES } from '~/composables/useIssues'
-import type { IssueWakeup, WakeupInput } from '~/composables/useIssues'
+import type { IssueSessionRow, IssueWakeup, WakeupInput } from '~/composables/useIssues'
 import { formatWakeAt } from '~/utils/wakeupFormat'
 import { renderMarkdown } from '~/utils/markdown'
 import { emojify, searchEmoji } from '~/utils/emoji'
@@ -395,9 +395,38 @@ async function startSession() {
     await $fetch(`/api/issues/${id.value}/launch-session`, { method: 'POST', body: { cwd: sessCwd.value, label: sessLabel.value.trim(), prompt: sessPrompt.value.trim() } })
     toast.add({ title: 'Session opened in iTerm2', description: 'Run /claude-ui:issue-wrap there when done.', color: 'success', duration: 3000 })
     sessLabel.value = ''
+    setTimeout(loadSessions, 2500)
   } catch (e: any) {
     toast.add({ title: 'Could not start the session', description: e?.data?.message || e?.message, color: 'error' })
   } finally { sessBusy.value = false }
+}
+
+// Sessions started from this issue: listed forever, newest first. Resume focuses the live tab or reopens the Claude session.
+const sessions = ref<IssueSessionRow[]>([])
+const resumingId = ref('')
+async function loadSessions() {
+  try { sessions.value = (await $fetch<{ sessions: IssueSessionRow[] }>(`/api/issues/${id.value}/sessions`)).sessions } catch { /* keep the old list */ }
+}
+onMounted(() => { loadSessions() })
+// Live state changes outside the page (a tab is closed), so look again now and then
+let sessTimer: ReturnType<typeof setInterval> | null = null
+onMounted(() => { sessTimer = setInterval(() => { if (document.visibilityState === 'visible') loadSessions() }, 15_000) })
+onUnmounted(() => { if (sessTimer) clearInterval(sessTimer) })
+const sessWhen = (at: string) => new Date(at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
+async function resumeSession(row: IssueSessionRow) {
+  resumingId.value = row.id
+  try {
+    const res = await $fetch<{ result: string }>(`/api/issues/${id.value}/launch-session`, { method: 'POST', body: { resume: row.id } })
+    toast.add({ title: res.result === 'focused' ? 'Switched to the open tab' : 'Session resumed in iTerm2', color: 'success', duration: 2500 })
+    setTimeout(loadSessions, 2500)
+  } catch (e: any) {
+    toast.add({ title: 'Could not resume', description: e?.data?.message || e?.message, color: 'error' })
+    loadSessions()
+  } finally { resumingId.value = '' }
+}
+async function forgetSession(row: IssueSessionRow) {
+  try { await $fetch(`/api/issues/${id.value}/sessions/${row.id}`, { method: 'DELETE' }) } catch { /* list refresh shows the truth */ }
+  await loadSessions()
 }
 
 useHead({ title: computed(() => `${id.value} | Agent Manager`) })
@@ -576,6 +605,18 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
           <div class="flex justify-end gap-2">
             <UButton label="Cancel" size="xs" variant="soft" color="neutral" @click="() => { sessOpen = false }" />
             <UButton label="Start" icon="i-lucide-terminal" size="xs" :loading="sessBusy" :disabled="!sessCwd" style="background: #b45309; color: #fff" @click="startSession" />
+          </div>
+        </section>
+        <section v-if="sessions.length" class="space-y-1.5">
+          <h3 class="font-semibold text-[13px]">Sessions</h3>
+          <div v-for="row in sessions" :key="row.id" class="flex items-center gap-2 rounded-lg px-2 py-1.5" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)">
+            <span class="size-2 rounded-full shrink-0" :style="{ background: row.live ? '#16a34a' : 'var(--text-meta, #9ca3af)' }" :title="row.live ? 'Open in iTerm2' : 'Not open'" />
+            <span class="flex-1 min-w-0">
+              <span class="block truncate font-medium" :title="row.cwd">{{ row.label || row.cwd.split('/').filter(Boolean).pop() }}</span>
+              <span class="block truncate text-meta" :title="row.cwd">{{ row.label ? row.cwd.split('/').filter(Boolean).pop() + ' - ' : '' }}{{ sessWhen(row.startedAt) }}</span>
+            </span>
+            <UButton :label="row.live ? 'Open' : 'Resume'" size="xs" variant="soft" color="neutral" :loading="resumingId === row.id" :disabled="!row.transcript" :title="row.transcript ? '' : 'Transcript is gone, Claude Code cannot resume it'" @click="resumeSession(row)" />
+            <UButton icon="i-lucide-x" size="xs" variant="ghost" color="neutral" title="Remove from this list" @click="forgetSession(row)" />
           </div>
         </section>
         <section class="space-y-1">

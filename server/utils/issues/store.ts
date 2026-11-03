@@ -60,6 +60,9 @@ export interface IssueWakeup {
 }
 export interface WakeupEvent { id: string; wakeupId: string; at: string; outcome: 'started' | 'skipped'; note: string }
 
+/** An interactive Claude Code session started from the issue (ADR 0008). `id` is the Claude session id. */
+export interface IssueSession { id: string; cwd: string; label?: string; startedAt: string }
+
 export interface Issue {
   id: string
   number: number
@@ -75,6 +78,8 @@ export interface Issue {
   /** Per-issue wakeup override. Missing means follow the workspace default. */
   wakeups?: { subIssuesFinish?: 'on' | 'off'; items?: IssueWakeup[] }
   wakeupHistory?: WakeupEvent[]
+  /** Interactive sessions, newest last. Never trimmed. */
+  sessions?: IssueSession[]
   parentId: string | null
   projectDir: string
   permissionMode: IssuePermissionMode

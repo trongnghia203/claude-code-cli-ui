@@ -23,6 +23,15 @@ result back when done.
   - `/claude-ui:issue-update`: write the draft with `fold --ids <ids read> --if-hash <hash>`.
   - `/claude-ui:issue-comment`: post a short result comment, prefixed with the label.
   - `/claude-ui:issue-wrap`: distill, ask, update, comment.
+- Session history and resume (added 2026-11-03):
+  - The wrapper starts `claude --session-id <uuid>` and registers `{ id, cwd, label?, startedAt }` on the issue (`issue.sessions`,
+    `POST /api/issues/:id/sessions`). It is never trimmed. A row is removed by hand (`DELETE .../sessions/:sessionId`).
+  - The issue sidebar lists them, newest first, with a green dot when an iTerm2 tab runs the session (`GET .../sessions`).
+  - **Resume** (**Open** when live) calls `launch-session` with `resume`. A live tab is focused. Otherwise a new tab runs
+    `claude-ui session ISS-n --resume <id> --cwd <cwd> --label <label>`. Plain `claude --resume` would lose the plugin,
+    the env vars and the context file, which are per run, so resume goes through the wrapper. The context file says the session
+    was resumed and that the issue text may have changed. No first message by default.
+  - Resume needs the Claude transcript (`~/.claude/projects/*/<id>.jsonl`). When it is gone the button is disabled, `410` from the route.
 - Write-back is a slash command the user runs, not an exit hook.
 
 ## Consequences

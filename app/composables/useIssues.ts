@@ -74,6 +74,9 @@ export interface IssueDetail extends Omit<IssueSummary, 'commentCount' | 'runCou
   runs: IssueRun[]
 }
 
+/** An interactive Claude Code session started from an issue (ADR 0008) */
+export interface IssueSessionRow { id: string; cwd: string; label?: string; startedAt: string; live: boolean; transcript: boolean }
+
 export type IssueInput = Partial<Pick<IssueDetail, 'title' | 'description' | 'status' | 'priority' | 'assignee' | 'labels' | 'properties' | 'wakeups' | 'parentId' | 'projectDir' | 'permissionMode'>>
 
 export const ISSUE_STATUS_META: Record<IssueStatus, { label: string; color: string; icon: string }> = {
