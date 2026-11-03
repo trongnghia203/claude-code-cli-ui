@@ -209,9 +209,12 @@ async function saveEdit() {
   await patch({ title: draftTitle.value, description: draftDesc.value })
   editing.value = false
 }
+// /redraft and /clear never start a run, so they post as a plain comment whichever way they are sent
+const noRunCommand = computed(() => /^\s*(?:@[\w-]+\s+)*\/(?:redraft|clear|reset)(?:\s|$)/i.test(newComment.value))
 async function send(andRun: boolean) {
   const body = newComment.value.trim()
   if (!body) return
+  if (noRunCommand.value) andRun = false
   busy.value = true
   const res = await comment(id.value, body, andRun, andRun ? mentionedAgent.value ?? undefined : undefined)
   busy.value = false
@@ -310,7 +313,10 @@ function onCommentKey(e: KeyboardEvent) {
     if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); pickMention(opts[mentionIdx.value]!.slug); return }
     if (e.key === 'Escape') { mentionQuery.value = null; return }
   }
-  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && newComment.value.trim() && !busy.value && !running.value && (issue.value?.assignee || mentionedAgent.value)) { e.preventDefault(); send(true) }
+  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && newComment.value.trim() && !busy.value) {
+    if (noRunCommand.value) { e.preventDefault(); send(false) }
+    else if (!running.value && (issue.value?.assignee || mentionedAgent.value)) { e.preventDefault(); send(true) }
+  }
 }
 
 async function onRun() {
@@ -500,7 +506,7 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
             <div class="flex justify-end gap-2">
               <UButton v-if="running" label="Stop run" icon="i-lucide-square" color="error" variant="soft" size="sm" title="Stop the agent that is running now" @click="onCancel" />
               <UButton label="Comment" size="sm" variant="soft" color="neutral" :disabled="!newComment.trim() || busy" @click="send(false)" />
-              <UButton label="Comment and run" size="sm" icon="i-lucide-play" :disabled="!newComment.trim() || busy || running || (!issue.assignee && !mentionedAgent)" :title="issue.assignee || mentionedAgent ? (mentionedAgent ? `Run @${mentionedAgent}` : '') : 'Assign an agent or @mention one'" @click="send(true)" />
+              <UButton label="Comment and run" size="sm" icon="i-lucide-play" :disabled="!newComment.trim() || busy || (!noRunCommand && (running || (!issue.assignee && !mentionedAgent)))" :title="issue.assignee || mentionedAgent ? (mentionedAgent ? `Run @${mentionedAgent}` : '') : 'Assign an agent or @mention one'" @click="send(true)" />
             </div>
           </div>
         </section>
