@@ -179,11 +179,11 @@ Each issue can wake an agent at a set time. Design in `docs/adr/0004-issue-wakeu
 - It only fires while the app is running. After a restart, a missed one fires at once and is marked late.
 - If a run is active on the issue, the wakeup waits. A closed issue skips it. The board card can show the next wakeup time.
 
-## Interactive session: `claude-ui session`
+## Interactive session: `claude-ui iterm2`
 
 For long jobs that need you in the loop. Design in `docs/adr/0008-interactive-issue-sessions.md`.
 
-- `claude-ui session ISS-12` starts `claude` in the issue's project with the description and live comments (not folded ones).
+- `claude-ui iterm2 ISS-12` starts `claude` in the issue's project with the description and live comments (not folded ones).
 - `--cwd DIR` starts it elsewhere. `--label inhouse` names the session. Run two for two repos, each with its own label.
 - On the issue page, **Start iTerm2** (sidebar) opens a panel: pick the folder, optionally name the session, press Start.
   It opens a new iTerm2 tab running this command. macOS and iTerm2 only.
@@ -192,7 +192,7 @@ For long jobs that need you in the loop. Design in `docs/adr/0008-interactive-is
 - Every session is listed under **Sessions** in the sidebar, newest first, with no limit. **Resume** (or **Open**, when its tab is
   still running) brings it back with fresh issue context. The x removes a row from the list only. CLI: `--resume ID`.
   Resume works while Claude Code still has the transcript.
-- `--print` writes the context file and prints the command without starting it.
+- `--dry-run` writes the context file and prints the command without starting it.
 - Inside, `/claude-ui:issue-wrap` drafts a new description, asks, writes it, folds the comments it covered and posts a result comment.
   The parts are `/claude-ui:issue-distill` (preview only), `/claude-ui:issue-update` and `/claude-ui:issue-comment`.
 - If another session or you changed the description meanwhile, the update stops, reads again, merges and asks before retrying.

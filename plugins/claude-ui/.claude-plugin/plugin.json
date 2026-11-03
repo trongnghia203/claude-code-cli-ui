@@ -1,6 +1,6 @@
 {
   "name": "claude-ui",
   "version": "0.1.0",
-  "description": "Distill, update and comment on a claude-ui issue from an interactive Claude Code session started by `claude-ui session`.",
+  "description": "Distill, update and comment on a claude-ui issue from an interactive Claude Code session started by `claude-ui iterm2`.",
   "author": { "name": "trongnghia203" }
 }

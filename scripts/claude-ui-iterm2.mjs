@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// claude-ui session ISS-n [--cwd DIR] [--label L] [--resume ID] [--prompt TEXT | --prompt-file FILE | --no-prompt] [--print]
+// claude-ui iterm2 ISS-n [--cwd DIR] [--label L] [--resume ID] [--prompt TEXT | --prompt-file FILE | --no-prompt] [--dry-run]
 // Starts an interactive Claude Code session with the issue's live context (description + comments no distill folded).
 // Inside it, /claude-ui:issue-wrap distills, updates the description and posts a comment (plugins/claude-ui).
 import { spawn } from 'node:child_process'
@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url'
 
 const BASE = process.env.CLAUDE_UI_URL || `http://localhost:${process.env.CLAUDE_UI_PORT || 3030}`
 const PLUGIN_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'plugins', 'claude-ui')
-const USAGE = `claude-ui session ISS-n [--cwd DIR] [--label L] [--resume ID] [--prompt TEXT | --prompt-file FILE | --no-prompt] [--print]
+const USAGE = `claude-ui iterm2 ISS-n [--cwd DIR] [--label L] [--resume ID] [--prompt TEXT | --prompt-file FILE | --no-prompt] [--dry-run]
 
   --cwd DIR   where claude starts (default: the issue's project). Use it for a second session in another repo.
   --label L   name of this session, e.g. inhouse or olda-utils. Added to comments so two sessions stay apart.
@@ -19,7 +19,7 @@ const USAGE = `claude-ui session ISS-n [--cwd DIR] [--label L] [--resume ID] [--
   --prompt T  first message sent to claude (default: a short summary of what is open).
   --prompt-file F  same, read from a file (multi-line).
   --no-prompt start with no first message.
-  --print     write the context file, print the claude command, do not start it.`
+  --dry-run   write the context file, print the claude command, do not start it.`
 
 const die = (msg, code = 1) => { console.error(`error: ${msg}`); process.exit(code) }
 
@@ -29,7 +29,7 @@ const pos = []
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i]
   if (a === '-h' || a === '--help') { console.log(USAGE); process.exit(0) }
-  if (a === '--print') { opt.print = true; continue }
+  if (a === '--dry-run') { opt.dryRun = true; continue }
   if (a === '--no-prompt') { opt.noPrompt = true; continue }
   if (a.startsWith('--')) {
     const v = argv[++i]
@@ -105,7 +105,7 @@ const args = [
 let filePrompt
 if (opt['prompt-file'] !== undefined) { try { filePrompt = readFileSync(opt['prompt-file'], 'utf8').trim() } catch (e) { die(`cannot read prompt file: ${e.message}`) } }
 const firstPrompt = opt.noPrompt ? '' : (filePrompt ?? opt.prompt ?? (resuming ? '' : 'Start with a short summary of what is open'))
-if (opt.print) {
+if (opt.dryRun) {
   console.log(`cd ${cwd} && CLAUDE_UI_ISSUE=${key}${label ? ` CLAUDE_UI_SESSION_LABEL='${label}'` : ''} claude ${args.join(' ')}${firstPrompt ? " '<first prompt>'" : ''}`)
   console.log(`context: ${ctxFile}`)
   process.exit(0)

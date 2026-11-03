@@ -2,7 +2,7 @@ import { existsSync, statSync } from 'node:fs'
 import { readIssue, updateIssue } from '../../../utils/issues/store'
 import { SESSION_ID_RE } from '../../../utils/issues/sessions'
 
-/** `claude-ui session` registers the Claude session it starts, so the issue page can list and resume it (ADR 0008). */
+/** `claude-ui iterm2` registers the Claude session it starts, so the issue page can list and resume it (ADR 0008). */
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')!
   if (!readIssue(id)) throw createError({ statusCode: 404, message: 'Issue not found' })

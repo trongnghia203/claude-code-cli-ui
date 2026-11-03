@@ -11,7 +11,7 @@ result back when done.
 
 ## Decision
 
-- `claude-ui session ISS-n [--cwd DIR] [--label L] [--print]` (`scripts/claude-ui-session.mjs`) starts an interactive `claude`.
+- `claude-ui iterm2 ISS-n [--cwd DIR] [--label L] [--dry-run]` (`scripts/claude-ui-iterm2.mjs`) starts an interactive `claude`.
   - Context file: description plus live comments only (ADR 0009, `get --live`). Folded comments are not sent. A hint says how to read them.
   - Passed with `--append-system-prompt-file`. A short first prompt asks for a summary. `--prompt TEXT` or `--prompt-file FILE` replaces it, `--no-prompt` skips it.
     The panel sends a multi-line text through a private temp file (empty = default), so a newline cannot run a command in the tab.
@@ -28,7 +28,7 @@ result back when done.
     `POST /api/issues/:id/sessions`). It is never trimmed. A row is removed by hand (`DELETE .../sessions/:sessionId`).
   - The issue sidebar lists them, newest first, with a green dot when an iTerm2 tab runs the session (`GET .../sessions`).
   - **Resume** (**Open** when live) calls `launch-session` with `resume`. A live tab is focused. Otherwise a new tab runs
-    `claude-ui session ISS-n --resume <id> --cwd <cwd> --label <label>`. Plain `claude --resume` would lose the plugin,
+    `claude-ui iterm2 ISS-n --resume <id> --cwd <cwd> --label <label>`. Plain `claude --resume` would lose the plugin,
     the env vars and the context file, which are per run, so resume goes through the wrapper. The context file says the session
     was resumed and that the issue text may have changed. No first message by default.
   - Resume needs the Claude transcript (`~/.claude/projects/*/<id>.jsonl`). When it is gone the button is disabled, `410` from the route.

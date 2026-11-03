@@ -10,7 +10,7 @@ const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]'])
 
 /**
  * Open an interactive Claude Code session for the issue in a new iTerm2 tab (ADR 0008).
- * Runs `claude-ui session ISS-n --cwd DIR [--label L]`. Local only: it starts a process on this Mac.
+ * Runs `claude-ui iterm2 ISS-n --cwd DIR [--label L]`. Local only: it starts a process on this Mac.
  * Host must be loopback (blocks LAN access and DNS rebinding) and a browser Origin must match the Host (blocks other sites).
  */
 export default defineEventHandler(async (event) => {
@@ -47,8 +47,8 @@ export default defineEventHandler(async (event) => {
   }
 
   // The CLI next to this app, so it matches the running version; PATH `claude-ui` is the fallback
-  const script = resolve(process.env.CLAUDE_UI_DIR || process.cwd(), 'scripts', 'claude-ui-session.mjs')
-  const runner = existsSync(script) ? `node ${shellQuote(script)}` : 'claude-ui session'
+  const script = resolve(process.env.CLAUDE_UI_DIR || process.cwd(), 'scripts', 'claude-ui-iterm2.mjs')
+  const runner = existsSync(script) ? `node ${shellQuote(script)}` : 'claude-ui iterm2'
   const port = /:(\d+)$/.exec(host)?.[1]
   const cmd = [
     port ? `CLAUDE_UI_URL=http://localhost:${port}` : '',

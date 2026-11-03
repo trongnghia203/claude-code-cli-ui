@@ -19,7 +19,7 @@ There is no test or lint script. Verify changes by typechecking and exercising t
 
 Issues have a CLI, `claude-ui issue <list|get|create|update|move|comment|fold>` (`scripts/claude-ui-issue.mjs`, talks to the running server).
 Runs use it to rewrite the issue description at the end. It has no run, assign or delete verb on purpose. Details: `docs/issues-management.md`.
-`claude-ui session ISS-n` starts an interactive Claude Code session on an issue (issue page: Start iTerm2, Sessions list with resume).
+`claude-ui iterm2 ISS-n` starts an interactive Claude Code session on an issue (issue page: Start iTerm2, Sessions list with resume).
 Its plugin lives in `plugins/claude-ui/` and is loaded with `--plugin-dir`. Design: `docs/adr/0008-interactive-issue-sessions.md`, `0009-issue-fold-verb.md`.
 
 Env: `CLAUDE_DIR` overrides the default `~/.claude` (resolved in `server/utils/claudeDir.ts`).
