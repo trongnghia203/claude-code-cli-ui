@@ -9,7 +9,9 @@ const ic = useIssueConfig()
 const { workingDir } = useWorkingDir()
 
 // Scope: the default, or one project's own settings (a project without its own file reads the default)
-const scope = ref<'default' | 'project'>(workingDir.value ? 'project' : 'default')
+// Starts on 'default' so server and client render the same markup. workingDir only exists on the client
+// (localStorage), so switching to the project in onMounted avoids a hydration mismatch that left the DOM stale.
+const scope = ref<'default' | 'project'>('default')
 const dir = computed(() => (scope.value === 'project' ? workingDir.value : ''))
 const projectName = computed(() => workingDir.value.split('/').filter(Boolean).pop() ?? '')
 const view = computed(() => ic.entry(dir.value))
@@ -50,7 +52,11 @@ const tab = computed<Tab>({
   get: () => (TABS.some(t => t.key === route.query.tab) ? route.query.tab as Tab : 'labels'),
   set: (v) => { router.replace({ query: { tab: v } }) },
 })
-onMounted(() => { ic.load(''); load() })
+onMounted(() => {
+  if (workingDir.value) scope.value = 'project'
+  ic.load('')
+  load()
+})
 useHead({ title: 'Issue settings | Agent Manager' })
 
 const card = 'background: var(--surface-raised); border: 1px solid var(--border-subtle)'
