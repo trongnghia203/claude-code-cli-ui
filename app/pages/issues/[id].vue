@@ -368,7 +368,7 @@ const sessOpen = ref(false)
 const sessCwd = ref('')
 const sessLabel = ref('')
 const SESS_PROMPT = 'Start with a short summary of what is open (3-5 bullets)'
-const sessPrompt = ref(SESS_PROMPT)
+const sessPrompt = ref('')
 const sessBusy = ref(false)
 const sessProjects = ref<{ path: string; name: string }[]>([])
 const baseName = (p: string) => p.split('/').filter(Boolean).pop() ?? p
@@ -392,7 +392,7 @@ async function browseSession() {
 async function startSession() {
   sessBusy.value = true
   try {
-    await $fetch(`/api/issues/${id.value}/launch-session`, { method: 'POST', body: { cwd: sessCwd.value, label: sessLabel.value.trim(), prompt: sessPrompt.value } })
+    await $fetch(`/api/issues/${id.value}/launch-session`, { method: 'POST', body: { cwd: sessCwd.value, label: sessLabel.value.trim(), prompt: sessPrompt.value.trim() } })
     toast.add({ title: 'Session opened in iTerm2', description: 'Run /claude-ui:issue-wrap there when done.', color: 'success', duration: 3000 })
     sessLabel.value = ''
   } catch (e: any) {
@@ -570,8 +570,8 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
             <span class="block font-mono text-meta truncate" :title="sessCwd">{{ sessCwd }}</span></label>
           <label class="block space-y-1"><span class="prop-label">Label (optional)</span>
             <input v-model="sessLabel" maxlength="40" placeholder="e.g. inhouse, olda-utils" class="w-full px-2 py-1 rounded-lg" style="background: var(--surface-base); border: 1px solid var(--border-subtle)" @keydown.enter.prevent="startSession" /></label>
-          <label class="block space-y-1"><span class="prop-label">First message (empty = none)</span>
-            <input v-model="sessPrompt" maxlength="300" :placeholder="SESS_PROMPT" class="w-full px-2 py-1 rounded-lg" style="background: var(--surface-base); border: 1px solid var(--border-subtle)" @keydown.enter.prevent="startSession" /></label>
+          <label class="block space-y-1"><span class="prop-label">First message (optional)</span>
+            <textarea v-model="sessPrompt" rows="3" maxlength="2000" spellcheck="false" :placeholder="SESS_PROMPT" class="w-full px-2 py-1.5 rounded-lg" style="background: var(--surface-base); border: 1px solid var(--border-subtle)" /></label>
           <p class="text-meta">Opens Claude Code in iTerm2 with the description and live comments. Run <span class="font-mono">/claude-ui:issue-wrap</span> there to save the work back.</p>
           <div class="flex justify-end gap-2">
             <UButton label="Cancel" size="xs" variant="soft" color="neutral" @click="() => { sessOpen = false }" />

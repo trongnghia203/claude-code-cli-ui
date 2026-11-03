@@ -1,6 +1,6 @@
-import { existsSync, statSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { resolve } from 'node:path'
+import { existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs'
+import { homedir, tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 import { openInIterm, shellQuote } from '../../../utils/iterm'
 import { readIssue } from '../../../utils/issues/store'
 
@@ -29,8 +29,15 @@ export default defineEventHandler(async (event) => {
   const label = typeof body.label === 'string' ? body.label.trim() : ''
   if (label && !LABEL_RE.test(label)) throw createError({ statusCode: 400, message: 'Label: letters, digits, space, . _ - only, max 40' })
 
-  // First message: absent = the CLI default, empty = none. One line, so it cannot run a second command in the tab.
-  const prompt = typeof body.prompt === 'string' ? body.prompt.replace(/\s+/g, ' ').trim().slice(0, 300) : null
+  // First message: empty = the CLI default. Text goes through a private file, so a newline cannot run a command in the tab.
+  const prompt = typeof body.prompt === 'string' ? body.prompt.trim().slice(0, 2000) : ''
+  let promptFile = ''
+  if (prompt) {
+    const dir = join(tmpdir(), 'claude-ui-sessions')
+    mkdirSync(dir, { recursive: true, mode: 0o700 })
+    promptFile = join(dir, `prompt-${id}-${Date.now()}.txt`)
+    writeFileSync(promptFile, prompt, { mode: 0o600 })
+  }
 
   // The CLI next to this app, so it matches the running version; PATH `claude-ui` is the fallback
   const script = resolve(process.env.CLAUDE_UI_DIR || process.cwd(), 'scripts', 'claude-ui-session.mjs')
@@ -39,7 +46,7 @@ export default defineEventHandler(async (event) => {
   const cmd = [
     port ? `CLAUDE_UI_URL=http://localhost:${port}` : '',
     runner, id, '--cwd', shellQuote(cwd), ...(label ? ['--label', shellQuote(label)] : []),
-    ...(prompt === null ? [] : prompt ? ['--prompt', shellQuote(prompt)] : ['--no-prompt']),
+    ...(promptFile ? ['--prompt-file', shellQuote(promptFile)] : []),
   ].filter(Boolean).join(' ')
 
   try {

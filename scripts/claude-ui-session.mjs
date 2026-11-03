@@ -1,20 +1,21 @@
 #!/usr/bin/env node
-// claude-ui session ISS-n [--cwd DIR] [--label L] [--prompt TEXT | --no-prompt] [--print]
+// claude-ui session ISS-n [--cwd DIR] [--label L] [--prompt TEXT | --prompt-file FILE | --no-prompt] [--print]
 // Starts an interactive Claude Code session with the issue's live context (description + comments no distill folded).
 // Inside it, /claude-ui:issue-wrap distills, updates the description and posts a comment (plugins/claude-ui).
 import { spawn } from 'node:child_process'
-import { existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const BASE = process.env.CLAUDE_UI_URL || `http://localhost:${process.env.CLAUDE_UI_PORT || 3030}`
 const PLUGIN_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'plugins', 'claude-ui')
-const USAGE = `claude-ui session ISS-n [--cwd DIR] [--label L] [--prompt TEXT | --no-prompt] [--print]
+const USAGE = `claude-ui session ISS-n [--cwd DIR] [--label L] [--prompt TEXT | --prompt-file FILE | --no-prompt] [--print]
 
   --cwd DIR   where claude starts (default: the issue's project). Use it for a second session in another repo.
   --label L   name of this session, e.g. inhouse or olda-utils. Added to comments so two sessions stay apart.
   --prompt T  first message sent to claude (default: a short summary of what is open).
+  --prompt-file F  same, read from a file (multi-line).
   --no-prompt start with no first message.
   --print     write the context file, print the claude command, do not start it.`
 
@@ -36,7 +37,8 @@ for (let i = 0; i < argv.length; i++) {
 }
 const key = pos[0]
 if (!/^ISS-\d+$/.test(key || '')) die('KEY must look like ISS-12\n\n' + USAGE, 2)
-if (opt.noPrompt && opt.prompt !== undefined) die('use --prompt or --no-prompt, not both', 2)
+if (opt.noPrompt && (opt.prompt !== undefined || opt['prompt-file'] !== undefined)) die('use --prompt, --prompt-file or --no-prompt, only one', 2)
+if (opt.prompt !== undefined && opt['prompt-file'] !== undefined) die('use --prompt or --prompt-file, not both', 2)
 if (opt.label !== undefined && !/^[\w. -]{1,40}$/.test(opt.label)) die('--label: letters, digits, space, . _ - only, max 40', 2)
 
 async function load() {
@@ -93,7 +95,9 @@ const args = [
   '--plugin-dir', PLUGIN_DIR,
   '--append-system-prompt-file', ctxFile,
 ]
-const firstPrompt = opt.noPrompt ? '' : (opt.prompt ?? 'Start with a short summary of what is open (3-5 bullets)')
+let filePrompt
+if (opt['prompt-file'] !== undefined) { try { filePrompt = readFileSync(opt['prompt-file'], 'utf8').trim() } catch (e) { die(`cannot read prompt file: ${e.message}`) } }
+const firstPrompt = opt.noPrompt ? '' : (filePrompt ?? opt.prompt ?? 'Start with a short summary of what is open (3-5 bullets)')
 if (firstPrompt) args.push(firstPrompt)
 if (opt.print) {
   console.log(`cd ${cwd} && CLAUDE_UI_ISSUE=${key}${label ? ` CLAUDE_UI_SESSION_LABEL='${label}'` : ''} claude ${args.slice(0, 4).join(' ')} ${firstPrompt ? "'<first prompt>'" : ''}`)
