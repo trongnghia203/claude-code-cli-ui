@@ -36,6 +36,7 @@ export default defineEventHandler(async (event) => {
   const cmd = [
     port ? `CLAUDE_UI_URL=http://localhost:${port}` : '',
     runner, id, '--cwd', shellQuote(cwd), ...(label ? ['--label', shellQuote(label)] : []),
+    ...(body.summary === false ? ['--no-prompt'] : []),
   ].filter(Boolean).join(' ')
 
   try {

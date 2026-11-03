@@ -367,6 +367,7 @@ const canRun = computed(() => !!issue.value?.assignee && !running.value && issue
 const sessOpen = ref(false)
 const sessCwd = ref('')
 const sessLabel = ref('')
+const sessSummary = ref(true)
 const sessBusy = ref(false)
 const sessProjects = ref<{ path: string; name: string }[]>([])
 const baseName = (p: string) => p.split('/').filter(Boolean).pop() ?? p
@@ -390,7 +391,7 @@ async function browseSession() {
 async function startSession() {
   sessBusy.value = true
   try {
-    await $fetch(`/api/issues/${id.value}/launch-session`, { method: 'POST', body: { cwd: sessCwd.value, label: sessLabel.value.trim() } })
+    await $fetch(`/api/issues/${id.value}/launch-session`, { method: 'POST', body: { cwd: sessCwd.value, label: sessLabel.value.trim(), summary: sessSummary.value } })
     toast.add({ title: 'Session opened in iTerm2', description: 'Run /claude-ui:issue-wrap there when done.', color: 'success', duration: 3000 })
     sessLabel.value = ''
   } catch (e: any) {
@@ -568,6 +569,7 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
             <span class="block font-mono text-meta truncate" :title="sessCwd">{{ sessCwd }}</span></label>
           <label class="block space-y-1"><span class="prop-label">Label (optional)</span>
             <input v-model="sessLabel" maxlength="40" placeholder="e.g. inhouse, olda-utils" class="w-full px-2 py-1 rounded-lg" style="background: var(--surface-base); border: 1px solid var(--border-subtle)" @keydown.enter.prevent="startSession" /></label>
+          <label class="flex items-center gap-1.5 cursor-pointer"><input v-model="sessSummary" type="checkbox" /><span>Start with a 3-line summary of what is open</span></label>
           <p class="text-meta">Opens Claude Code in iTerm2 with the description and live comments. Run <span class="font-mono">/claude-ui:issue-wrap</span> there to save the work back.</p>
           <div class="flex justify-end gap-2">
             <UButton label="Cancel" size="xs" variant="soft" color="neutral" @click="() => { sessOpen = false }" />

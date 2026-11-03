@@ -13,7 +13,7 @@ result back when done.
 
 - `claude-ui session ISS-n [--cwd DIR] [--label L] [--print]` (`scripts/claude-ui-session.mjs`) starts an interactive `claude`.
   - Context file: description plus live comments only (ADR 0009, `get --live`). Folded comments are not sent. A hint says how to read them.
-  - Passed with `--append-system-prompt-file`. A short first prompt asks for a 3-line summary.
+  - Passed with `--append-system-prompt-file`. A short first prompt asks for a 3-line summary. `--prompt TEXT` replaces it, `--no-prompt` skips it (checkbox in the panel).
   - cwd is the issue's project, or `--cwd`. Two sessions on one issue can run in two repos. `--label` names each one.
   - Env: `CLAUDE_UI_ISSUE`, `CLAUDE_UI_SESSION_LABEL`, `CLAUDE_UI_URL`.
   - On exit it prints a note if the session changed neither the description nor the comments.

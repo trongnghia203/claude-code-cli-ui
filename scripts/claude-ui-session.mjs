@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// claude-ui session ISS-n [--cwd DIR] [--label L] [--print]
+// claude-ui session ISS-n [--cwd DIR] [--label L] [--prompt TEXT | --no-prompt] [--print]
 // Starts an interactive Claude Code session with the issue's live context (description + comments no distill folded).
 // Inside it, /claude-ui:issue-wrap distills, updates the description and posts a comment (plugins/claude-ui).
 import { spawn } from 'node:child_process'
@@ -10,10 +10,12 @@ import { fileURLToPath } from 'node:url'
 
 const BASE = process.env.CLAUDE_UI_URL || `http://localhost:${process.env.CLAUDE_UI_PORT || 3030}`
 const PLUGIN_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'plugins', 'claude-ui')
-const USAGE = `claude-ui session ISS-n [--cwd DIR] [--label L] [--print]
+const USAGE = `claude-ui session ISS-n [--cwd DIR] [--label L] [--prompt TEXT | --no-prompt] [--print]
 
   --cwd DIR   where claude starts (default: the issue's project). Use it for a second session in another repo.
   --label L   name of this session, e.g. inhouse or olda-utils. Added to comments so two sessions stay apart.
+  --prompt T  first message sent to claude (default: summarize what is open in 3 lines, then wait).
+  --no-prompt start with no first message.
   --print     write the context file, print the claude command, do not start it.`
 
 const die = (msg, code = 1) => { console.error(`error: ${msg}`); process.exit(code) }
@@ -25,6 +27,7 @@ for (let i = 0; i < argv.length; i++) {
   const a = argv[i]
   if (a === '-h' || a === '--help') { console.log(USAGE); process.exit(0) }
   if (a === '--print') { opt.print = true; continue }
+  if (a === '--no-prompt') { opt.noPrompt = true; continue }
   if (a.startsWith('--')) {
     const v = argv[++i]
     if (v === undefined) die(`${a} needs a value`, 2)
@@ -33,6 +36,7 @@ for (let i = 0; i < argv.length; i++) {
 }
 const key = pos[0]
 if (!/^ISS-\d+$/.test(key || '')) die('KEY must look like ISS-12\n\n' + USAGE, 2)
+if (opt.noPrompt && opt.prompt !== undefined) die('use --prompt or --no-prompt, not both', 2)
 if (opt.label !== undefined && !/^[\w. -]{1,40}$/.test(opt.label)) die('--label: letters, digits, space, . _ - only, max 40', 2)
 
 async function load() {
@@ -88,10 +92,11 @@ writeFileSync(ctxFile, context, { mode: 0o600 })
 const args = [
   '--plugin-dir', PLUGIN_DIR,
   '--append-system-prompt-file', ctxFile,
-  `Issue ${key} context is loaded. In 3 lines say what is open, then wait for me.`,
 ]
+const firstPrompt = opt.noPrompt ? '' : (opt.prompt ?? `Issue ${key} context is loaded. In 3 lines say what is open, then wait for me.`)
+if (firstPrompt) args.push(firstPrompt)
 if (opt.print) {
-  console.log(`cd ${cwd} && CLAUDE_UI_ISSUE=${key}${label ? ` CLAUDE_UI_SESSION_LABEL='${label}'` : ''} claude ${args.slice(0, 4).join(' ')} '<first prompt>'`)
+  console.log(`cd ${cwd} && CLAUDE_UI_ISSUE=${key}${label ? ` CLAUDE_UI_SESSION_LABEL='${label}'` : ''} claude ${args.slice(0, 4).join(' ')} ${firstPrompt ? "'<first prompt>'" : ''}`)
   console.log(`context: ${ctxFile}`)
   process.exit(0)
 }
