@@ -607,8 +607,9 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
             <UButton label="Start" icon="i-lucide-terminal" size="xs" :loading="sessBusy" :disabled="!sessCwd" style="background: #b45309; color: #fff" @click="startSession" />
           </div>
         </section>
-        <section v-if="sessions.length" class="space-y-1.5">
+        <section class="space-y-1.5">
           <h3 class="font-semibold text-[13px]">Sessions</h3>
+          <p v-if="!sessions.length" class="text-meta">None yet. Sessions you start with Start iTerm2 are listed here, so you can resume them.</p>
           <div v-for="row in sessions" :key="row.id" class="flex items-center gap-2 rounded-lg px-2 py-1.5" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)">
             <span class="size-2 rounded-full shrink-0" :style="{ background: row.live ? '#16a34a' : 'var(--text-meta, #9ca3af)' }" :title="row.live ? 'Open in iTerm2' : 'Not open'" />
             <span class="flex-1 min-w-0">
