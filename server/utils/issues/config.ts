@@ -191,12 +191,17 @@ export function usageCounts(projectDir?: string | null) {
 /** Labels and properties can be shared with other projects: the same item (same id) lives in each project's own file. */
 export type ShareKind = 'labels' | 'properties'
 
-/** Every project dir we know: Claude Code projects, issue projects and projects with their own settings file. */
+/**
+ * The projects an item can be shared with: the ones the user created, plus any directory that already has its own
+ * settings file (so an existing share never disappears from the list).
+ */
 export async function knownProjects(): Promise<{ dir: string; name: string }[]> {
-  const { getClaudeCodeProjects } = await import('../claudeCodeHistory')
+  const { listUserProjects } = await import('../userProjects')
   const out = new Map<string, string>()
-  for (const p of await getClaudeCodeProjects().catch(() => [])) out.set(p.path.replace(/\/+$/, ''), p.displayName || p.path.split('/').filter(Boolean).pop() || p.path)
-  for (const i of listIssues()) if (!out.has(i.projectDir)) out.set(i.projectDir, i.projectDir.split('/').filter(Boolean).pop() || i.projectDir)
+  for (const p of listUserProjects()) out.set(p.path.replace(/\/+$/, ''), p.name)
+  for (const i of listIssues()) {
+    if (!out.has(i.projectDir) && hasProjectConfig(i.projectDir)) out.set(i.projectDir, i.projectDir.split('/').filter(Boolean).pop() || i.projectDir)
+  }
   return [...out].map(([dir, name]) => ({ dir, name })).sort((a, b) => a.name.localeCompare(b.name))
 }
 

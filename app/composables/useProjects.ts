@@ -1,4 +1,4 @@
-export interface RegisteredProject {
+export interface UserProject {
   id: string
   name: string
   path: string
@@ -9,25 +9,25 @@ const trim = (p: string) => p.replace(/\/+$/, '')
 
 /** Projects the user created (name + directory). Shared state, so the sidebar and dialogs stay in sync. */
 export function useProjects() {
-  const projects = useState<RegisteredProject[]>('registered-projects', () => [])
+  const projects = useState<UserProject[]>('registered-projects', () => [])
   const loaded = useState('registered-projects-loaded', () => false)
 
   async function fetchProjects() {
     try {
-      projects.value = (await $fetch<{ projects: RegisteredProject[] }>('/api/registered-projects')).projects
+      projects.value = (await $fetch<{ projects: UserProject[] }>('/api/registered-projects')).projects
     } finally {
       loaded.value = true
     }
   }
 
   async function createProject(input: { name: string; path: string }) {
-    const created = await $fetch<RegisteredProject>('/api/registered-projects', { method: 'POST', body: input })
+    const created = await $fetch<UserProject>('/api/registered-projects', { method: 'POST', body: input })
     projects.value = [...projects.value, created]
     return created
   }
 
   async function updateProject(id: string, input: { name?: string; path?: string }) {
-    const updated = await $fetch<RegisteredProject>(`/api/registered-projects/${id}`, { method: 'PUT', body: input })
+    const updated = await $fetch<UserProject>(`/api/registered-projects/${id}`, { method: 'PUT', body: input })
     projects.value = projects.value.map(p => (p.id === id ? updated : p))
     return updated
   }

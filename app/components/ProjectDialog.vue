@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import type { RegisteredProject } from '~/composables/useProjects'
+import type { UserProject } from '~/composables/useProjects'
 
-const props = defineProps<{ project?: RegisteredProject }>()
-const emit = defineEmits<{ close: []; saved: [project: RegisteredProject] }>()
+const props = defineProps<{ project?: UserProject }>()
+const emit = defineEmits<{ close: []; saved: [project: UserProject] }>()
 
 const { createProject, updateProject } = useProjects()
 

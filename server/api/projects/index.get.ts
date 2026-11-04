@@ -1,10 +1,10 @@
 import { getClaudeCodeProjects } from '../../utils/claudeCodeHistory'
-import { getRegisteredAsClaudeProjects } from '../../utils/userProjects'
+import { getUserProjectsAsHistory } from '../../utils/userProjects'
 
 /** `?registered=1`: only the projects the user created. Without it: every directory Claude Code has run in. */
 export default defineEventHandler(async (event) => {
   try {
-    if (getQuery(event).registered) return await getRegisteredAsClaudeProjects()
+    if (getQuery(event).registered) return await getUserProjectsAsHistory()
     return await getClaudeCodeProjects()
   } catch (error: any) {
     throw createError({

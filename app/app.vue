@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { RegisteredProject } from '~/composables/useProjects'
+import type { UserProject } from '~/composables/useProjects'
 const route = useRoute()
 const { claudeDir, exists: claudeDirExists, load: loadConfig } = useClaudeDir()
 const { fetchAll: fetchAgents, agents } = useAgents()
@@ -55,7 +55,7 @@ const { fetchProjects: refreshHistoryProjects } = useClaudeCodeHistory()
 const currentProject = computed(() => projectForDir(workingDir.value))
 // A project the user created shows under its name; a directory without one falls back to the folder name
 const workingDirName = computed(() => currentProject.value?.name || workingDir.value.replace(/\/+$/, '').split('/').pop() || workingDir.value)
-const projectDialog = ref<{ project?: RegisteredProject } | null>(null)
+const projectDialog = ref<{ project?: UserProject } | null>(null)
 onMounted(() => { fetchProjects().catch(() => {}) })
 
 function pickProject(path: string) {
@@ -63,19 +63,19 @@ function pickProject(path: string) {
   showWorkingDirPopover.value = false
 }
 
-function openProjectDialog(project?: RegisteredProject) {
+function openProjectDialog(project?: UserProject) {
   showWorkingDirPopover.value = false
   projectDialog.value = { project }
 }
 
 /** A project just created becomes the active one. Editing the active project keeps its directory in sync. */
-function onProjectSaved(saved: RegisteredProject) {
+function onProjectSaved(saved: UserProject) {
   const editing = projectDialog.value?.project
   if (!editing || editing.path === workingDir.value) setWorkingDir(saved.path)
   refreshHistoryProjects()
 }
 
-async function deleteProject(project: RegisteredProject) {
+async function deleteProject(project: UserProject) {
   if (!confirm(`Remove project "${project.name}"?\nChats, schedules and issues of ${project.path} are kept.`)) return
   try { await removeProject(project.id); refreshHistoryProjects() } catch { /* list unchanged */ }
 }

@@ -1,3 +1,3 @@
-import { listRegisteredProjects } from '../../utils/userProjects'
+import { listUserProjects } from '../../utils/userProjects'
 
-export default defineEventHandler(() => ({ projects: listRegisteredProjects() }))
+export default defineEventHandler(() => ({ projects: listUserProjects() }))

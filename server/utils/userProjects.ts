@@ -9,7 +9,7 @@ import { getClaudeDir } from './claudeDir'
  * Chats, schedules and issues are keyed by the directory, never by this record,
  * so creating, renaming or removing a project cannot lose any of them.
  */
-export interface RegisteredProject {
+export interface UserProject {
   id: string
   name: string
   path: string
@@ -36,7 +36,7 @@ export function normalizeProjectPath(p: string): string {
   return expanded.length > 1 ? expanded.replace(/\/+$/, '') : expanded
 }
 
-function readFrom(file: string): RegisteredProject[] | null {
+function readFrom(file: string): UserProject[] | null {
   try {
     const data = JSON.parse(readFileSync(file, 'utf8'))
     return Array.isArray(data?.projects) ? data.projects : []
@@ -45,7 +45,7 @@ function readFrom(file: string): RegisteredProject[] | null {
   }
 }
 
-function read(): RegisteredProject[] | null {
+function read(): UserProject[] | null {
   const current = readFrom(FILE)
   if (current) return current
   const legacy = readFrom(LEGACY_FILE())
@@ -53,12 +53,12 @@ function read(): RegisteredProject[] | null {
   return legacy
 }
 
-function write(projects: RegisteredProject[]) {
+function write(projects: UserProject[]) {
   mkdirSync(dirname(FILE), { recursive: true })
   writeFileSync(FILE, JSON.stringify({ projects }, null, 2), 'utf8')
 }
 
-export function listRegisteredProjects(): RegisteredProject[] {
+export function listUserProjects(): UserProject[] {
   const existing = read()
   if (existing) return existing
   const now = new Date().toISOString()
@@ -70,7 +70,7 @@ export function listRegisteredProjects(): RegisteredProject[] {
   return seeded
 }
 
-function assertValid(name: string, path: string, projects: RegisteredProject[], selfId?: string) {
+function assertValid(name: string, path: string, projects: UserProject[], selfId?: string) {
   if (!name) throw createError({ statusCode: 400, message: 'Name is required' })
   if (!path) throw createError({ statusCode: 400, message: 'Directory is required' })
   if (!existsSync(path)) throw createError({ statusCode: 400, message: `Directory not found: ${path}` })
@@ -83,8 +83,8 @@ function assertValid(name: string, path: string, projects: RegisteredProject[], 
   }
 }
 
-export function createRegisteredProject(input: { name: string; path: string }): RegisteredProject {
-  const projects = listRegisteredProjects()
+export function createUserProject(input: { name: string; path: string }): UserProject {
+  const projects = listUserProjects()
   const name = (input.name ?? '').trim()
   const path = normalizeProjectPath(input.path ?? '')
   assertValid(name, path, projects)
@@ -93,8 +93,8 @@ export function createRegisteredProject(input: { name: string; path: string }): 
   return project
 }
 
-export function updateRegisteredProject(id: string, input: { name?: string; path?: string }): RegisteredProject {
-  const projects = listRegisteredProjects()
+export function updateUserProject(id: string, input: { name?: string; path?: string }): UserProject {
+  const projects = listUserProjects()
   const current = projects.find(p => p.id === id)
   if (!current) throw createError({ statusCode: 404, message: 'Project not found' })
   const name = (input.name ?? current.name).trim()
@@ -106,8 +106,8 @@ export function updateRegisteredProject(id: string, input: { name?: string; path
 }
 
 /** Removes the record only. Files, sessions, schedules and issues in the directory stay. */
-export function deleteRegisteredProject(id: string) {
-  const projects = listRegisteredProjects()
+export function deleteUserProject(id: string) {
+  const projects = listUserProjects()
   if (!projects.some(p => p.id === id)) throw createError({ statusCode: 404, message: 'Project not found' })
   write(projects.filter(p => p.id !== id))
 }
@@ -116,11 +116,11 @@ export function deleteRegisteredProject(id: string) {
  * The created projects in the shape the Chat and Artifacts pages list: the project name,
  * plus session count and last activity of the Claude Code history in the same directory.
  */
-export async function getRegisteredAsClaudeProjects() {
+export async function getUserProjectsAsHistory() {
   const { getClaudeCodeProjects } = await import('./claudeCodeHistory')
   const history = await getClaudeCodeProjects().catch(() => [])
   const byPath = new Map(history.map(h => [h.path.replace(/\/+$/, ''), h]))
-  return listRegisteredProjects().map((p) => {
+  return listUserProjects().map((p) => {
     const h = byPath.get(p.path)
     return {
       name: h?.name ?? p.path.replace(/[^a-zA-Z0-9]/g, '-'),
