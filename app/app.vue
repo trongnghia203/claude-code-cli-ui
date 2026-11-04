@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { RegisteredProject } from '~/composables/useProjects'
 const route = useRoute()
 const { claudeDir, exists: claudeDirExists, load: loadConfig } = useClaudeDir()
 const { fetchAll: fetchAgents, agents } = useAgents()
@@ -49,129 +50,34 @@ const { workingDir, setWorkingDir, clearWorkingDir } = useWorkingDir()
 const colorMode = useColorMode()
 
 const showWorkingDirPopover = ref(false)
-const workingDirName = computed(() => workingDir.value.replace(/\/+$/, '').split('/').pop() || workingDir.value)
-const RECENT_KEY = 'agents-ui:recent-open'
-const showRecent = ref(false)
-onMounted(() => {
-  try { showRecent.value = localStorage.getItem(RECENT_KEY) === '1' } catch {}
-})
-function toggleRecent() {
-  showRecent.value = !showRecent.value
-  try { localStorage.setItem(RECENT_KEY, showRecent.value ? '1' : '0') } catch {}
-}
-const recentProjects = ref<{ name: string; path: string; displayName: string }[]>([])
+const { projects, fetchProjects, removeProject, projectForDir } = useProjects()
+const currentProject = computed(() => projectForDir(workingDir.value))
+// A project the user created shows under its name; a directory without one falls back to the folder name
+const workingDirName = computed(() => currentProject.value?.name || workingDir.value.replace(/\/+$/, '').split('/').pop() || workingDir.value)
+const projectDialog = ref<{ project?: RegisteredProject } | null>(null)
+onMounted(() => { fetchProjects().catch(() => {}) })
 
-async function loadRecentProjects() {
-  try {
-    const all = await $fetch<{ name: string; path: string; displayName: string }[]>('/api/projects')
-    recentProjects.value = all.slice(0, 8)
-  } catch {
-    recentProjects.value = []
-  }
-}
-
-function pickRecentProject(path: string) {
+function pickProject(path: string) {
   setWorkingDir(path)
   showWorkingDirPopover.value = false
-  dirSuggestions.value = []
-}
-const workingDirInput = ref('')
-const dirSuggestions = ref<{ name: string; path: string; hasChildren: boolean }[]>([])
-const selectedSuggestionIdx = ref(-1)
-let debounceTimer: ReturnType<typeof setTimeout> | null = null
-
-const parentDirPath = computed(() => {
-  const p = workingDirInput.value.replace(/\/+$/, '')
-  if (!p || p === '/') return null
-  const idx = p.lastIndexOf('/')
-  // Trailing slash matters: without it the directory API treats the last segment as a name prefix to filter by
-  return idx <= 0 ? '/' : `${p.slice(0, idx)}/`
-})
-
-function openWorkingDirPopover() {
-  workingDirInput.value = workingDir.value
-  dirSuggestions.value = []
-  selectedSuggestionIdx.value = -1
-  showWorkingDirPopover.value = true
-  loadRecentProjects()
-  if (workingDirInput.value) fetchDirSuggestions(workingDirInput.value)
 }
 
-/** Go to the parent folder. Capture the target first: parentDirPath is computed from the input, so
- *  reading it again after assigning the input would give the grandparent. */
-function goToParentDir() {
-  const target = parentDirPath.value
-  if (!target) return
-  workingDirInput.value = target
-  fetchDirSuggestions(target)
-}
-
-function goToHomeDir() {
-  // Trailing slash: without it the API treats "~" as a name prefix to filter by
-  workingDirInput.value = '~/'
-  fetchDirSuggestions('~/')
-}
-
-function saveWorkingDir() {
-  setWorkingDir(workingDirInput.value)
+function openProjectDialog(project?: RegisteredProject) {
   showWorkingDirPopover.value = false
-  dirSuggestions.value = []
+  projectDialog.value = { project }
 }
 
-// Responses can arrive out of order (e.g. clicking ".." quickly), so only the latest request may update the list
-let dirRequestSeq = 0
-
-async function fetchDirSuggestions(path: string) {
-  const seq = ++dirRequestSeq
-  if (!path) { dirSuggestions.value = []; return }
-  try {
-    const data = await $fetch<{ directories: typeof dirSuggestions.value }>('/api/directories', { query: { path } })
-    if (seq !== dirRequestSeq) return
-    dirSuggestions.value = data.directories
-    selectedSuggestionIdx.value = -1
-  } catch {
-    if (seq === dirRequestSeq) dirSuggestions.value = []
-  }
+/** A project just created becomes the active one. Editing the active project keeps its directory in sync. */
+function onProjectSaved(saved: RegisteredProject) {
+  const editing = projectDialog.value?.project
+  if (!editing || editing.path === workingDir.value) setWorkingDir(saved.path)
 }
 
-function onDirInput() {
-  if (debounceTimer) clearTimeout(debounceTimer)
-  debounceTimer = setTimeout(() => fetchDirSuggestions(workingDirInput.value), 150)
+async function deleteProject(project: RegisteredProject) {
+  if (!confirm(`Remove project "${project.name}"?\nChats, schedules and issues of ${project.path} are kept.`)) return
+  try { await removeProject(project.id) } catch { /* list unchanged */ }
 }
 
-function selectSuggestion(suggestion: { name: string; path: string; hasChildren: boolean }) {
-  workingDirInput.value = suggestion.path
-  selectedSuggestionIdx.value = -1
-  if (suggestion.hasChildren) {
-    fetchDirSuggestions(suggestion.path)
-  } else {
-    dirSuggestions.value = []
-  }
-}
-
-function onDirKeydown(e: KeyboardEvent) {
-  if (!dirSuggestions.value.length) {
-    if (e.key === 'Enter') { e.preventDefault(); saveWorkingDir() }
-    return
-  }
-  if (e.key === 'ArrowDown') {
-    e.preventDefault()
-    selectedSuggestionIdx.value = Math.min(selectedSuggestionIdx.value + 1, dirSuggestions.value.length - 1)
-  } else if (e.key === 'ArrowUp') {
-    e.preventDefault()
-    selectedSuggestionIdx.value = Math.max(selectedSuggestionIdx.value - 1, -1)
-  } else if (e.key === 'Enter') {
-    e.preventDefault()
-    if (selectedSuggestionIdx.value >= 0) {
-      selectSuggestion(dirSuggestions.value[selectedSuggestionIdx.value]!)
-    } else {
-      saveWorkingDir()
-    }
-  } else if (e.key === 'Escape') {
-    dirSuggestions.value = []
-    selectedSuggestionIdx.value = -1
-  }
-}
 
 function toggleTheme() {
   colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark'
@@ -285,6 +191,12 @@ function badgeFor(to: string) {
 <template>
   <UApp>
     <LocalMdPreview />
+    <ProjectDialog
+      v-if="projectDialog"
+      :project="projectDialog.project"
+      @close="projectDialog = null"
+      @saved="onProjectSaved"
+    />
     <div class="flex h-screen overflow-hidden" style="background: var(--surface-base);">
       <!-- Sidebar -->
       <aside
@@ -362,7 +274,6 @@ function badgeFor(to: string) {
                 border: workingDir ? '1px solid var(--border-subtle)' : '1px dashed var(--warning, #d97706)',
               }"
               :title="workingDir || 'Set project directory'"
-              @click="openWorkingDirPopover"
             >
               <UIcon name="i-lucide-folder" class="size-3.5 shrink-0" :style="{ color: workingDir ? 'var(--accent)' : 'var(--warning, #d97706)' }" />
               <template v-if="!sidebarCollapsed">
@@ -380,112 +291,48 @@ function badgeFor(to: string) {
             </button>
             <template #content>
               <div class="p-3 space-y-3">
-                <div class="flex items-center justify-between gap-2">
-                  <div class="text-[13px] font-semibold" style="color: var(--text-primary); font-family: var(--font-sans);">Working Directory</div>
-                  <button
-                    type="button"
-                    class="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] hover-bg transition-colors shrink-0"
-                    style="color: var(--text-tertiary); border: 1px solid var(--border-subtle);"
-                    title="Go to home directory"
-                    @click="goToHomeDir"
-                  >
-                    <UIcon name="i-lucide-home" class="size-3" />
-                    Home
-                  </button>
-                </div>
-                <p class="text-[11px] leading-relaxed" style="color: var(--text-secondary);">
-                  Active project for chat, terminal, workflows and project settings. Claude operates in this directory.
-                </p>
-                <div v-if="recentProjects.length" class="space-y-1">
-                  <button
-                    type="button"
-                    class="flex items-center gap-1 text-[10px] uppercase tracking-wider hover:text-[var(--text-secondary)] transition-colors"
-                    style="color: var(--text-tertiary);"
-                    :aria-expanded="showRecent"
-                    @click="toggleRecent"
-                  >
-                    <UIcon name="i-lucide-chevron-right" class="size-3 transition-transform duration-150" :class="showRecent ? 'rotate-90' : ''" />
-                    Recent
-                  </button>
-                  <div v-if="showRecent" class="rounded-lg overflow-hidden max-h-[180px] overflow-y-auto" style="border: 1px solid var(--border-subtle); background: var(--surface-raised);">
-                    <button
-                      v-for="proj in recentProjects"
-                      :key="proj.path"
-                      type="button"
-                      class="w-full flex items-center gap-2 px-3 py-1.5 text-left hover-bg transition-colors"
-                      :style="{ color: proj.path === workingDir ? 'var(--text-primary)' : 'var(--text-secondary)' }"
-                      :title="proj.path"
-                      @click="pickRecentProject(proj.path)"
-                    >
-                      <UIcon :name="proj.path === workingDir ? 'i-lucide-check' : 'i-lucide-folder'" class="size-3.5 shrink-0" :style="{ color: proj.path === workingDir ? 'var(--accent)' : 'var(--text-disabled)' }" />
-                      <span class="text-[11px] truncate">{{ proj.displayName }}</span>
-                    </button>
-                  </div>
-                </div>
-                <div class="relative">
-                  <input
-                    v-model="workingDirInput"
-                    class="field-input text-[12px] font-mono"
-                    placeholder="/path/to/your/project"
-                    autocomplete="off"
-                    @input="onDirInput"
-                    @keydown="onDirKeydown"
-                  />
-                  <!-- Directory suggestions -->
+                <div class="text-[13px] font-semibold" style="color: var(--text-primary); font-family: var(--font-sans);">Projects</div>
+                <div v-if="projects.length" class="rounded-lg overflow-hidden max-h-[320px] overflow-y-auto" style="border: 1px solid var(--border-subtle); background: var(--surface-raised);">
                   <div
-                    v-if="dirSuggestions.length || parentDirPath"
-                    class="mt-1 rounded-lg overflow-hidden max-h-[420px] overflow-y-auto"
-                    style="border: 1px solid var(--border-subtle); background: var(--surface-raised);"
+                    v-for="proj in projects"
+                    :key="proj.id"
+                    class="group/proj flex items-center hover-bg transition-colors"
                   >
-                    <!-- Parent (..) entry -->
                     <button
-                      v-if="parentDirPath"
                       type="button"
-                      class="w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors duration-75 border-b hover:bg-[var(--accent-muted)]"
-                      style="border-color: var(--border-subtle); color: var(--text-tertiary);"
-                      @click="goToParentDir"
+                      class="flex-1 min-w-0 flex items-center gap-2 pl-3 py-1.5 text-left"
+                      :style="{ color: proj.path === workingDir.replace(/\/+$/, '') ? 'var(--text-primary)' : 'var(--text-secondary)' }"
+                      :title="proj.path"
+                      @click="pickProject(proj.path)"
                     >
-                      <span class="text-[11px] font-mono truncate">..</span>
+                      <UIcon :name="proj.path === workingDir.replace(/\/+$/, '') ? 'i-lucide-check' : 'i-lucide-folder'" class="size-3.5 shrink-0" :style="{ color: proj.path === workingDir.replace(/\/+$/, '') ? 'var(--accent)' : 'var(--text-disabled)' }" />
+                      <span class="text-[12px] truncate">{{ proj.name }}</span>
                     </button>
-                    <button
-                      v-for="(suggestion, idx) in dirSuggestions"
-                      :key="suggestion.path"
-                      type="button"
-                      class="w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors duration-75"
-                      :style="{
-                        background: idx === selectedSuggestionIdx ? 'var(--accent-muted)' : 'transparent',
-                        color: idx === selectedSuggestionIdx ? 'var(--text-primary)' : 'var(--text-secondary)',
-                      }"
-                      @click="selectSuggestion(suggestion)"
-                      @mouseenter="selectedSuggestionIdx = idx"
-                    >
-                      <UIcon
-                        :name="suggestion.hasChildren ? 'i-lucide-folder' : 'i-lucide-folder-dot'"
-                        class="size-3.5 shrink-0"
-                        :style="{ color: idx === selectedSuggestionIdx ? 'var(--accent)' : 'var(--text-disabled)' }"
-                      />
-                      <span class="text-[11px] font-mono truncate">{{ suggestion.name }}</span>
-                      <UIcon
-                        v-if="suggestion.hasChildren"
-                        name="i-lucide-chevron-right"
-                        class="size-3 shrink-0 ml-auto"
-                        style="color: var(--text-disabled);"
-                      />
+                    <button type="button" class="opacity-0 group-hover/proj:opacity-100 p-1" style="color: var(--text-tertiary);" title="Edit project" @click="openProjectDialog(proj)">
+                      <UIcon name="i-lucide-pencil" class="size-3" />
+                    </button>
+                    <button type="button" class="opacity-0 group-hover/proj:opacity-100 p-1 mr-1" style="color: var(--text-tertiary);" title="Remove project" @click="deleteProject(proj)">
+                      <UIcon name="i-lucide-trash-2" class="size-3" />
                     </button>
                   </div>
                 </div>
-                <div class="flex items-center justify-between">
-                  <button
-                    v-if="workingDir"
-                    class="text-[11px] font-medium px-2 py-1 rounded hover-bg"
-                    style="color: var(--error);"
-                    @click="clearWorkingDir(); showWorkingDirPopover = false"
-                  >
-                    Clear
-                  </button>
-                  <div v-else />
-                  <UButton label="Save" size="xs" @click="saveWorkingDir" />
-                </div>
+                <p v-else class="text-[11px]" style="color: var(--text-secondary);">No projects yet. Create one to pick a directory for chat, issues and schedules.</p>
+                <button
+                  type="button"
+                  class="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[12px] hover-bg"
+                  style="color: var(--text-primary); border: 1px solid var(--border-subtle);"
+                  @click="openProjectDialog()"
+                >
+                  <UIcon name="i-lucide-plus" class="size-3.5" /> Create project
+                </button>
+                <button
+                  v-if="workingDir"
+                  class="text-[11px] font-medium px-2 py-1 rounded hover-bg"
+                  style="color: var(--error);"
+                  @click="clearWorkingDir(); showWorkingDirPopover = false"
+                >
+                  Clear
+                </button>
               </div>
             </template>
           </UPopover>

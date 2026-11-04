@@ -1,0 +1,25 @@
+# ADR 0011: Projects the user creates
+
+- Status: Accepted
+- Date: 2026-11-04
+
+## Context
+
+The sidebar picker only stored a raw directory. Its list was every directory Claude Code had ever run in,
+including hundreds of worktree folders. There was no way to name a project or keep a short list.
+
+## Decision
+
+- A project is a record `{ id, name, path }` in `~/.claude/registered-projects.json` (`server/utils/registeredProjects.ts`).
+- The picker lists these records. Create, edit and remove are in the picker (`ProjectDialog.vue`, `useProjects.ts`).
+  API: `/api/registered-projects` (GET, POST, PUT `[id]`, DELETE `[id]`).
+- The active project is still the directory in `useWorkingDir`. Chats, schedules and issues stay keyed by that directory,
+  so no existing data moves. Removing a project deletes only the record.
+- Name and directory must each be unique. The directory must exist.
+- On first read the file is seeded with ataccama, trongnghia203, suri, inhouse, olda and olda-utils (existing directories only).
+- A directory with no project still works and shows its folder name.
+
+## Consequences
+
+- Projects are per machine, stored next to the other `~/.claude` UI files.
+- The old browsable "Recent" list is gone from the picker. Directories are chosen in the create dialog.
