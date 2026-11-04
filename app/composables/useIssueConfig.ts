@@ -56,8 +56,24 @@ export function useIssueConfig() {
   const labelsOf = (ids: string[], dir = '') => ids.map(id => configFor(dir).labels.find(l => l.id === id)).filter((l): l is IssueLabel => !!l)
   const activePropertiesFor = (dir = '') => configFor(dir).properties.filter(p => !p.archived)
 
+  type ShareKind = 'labels' | 'properties'
+  interface ShareProject { dir: string; name: string; has?: boolean; custom?: boolean }
+  /** Projects a label or property can be shared with. With an id, each says whether it already has the item. */
+  async function projectsFor(kind: ShareKind, id?: string): Promise<ShareProject[]> {
+    try {
+      const r = await $fetch<{ projects: ShareProject[] }>(id ? `/api/issue-config/${kind}/${id}/projects` : '/api/issue-config/projects')
+      return r.projects
+    } catch (e) { fail(e); return [] }
+  }
+  /** Make `dirs` the projects that have the item. Reloads every scope that could change. */
+  async function shareWith(kind: ShareKind, dir: string, id: string, dirs: string[]): Promise<boolean> {
+    try { await $fetch(`/api/issue-config/${kind}/${id}/projects${q(dir)}`, { method: 'PUT', body: { dirs } }) } catch (e) { fail(e); await Promise.all(Object.keys(entries.value).map(load)); return false }
+    await Promise.all(Object.keys(entries.value).map(load))
+    return true
+  }
+
   return {
-    entries, load, entry, configFor, labelsOf, activePropertiesFor,
+    entries, load, projectsFor, shareWith, entry, configFor, labelsOf, activePropertiesFor,
     customize: (dir: string) => write(dir, '/api/issue-config/project', 'POST'),
     reset: (dir: string) => write(dir, '/api/issue-config/project', 'DELETE'),
     createLabel: (dir: string, b: { name: string; color: string; description: string }) => write(dir, '/api/issue-config/labels', 'POST', b),

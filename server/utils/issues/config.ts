@@ -187,3 +187,51 @@ export function usageCounts(projectDir?: string | null) {
   }
   return { labels, properties }
 }
+
+/** Labels and properties can be shared with other projects: the same item (same id) lives in each project's own file. */
+export type ShareKind = 'labels' | 'properties'
+
+/** Every project dir we know: Claude Code projects, issue projects and projects with their own settings file. */
+export async function knownProjects(): Promise<{ dir: string; name: string }[]> {
+  const { getClaudeCodeProjects } = await import('../claudeCodeHistory')
+  const out = new Map<string, string>()
+  for (const p of await getClaudeCodeProjects().catch(() => [])) out.set(p.path.replace(/\/+$/, ''), p.displayName || p.path.split('/').filter(Boolean).pop() || p.path)
+  for (const i of listIssues()) if (!out.has(i.projectDir)) out.set(i.projectDir, i.projectDir.split('/').filter(Boolean).pop() || i.projectDir)
+  return [...out].map(([dir, name]) => ({ dir, name })).sort((a, b) => a.name.localeCompare(b.name))
+}
+
+/** Which known projects can see this item now. `custom` = the project has its own settings file. */
+export async function itemProjects(kind: ShareKind, id: string) {
+  return (await knownProjects()).map(p => ({
+    ...p,
+    custom: hasProjectConfig(p.dir),
+    has: (readConfig(p.dir)[kind] as { id: string }[]).some(x => x.id === id),
+  }))
+}
+
+/**
+ * Make `dirs` the projects that have this item (among the known ones). Adding gives a project its own file when it has none.
+ * Removing is refused while that project's issues still use the item.
+ * `source` is the config scope the item is read from (a project dir, or null for the default).
+ */
+export async function setItemProjects(kind: ShareKind, id: string, source: string | null, dirs: string[]) {
+  const item = (readConfig(source)[kind] as any[]).find(x => x.id === id)
+  if (!item) throw createError({ statusCode: 404, message: 'Not found' })
+  const want = new Set(dirs.map(d => d.replace(/\/+$/, '')))
+  const errors: string[] = []
+  for (const p of await itemProjects(kind, id)) {
+    if (p.has === want.has(p.dir)) continue
+    if (want.has(p.dir)) {
+      const clash = (readConfig(p.dir)[kind] as any[]).find(x => x.name.toLowerCase() === item.name.toLowerCase())
+      if (clash) { errors.push(`${p.name} already has "${item.name}"`); continue }
+      customizeProject(p.dir)
+      mutateConfig(p.dir, (cfg) => { (cfg[kind] as any[]).push({ ...item }) })
+    } else {
+      const used = usageCounts(p.dir)[kind][id] ?? 0
+      if (used) { errors.push(`${p.name} still uses "${item.name}" on ${used} issue(s)`); continue }
+      customizeProject(p.dir)
+      mutateConfig(p.dir, (cfg) => { (cfg as any)[kind] = (cfg[kind] as any[]).filter(x => x.id !== id) })
+    }
+  }
+  if (errors.length) throw createError({ statusCode: 409, message: errors.join('. ') })
+}

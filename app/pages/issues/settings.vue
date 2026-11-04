@@ -72,20 +72,35 @@ const labelDlg = ref(false)
 const labelEditId = ref<string | null>(null)
 const labelForm = reactive({ name: '', color: LABEL_COLORS[0]!, description: '' })
 const labelBusy = ref(false)
+// Project picker: the projects that get this label. Loaded when the dialog opens, applied on save.
+const labelProjects = ref<{ dir: string; name: string; has?: boolean }[]>([])
+const labelPick = ref<string[]>([])
+async function openShare(kind: 'labels' | 'properties', id: string | null, pick: typeof labelPick, list: typeof labelProjects) {
+  list.value = await ic.projectsFor(kind, id ?? undefined)
+  // A new item starts on the current scope's project (when editing the project's own settings), nothing otherwise
+  pick.value = id ? list.value.filter(p => p.has).map(p => p.dir) : (scope.value === 'project' && workingDir.value ? [workingDir.value.replace(/\/+$/, '')] : [])
+}
 function newLabel() {
   Object.assign(labelForm, { name: '', color: LABEL_COLORS[config.value.labels.length % LABEL_COLORS.length]!, description: '' })
   labelEditId.value = null
   labelDlg.value = true
+  openShare('labels', null, labelPick, labelProjects)
 }
 function editLabel(l: IssueLabel) {
   Object.assign(labelForm, { name: l.name, color: l.color, description: l.description })
   labelEditId.value = l.id
   labelDlg.value = true
+  openShare('labels', l.id, labelPick, labelProjects)
 }
 async function submitLabel() {
   if (!labelForm.name.trim()) return
   labelBusy.value = true
-  const ok = labelEditId.value ? await updateLabel(labelEditId.value, { ...labelForm }) : await createLabel({ ...labelForm })
+  let ok = labelEditId.value ? await updateLabel(labelEditId.value, { ...labelForm }) : await createLabel({ ...labelForm })
+  if (ok) {
+    const id = labelEditId.value ?? config.value.labels.find(l => l.name.toLowerCase() === labelForm.name.trim().toLowerCase())?.id
+    const changed = !labelEditId.value ? labelPick.value.length > 0 : labelProjects.value.some(p => !!p.has !== labelPick.value.includes(p.dir))
+    if (id && changed) ok = await ic.shareWith('labels', dir.value, id, labelPick.value)
+  }
   labelBusy.value = false
   if (ok) labelDlg.value = false
 }
@@ -105,25 +120,34 @@ const propDlg = ref(false)
 const propEditId = ref<string | null>(null)
 const propForm = reactive<{ name: string; type: PropertyType; color: string; options: { id?: string; name: string }[] }>({ name: '', type: 'text', color: LABEL_COLORS[0]!, options: [] })
 const propBusy = ref(false)
+const propProjects = ref<{ dir: string; name: string; has?: boolean }[]>([])
+const propPick = ref<string[]>([])
 const atLimit = computed(() => activeProperties.value.length >= MAX_ACTIVE_PROPERTIES)
 function newProperty() {
   Object.assign(propForm, { name: '', type: 'text' as PropertyType, color: LABEL_COLORS[activeProperties.value.length % LABEL_COLORS.length]!, options: [] })
   propEditId.value = null
   propDlg.value = true
+  openShare('properties', null, propPick, propProjects)
 }
 function editProperty(p: IssueProperty) {
   Object.assign(propForm, { name: p.name, type: p.type, color: propertyColor(p), options: p.options.map(o => ({ ...o })) })
   propEditId.value = p.id
   propDlg.value = true
+  openShare('properties', p.id, propPick, propProjects)
 }
 const propValid = computed(() => !!propForm.name.trim() && (propForm.type !== 'select' || propForm.options.some(o => o.name.trim())))
 async function submitProperty() {
   if (!propValid.value) return
   propBusy.value = true
   const options = propForm.options.filter(o => o.name.trim())
-  const ok = propEditId.value
+  let ok = propEditId.value
     ? await updateProperty(propEditId.value, { name: propForm.name, color: propForm.color, ...(propForm.type === 'select' ? { options } : {}) })
     : await createProperty({ name: propForm.name, type: propForm.type, color: propForm.color, options })
+  if (ok) {
+    const id = propEditId.value ?? config.value.properties.find(x => x.name.toLowerCase() === propForm.name.trim().toLowerCase())?.id
+    const changed = !propEditId.value ? propPick.value.length > 0 : propProjects.value.some(x => !!x.has !== propPick.value.includes(x.dir))
+    if (id && changed) ok = await ic.shareWith('properties', dir.value, id, propPick.value)
+  }
   propBusy.value = false
   if (ok) propDlg.value = false
 }
@@ -278,6 +302,13 @@ const BUILT_IN = 'Every sub-issue of this issue is closed. Review what each one 
             </div></div>
           <label class="block space-y-1"><span class="text-[12px] text-label">Description</span>
             <input v-model="labelForm.description" maxlength="200" class="w-full px-3 py-2 rounded-lg text-[13px]" :style="field" /></label>
+          <div v-if="labelProjects.length" class="space-y-1"><span class="text-[12px] text-label">Projects</span>
+            <div class="max-h-36 overflow-y-auto custom-scrollbar rounded-lg p-1" :style="field">
+              <label v-for="p in labelProjects" :key="p.dir" class="flex items-center gap-2 px-2 py-1 rounded hover-bg text-[13px] cursor-pointer" :title="p.dir">
+                <input v-model="labelPick" type="checkbox" :value="p.dir" /><UIcon name="i-lucide-folder" class="size-3.5 text-meta" /><span class="truncate">{{ p.name }}</span>
+              </label>
+            </div>
+            <p class="text-[11px] text-meta">Projects that can use this label. A project without its own settings gets its own copy of the default first.</p></div>
           <div class="flex justify-end gap-2"><UButton label="Cancel" variant="ghost" color="neutral" size="sm" @click="() => { labelDlg = false }" /><UButton type="submit" :label="labelEditId ? 'Save' : 'Create'" size="sm" :disabled="!labelForm.name.trim() || labelBusy" /></div>
         </form>
       </template>
@@ -315,6 +346,13 @@ const BUILT_IN = 'Every sub-issue of this issue is closed. Review what each one 
             </div>
             <UButton label="Add option" icon="i-lucide-plus" size="xs" variant="soft" color="neutral" type="button" @click="() => { propForm.options.push({ name: '' }) }" />
           </div>
+          <div v-if="propProjects.length" class="space-y-1"><span class="text-[12px] text-label">Projects</span>
+            <div class="max-h-36 overflow-y-auto custom-scrollbar rounded-lg p-1" :style="field">
+              <label v-for="p in propProjects" :key="p.dir" class="flex items-center gap-2 px-2 py-1 rounded hover-bg text-[13px] cursor-pointer" :title="p.dir">
+                <input v-model="propPick" type="checkbox" :value="p.dir" /><UIcon name="i-lucide-folder" class="size-3.5 text-meta" /><span class="truncate">{{ p.name }}</span>
+              </label>
+            </div>
+            <p class="text-[11px] text-meta">Projects that can use this property. A project without its own settings gets its own copy of the default first.</p></div>
           <div class="flex justify-end gap-2"><UButton label="Cancel" variant="ghost" color="neutral" size="sm" @click="() => { propDlg = false }" /><UButton type="submit" :label="propEditId ? 'Save' : 'Create'" size="sm" :disabled="!propValid || propBusy" /></div>
         </form>
       </template>
