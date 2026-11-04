@@ -6,6 +6,7 @@ import {
   createAccumulator, appendEntry, finalizeStats, getTimeBounds,
   type Granularity, type TimeRange, type StatsFilter,
 } from '../../utils/usageStats'
+import { listUserProjects } from '../../utils/userProjects'
 
 function getProjectsDir(): string {
   return join(homedir(), '.claude', 'projects')
@@ -47,13 +48,16 @@ export default defineEventHandler(async (event) => {
     customNames = JSON.parse(raw)
   } catch {}
 
+  // The project list shows the projects the user created, under their names. Spend in other folders stays in the totals.
+  const userByDir = new Map(listUserProjects().map(u => [u.path.replace(/[^a-zA-Z0-9]/g, '-'), u.name]))
+
   const acc = createAccumulator()
 
   // Scan every project even when filtered: appendEntry keeps byProject complete and filters the rest
   const dirsToScan = projectDirs
 
   for (const dirName of dirsToScan) {
-    const displayName = customNames[dirName]?.displayName || projectDisplayName(dirName)
+    const displayName = userByDir.get(dirName) || customNames[dirName]?.displayName || projectDisplayName(dirName)
     const projectDir = join(projectsDir, dirName)
 
     let files: string[] = []
@@ -81,5 +85,6 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  return finalizeStats(acc)
+  const stats = finalizeStats(acc)
+  return { ...stats, byProject: stats.byProject.filter(p => userByDir.has(p.id)) }
 })

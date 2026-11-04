@@ -4,6 +4,7 @@ import { homedir } from 'os'
 import { sumSessionUsage } from '../../utils/sessionUsage'
 import { cachedJson } from '../../utils/diskCache'
 import { USAGE_CACHE_TTL_MS } from '../../utils/usageLimits'
+import { listUserProjects } from '../../utils/userProjects'
 
 export interface TopSession {
   sessionId: string
@@ -42,6 +43,8 @@ async function computeTopSessions(hours: number, projectId?: string) {
     customNames = JSON.parse(await fs.readFile(join(homedir(), '.claude', 'custom-project-names.json'), 'utf8'))
   } catch {}
 
+  const userByDir = new Map(listUserProjects().map(u => [u.path.replace(/[^a-zA-Z0-9]/g, '-'), u.name]))
+
   let dirs: string[] = []
   try {
     dirs = (await fs.readdir(projectsDir, { withFileTypes: true })).filter(e => e.isDirectory()).map(e => e.name).filter(d => !projectId || d === projectId)
@@ -69,7 +72,7 @@ async function computeTopSessions(hours: number, projectId?: string) {
       const s = {
         sessionId: file.replace(/\.jsonl$/, ''),
         projectName: dirName,
-        project: customNames[dirName]?.displayName || projectDisplayName(dirName),
+        project: userByDir.get(dirName) || customNames[dirName]?.displayName || projectDisplayName(dirName),
         ...u,
       }
 
