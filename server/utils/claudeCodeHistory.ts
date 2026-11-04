@@ -155,41 +155,6 @@ export async function setProjectName(projectName: string, displayName: string): 
   await saveProjectNames(names)
 }
 
-interface ManualProjects {
-  [projectName: string]: {
-    path: string
-    displayName: string
-    addedAt: string
-  }
-}
-
-async function loadManualProjects(): Promise<ManualProjects> {
-  const filePath = join(getClaudeDir(), 'manual-projects.json')
-  try {
-    const data = await fs.readFile(filePath, 'utf8')
-    return JSON.parse(data) as ManualProjects
-  } catch {
-    return {}
-  }
-}
-
-async function saveManualProjects(projects: ManualProjects): Promise<void> {
-  const filePath = join(getClaudeDir(), 'manual-projects.json')
-  await fs.writeFile(filePath, JSON.stringify(projects, null, 2), 'utf8')
-}
-
-/**
- * Add a manually registered project path
- */
-export async function addManualProject(path: string, displayName?: string): Promise<ClaudeCodeProject> {
-  const name = path.replace(/\//g, '-').replace(/^-/, '')
-  const resolvedDisplayName = displayName || path.split('/').filter(Boolean).pop() || path
-  const projects = await loadManualProjects()
-  projects[name] = { path, displayName: resolvedDisplayName, addedAt: new Date().toISOString() }
-  await saveManualProjects(projects)
-  return { name, path, displayName: resolvedDisplayName, sessionCount: 0 }
-}
-
 /**
  * Delete a custom name for a project
  */
@@ -458,14 +423,6 @@ export async function getClaudeCodeProjects(): Promise<ClaudeCodeProject[]> {
     }
 
     await applyCustomProjectNames(projects)
-
-    // Merge manually added projects
-    const manualProjects = await loadManualProjects()
-    for (const [name, meta] of Object.entries(manualProjects)) {
-      if (!projects.some(p => p.name === name)) {
-        projects.push({ name, path: meta.path, displayName: meta.displayName, sessionCount: 0 })
-      }
-    }
 
     // Sort by last activity (newest first)
     projects.sort((a, b) => {
