@@ -62,7 +62,7 @@ export function useClaudeCodeHistory() {
   async function fetchProjects() {
     isLoadingProjects.value = true
     try {
-      const response = await $fetch<ClaudeCodeProject[]>('/api/projects')
+      const response = await $fetch<ClaudeCodeProject[]>('/api/projects', { query: { registered: 1 } })
       projects.value = response
       return response
     } catch (error) {

@@ -1,10 +1,11 @@
 import { getClaudeCodeProjects } from '../../utils/claudeCodeHistory'
+import { getRegisteredAsClaudeProjects } from '../../utils/registeredProjects'
 
-export default defineEventHandler(async () => {
+/** `?registered=1`: only the projects the user created. Without it: every directory Claude Code has run in. */
+export default defineEventHandler(async (event) => {
   try {
-    const projects = await getClaudeCodeProjects()
-    // The React frontend expects the array directly, based on api.projects() in api.js
-    return projects
+    if (getQuery(event).registered) return await getRegisteredAsClaudeProjects()
+    return await getClaudeCodeProjects()
   } catch (error: any) {
     throw createError({
       statusCode: 500,

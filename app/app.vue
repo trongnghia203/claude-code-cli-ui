@@ -51,6 +51,7 @@ const colorMode = useColorMode()
 
 const showWorkingDirPopover = ref(false)
 const { projects, fetchProjects, removeProject, projectForDir } = useProjects()
+const { fetchProjects: refreshHistoryProjects } = useClaudeCodeHistory()
 const currentProject = computed(() => projectForDir(workingDir.value))
 // A project the user created shows under its name; a directory without one falls back to the folder name
 const workingDirName = computed(() => currentProject.value?.name || workingDir.value.replace(/\/+$/, '').split('/').pop() || workingDir.value)
@@ -71,11 +72,12 @@ function openProjectDialog(project?: RegisteredProject) {
 function onProjectSaved(saved: RegisteredProject) {
   const editing = projectDialog.value?.project
   if (!editing || editing.path === workingDir.value) setWorkingDir(saved.path)
+  refreshHistoryProjects()
 }
 
 async function deleteProject(project: RegisteredProject) {
   if (!confirm(`Remove project "${project.name}"?\nChats, schedules and issues of ${project.path} are kept.`)) return
-  try { await removeProject(project.id) } catch { /* list unchanged */ }
+  try { await removeProject(project.id); refreshHistoryProjects() } catch { /* list unchanged */ }
 }
 
 

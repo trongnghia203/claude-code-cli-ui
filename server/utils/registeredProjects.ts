@@ -111,3 +111,23 @@ export function deleteRegisteredProject(id: string) {
   if (!projects.some(p => p.id === id)) throw createError({ statusCode: 404, message: 'Project not found' })
   write(projects.filter(p => p.id !== id))
 }
+
+/**
+ * The created projects in the shape the Chat and Artifacts pages list: the project name,
+ * plus session count and last activity of the Claude Code history in the same directory.
+ */
+export async function getRegisteredAsClaudeProjects() {
+  const { getClaudeCodeProjects } = await import('./claudeCodeHistory')
+  const history = await getClaudeCodeProjects().catch(() => [])
+  const byPath = new Map(history.map(h => [h.path.replace(/\/+$/, ''), h]))
+  return listRegisteredProjects().map((p) => {
+    const h = byPath.get(p.path)
+    return {
+      name: h?.name ?? p.path.replace(/[^a-zA-Z0-9]/g, '-'),
+      path: p.path,
+      displayName: p.name,
+      lastActivity: h?.lastActivity,
+      sessionCount: h?.sessionCount ?? 0,
+    }
+  })
+}

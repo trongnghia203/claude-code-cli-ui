@@ -51,9 +51,10 @@ async function addProject() {
   if (!newPath.value.trim()) return
   adding.value = true
   try {
-    await $fetch('/api/projects', {
+    const path = newPath.value.trim()
+    await $fetch('/api/registered-projects', {
       method: 'POST',
-      body: { path: newPath.value.trim(), displayName: newDisplayName.value.trim() || undefined }
+      body: { path, name: newDisplayName.value.trim() || path.replace(/\/+$/, '').split('/').pop() }
     })
     showAddModal.value = false
     toast.add({ title: 'Project added', color: 'success' })

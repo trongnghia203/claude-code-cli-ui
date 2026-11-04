@@ -131,7 +131,7 @@ const repoToRemove = ref<{ owner: string; repo: string; type: 'skills' | 'agents
 
 onMounted(async () => {
   try {
-    projectList.value = await $fetch('/api/projects')
+    projectList.value = await $fetch('/api/projects', { query: { registered: 1 } })
   } catch {
     projectList.value = []
   }

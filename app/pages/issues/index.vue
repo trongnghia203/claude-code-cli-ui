@@ -167,7 +167,7 @@ const formKey = ref(0)
 const pickable = ref<{ path: string; name: string }[]>([])
 async function loadPickable() {
   try {
-    pickable.value = (await $fetch<{ path: string; displayName: string }[]>('/api/projects')).map(p => ({ path: p.path, name: p.displayName }))
+    pickable.value = (await $fetch<{ path: string; displayName: string }[]>('/api/projects', { query: { registered: 1 } })).map(p => ({ path: p.path, name: p.displayName }))
   } catch { pickable.value = [] }
 }
 const openForm = () => { loadPickable(); showForm.value = true }
