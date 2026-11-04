@@ -1,6 +1,6 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { getClaudeDir } from './claudeDir'
 
@@ -16,7 +16,10 @@ export interface RegisteredProject {
   createdAt: string
 }
 
-const FILE = 'registered-projects.json'
+/** Own config dir, not `~/.claude`: this is the UI's data, not Claude Code's. `CLAUDE_UI_CONFIG_DIR` overrides it. */
+const FILE = join(process.env.CLAUDE_UI_CONFIG_DIR || join(homedir(), '.config', 'claude-ui'), 'projects.json')
+/** Earlier location. Read once if the new file is missing, so existing projects keep their ids. */
+const LEGACY_FILE = () => join(getClaudeDir(), 'registered-projects.json')
 
 /** Projects created on first run so the existing work shows up under a name. Only existing directories are added. */
 const SEED: { name: string; path: string }[] = [
@@ -33,21 +36,26 @@ export function normalizeProjectPath(p: string): string {
   return expanded.length > 1 ? expanded.replace(/\/+$/, '') : expanded
 }
 
-function filePath() {
-  return join(getClaudeDir(), FILE)
-}
-
-function read(): RegisteredProject[] | null {
+function readFrom(file: string): RegisteredProject[] | null {
   try {
-    const data = JSON.parse(readFileSync(filePath(), 'utf8'))
+    const data = JSON.parse(readFileSync(file, 'utf8'))
     return Array.isArray(data?.projects) ? data.projects : []
   } catch {
     return null
   }
 }
 
+function read(): RegisteredProject[] | null {
+  const current = readFrom(FILE)
+  if (current) return current
+  const legacy = readFrom(LEGACY_FILE())
+  if (legacy) write(legacy)
+  return legacy
+}
+
 function write(projects: RegisteredProject[]) {
-  writeFileSync(filePath(), JSON.stringify({ projects }, null, 2), 'utf8')
+  mkdirSync(dirname(FILE), { recursive: true })
+  writeFileSync(FILE, JSON.stringify({ projects }, null, 2), 'utf8')
 }
 
 export function listRegisteredProjects(): RegisteredProject[] {

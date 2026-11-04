@@ -265,7 +265,7 @@ function badgeFor(to: string) {
           <!-- Client-only: the saved project lives in localStorage, so a server-rendered chip would show the
                "no project" styling and Vue does not patch stale classes when hydrating -->
           <ClientOnly>
-          <UPopover v-model:open="showWorkingDirPopover" :ui="{ width: 'w-[280px]' }">
+          <UPopover v-model:open="showWorkingDirPopover" :content="{ align: 'start', sideOffset: 6 }" :ui="{ content: 'w-[max(var(--reka-popper-anchor-width),260px)]' }">
             <button
               class="w-full flex items-center rounded-lg transition-all duration-150 focus-ring cursor-pointer press-scale"
               :class="sidebarCollapsed ? 'justify-center px-0 py-2' : 'gap-2 px-3 py-2 text-left'"
@@ -300,7 +300,7 @@ function badgeFor(to: string) {
                   >
                     <button
                       type="button"
-                      class="flex-1 min-w-0 flex items-center gap-2 pl-3 py-1.5 text-left"
+                      class="flex-1 min-w-0 flex items-center gap-2 pl-3 py-1.5 text-left outline-none focus:outline-none"
                       :style="{ color: proj.path === workingDir.replace(/\/+$/, '') ? 'var(--text-primary)' : 'var(--text-secondary)' }"
                       :title="proj.path"
                       @click="pickProject(proj.path)"
