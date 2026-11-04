@@ -1,11 +1,5 @@
 import { join } from 'node:path'
 
-export interface SlugPath {
-  directory: string
-  filename: string
-  slug: string
-}
-
 export function slugToPath(slug: string): { directory: string; filename: string } {
   const parts = slug.split('--')
   if (parts.length === 1) {

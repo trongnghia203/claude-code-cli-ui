@@ -1,12 +1,5 @@
 import type { GithubImport, GithubImportsRegistry, SkillScanResult, AgentScanResult } from '~/types'
 
-export interface GithubSymlinkSync {
-  linked: string[]
-  removed: string[]
-  skippedConflicts: string[]
-  missingInClone: string[]
-}
-
 export function useGithubImports() {
   const skillImports = useState<GithubImport[]>('githubSkillImports', () => [])
   const agentImports = useState<GithubImport[]>('githubAgentImports', () => [])

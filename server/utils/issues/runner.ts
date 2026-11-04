@@ -8,7 +8,7 @@ const MAX_RESULT_CHARS = 20_000
 const MCP_WAIT_MS = 60_000
 const MCP_POLL_MS = 2_000
 
-export interface PendingApproval { id: string; tool: string; input: unknown; at: string }
+interface PendingApproval { id: string; tool: string; input: unknown; at: string }
 interface ActiveRun {
   child: ChildProcess; runId: string; cancelled: boolean
   pending: Map<string, PendingApproval & { respond: (allow: boolean, message?: string) => void; timer?: ReturnType<typeof setTimeout> }>
@@ -106,7 +106,7 @@ Skip the edit if nothing is worth keeping.
 Last, finish with a 2-3 line summary of the answer. That summary is posted as the comment. Do not post comments with the CLI.`
 
 /** An adhoc run sees only the issue id, title and the new comment. The agent can fetch more with `claude-ui issue get`. */
-export function buildAdhocPrompt(issue: Issue, question: string, previous?: { author: string; at: string; body: string }[]): string {
+function buildAdhocPrompt(issue: Issue, question: string, previous?: { author: string; at: string; body: string }[]): string {
   const has = !!previous?.length
   return [
     `You are working on issue ${issue.id}: ${issue.title}`,
@@ -168,7 +168,7 @@ export function buildPrompt(issue: Issue, extra?: string): string {
   return parts.filter(Boolean).join('\n')
 }
 
-export interface RunOptions {
+interface RunOptions {
   /** Use this prompt as it is, instead of the default one */
   prompt?: string
   /** Leave the status alone, in and out. For runs that only edit the issue, like /distill. */

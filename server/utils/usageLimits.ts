@@ -36,7 +36,7 @@ export interface UsageLimits {
   generatedAt: number
 }
 
-export function parseUsageOutput(raw: string): UsageLimits {
+function parseUsageOutput(raw: string): UsageLimits {
   const lines = raw.split('\n').map(l => l.replace(/\s+$/, ''))
   const limits: LimitBar[] = []
   const periods: UsagePeriod[] = []

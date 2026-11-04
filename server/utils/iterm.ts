@@ -6,7 +6,7 @@ import { getClaudeDir } from './claudeDir'
 
 const run = promisify(execFile)
 
-export type ItermLaunchResult = 'focused' | 'opened-tab' | 'opened-window'
+type ItermLaunchResult = 'focused' | 'opened-tab' | 'opened-window'
 
 // argv: 1 = tty of an existing session ('' if none), 2 = shell command to run in a new tab/window
 const ITERM_SCRIPT = `

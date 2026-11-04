@@ -7,7 +7,7 @@ import { commitPaths, pushRepo } from './memoryGit'
 const env = { ...process.env, GIT_TERMINAL_PROMPT: '0' }
 const git = (cwd: string, args: string[]) => spawnAsync('git', args, { cwd, env, timeout: 30_000 })
 
-export interface AgentGitState {
+interface AgentGitState {
   available: boolean
   root?: string
   branch?: string

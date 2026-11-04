@@ -223,7 +223,7 @@ export function watchDirectory(
 /**
  * Calculate context window utilization
  */
-export function calculateContextWindow(tokens: TokenUsage, maxTokens?: number): {
+function calculateContextWindow(tokens: TokenUsage, maxTokens?: number): {
   used: number
   total: number
   percentage: number

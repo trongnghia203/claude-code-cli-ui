@@ -11,9 +11,9 @@
 
 import type { NormalizedMessage, PendingPermission, PermissionMode } from '~/types'
 
-export type SessionStatus = 'idle' | 'loading' | 'streaming' | 'error'
+type SessionStatus = 'idle' | 'loading' | 'streaming' | 'error'
 
-export interface SessionSlot {
+interface SessionSlot {
   /** Messages loaded from server (JSONL) */
   serverMessages: NormalizedMessage[]
   /** Messages received via WebSocket (real-time) */
@@ -751,4 +751,4 @@ export function useSessionStore() {
   }
 }
 
-export type SessionStore = ReturnType<typeof useSessionStore>
+type SessionStore = ReturnType<typeof useSessionStore>

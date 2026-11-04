@@ -1,12 +1,12 @@
 export type PropertyType = 'text' | 'number' | 'select' | 'date' | 'checkbox' | 'url'
 
 export interface IssueLabel { id: string; name: string; color: string; description: string; updatedAt: string }
-export interface IssuePropertyOption { id: string; name: string }
+interface IssuePropertyOption { id: string; name: string }
 export interface IssueProperty { id: string; name: string; type: PropertyType; options: IssuePropertyOption[]; color?: string; archived: boolean; updatedAt: string }
 export interface WakeupRule { enabled: boolean; instruction: string }
 export interface IssueViewDef { id: string; name: string; layout: 'board' | 'list'; filters: Record<string, any>; display: Record<string, any>; updatedAt: string }
 export interface IssueConfig { labels: IssueLabel[]; properties: IssueProperty[]; views: IssueViewDef[]; wakeups: { subIssuesFinish: WakeupRule } }
-export interface IssueConfigUsage { labels: Record<string, number>; properties: Record<string, number> }
+interface IssueConfigUsage { labels: Record<string, number>; properties: Record<string, number> }
 
 export const PROPERTY_TYPE_META: Record<PropertyType, { label: string; icon: string }> = {
   text: { label: 'Text', icon: 'i-lucide-type' },

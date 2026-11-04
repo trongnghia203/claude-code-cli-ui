@@ -1,6 +1,6 @@
 import type { CommandFrontmatter } from '~/types'
 
-export interface CommandTemplate {
+interface CommandTemplate {
   id: string
   icon: string
   frontmatter: CommandFrontmatter

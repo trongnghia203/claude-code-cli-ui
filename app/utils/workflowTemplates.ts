@@ -1,4 +1,4 @@
-export interface WorkflowTemplate {
+interface WorkflowTemplate {
   id: string
   name: string
   description: string

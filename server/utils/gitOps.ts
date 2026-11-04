@@ -14,7 +14,7 @@ async function hasGit(): Promise<boolean> {
   }
 }
 
-export async function ensureGit(): Promise<void> {
+async function ensureGit(): Promise<void> {
   if (!(await hasGit())) {
     throw createError({
       statusCode: 500,

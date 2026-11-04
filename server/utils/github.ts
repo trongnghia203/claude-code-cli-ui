@@ -207,7 +207,7 @@ export async function detectAgentsLocal(
 
 // ── Registry helpers ──────────────────────────────────
 
-export function getRegistryPath(type: 'skills' | 'agents'): string {
+function getRegistryPath(type: 'skills' | 'agents'): string {
   return resolveClaudePath('github', `${type}-imports.json`)
 }
 

@@ -124,7 +124,7 @@ async function saveProjectNames(names: ProjectNames): Promise<void> {
 /**
  * Set a custom name for a session
  */
-export async function setSessionName(sessionId: string, summary: string): Promise<void> {
+async function setSessionName(sessionId: string, summary: string): Promise<void> {
   const names = await loadSessionNames()
   names[sessionId] = {
     summary,
@@ -136,7 +136,7 @@ export async function setSessionName(sessionId: string, summary: string): Promis
 /**
  * Delete a custom name for a session
  */
-export async function deleteSessionName(sessionId: string): Promise<void> {
+async function deleteSessionName(sessionId: string): Promise<void> {
   const names = await loadSessionNames()
   if (names[sessionId]) {
     delete names[sessionId]
@@ -147,7 +147,7 @@ export async function deleteSessionName(sessionId: string): Promise<void> {
 /**
  * Set a custom name for a project
  */
-export async function setProjectName(projectName: string, displayName: string): Promise<void> {
+async function setProjectName(projectName: string, displayName: string): Promise<void> {
   const names = await loadProjectNames()
   names[projectName] = {
     displayName,

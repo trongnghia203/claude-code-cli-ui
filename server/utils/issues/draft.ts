@@ -97,7 +97,7 @@ export function extractJson(text: string): any {
   throw new Error('The agent returned incomplete JSON')
 }
 
-export function normalizeDraft(raw: any, agents: DraftAgent[], request: string): IssueDraft {
+function normalizeDraft(raw: any, agents: DraftAgent[], request: string): IssueDraft {
   const title = String(raw?.title ?? '').trim().slice(0, 200) || request.trim().split('\n')[0]!.slice(0, 80)
   const slugs = new Set(agents.map(a => a.slug))
   const assignee = typeof raw?.assignee === 'string' && slugs.has(raw.assignee) ? raw.assignee : null

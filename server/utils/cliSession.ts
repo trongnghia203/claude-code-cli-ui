@@ -8,7 +8,7 @@ import { getClaudeDir } from './claudeDir'
 import { loadProjectMcpFile } from './mcpSources'
 import { getInstalledClaudePath } from './claudeBinary'
 
-export interface CliSessionMetadata {
+interface CliSessionMetadata {
   id: string
   agentSlug?: string
   workingDir: string
@@ -24,7 +24,7 @@ export interface CliSessionMetadata {
   cost?: number
 }
 
-export interface CliSessionData {
+interface CliSessionData {
   pty: IPty
   metadata: CliSessionMetadata
   watchers: FSWatcher[]
@@ -198,7 +198,7 @@ export function getAllSessions(): CliSessionMetadata[] {
 /**
  * Update last activity timestamp
  */
-export function updateLastActivity(sessionId: string): void {
+function updateLastActivity(sessionId: string): void {
   const session = sessions.get(sessionId)
   if (session) {
     session.metadata.lastActivity = new Date().toISOString()

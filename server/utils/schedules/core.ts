@@ -37,7 +37,7 @@ export interface ScheduleJob {
   scope: 'global' | 'project'
 }
 
-export interface ScheduleRun {
+interface ScheduleRun {
   id: string
   jobId: string
   jobName?: string
@@ -57,7 +57,7 @@ export interface ScheduleRun {
   stderr?: string
 }
 
-export interface ScheduleCore {
+interface ScheduleCore {
   CONFIG_DIR: string
   LOGS_DIR: string
   ensureDirs(): void

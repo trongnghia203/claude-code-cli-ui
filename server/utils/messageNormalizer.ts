@@ -12,7 +12,7 @@ export function stripLocalCommandTags(content: unknown): string {
 }
 
 /** Wrap terminal-style output in a code fence so markdown keeps its line breaks and spacing. */
-export function fenceTerminalOutput(text: string): string {
+function fenceTerminalOutput(text: string): string {
   return '```text\n' + text + '\n```'
 }
 
@@ -244,7 +244,7 @@ export function normalizeSDKMessage(
 /**
  * Check if content should be filtered out (internal system messages)
  */
-export function isInternalContent(content: string): boolean {
+function isInternalContent(content: string): boolean {
   if (!content) return false
 
   const internalPatterns = [
@@ -257,57 +257,3 @@ export function isInternalContent(content: string): boolean {
   return internalPatterns.some((pattern) => pattern.test(content))
 }
 
-/**
- * Filter internal content from a message
- */
-export function filterInternalContent(message: NormalizedMessage): NormalizedMessage {
-  if (message.content && isInternalContent(message.content)) {
-    // Remove or redact internal content
-    return {
-      ...message,
-      content: message.content.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/gi, ''),
-    }
-  }
-  return message
-}
-
-/**
- * Merge tool results with their corresponding tool uses
- * This makes it easier to display them together in the UI
- */
-export function attachToolResults(messages: NormalizedMessage[]): NormalizedMessage[] {
-  const result: NormalizedMessage[] = []
-  const toolUseMap = new Map<string, NormalizedMessage>()
-
-  for (const message of messages) {
-    if (message.kind === 'tool_use') {
-      const toolUseId = message.metadata?.toolUseId || message.id
-      toolUseMap.set(toolUseId, message)
-      result.push(message)
-    } else if (message.kind === 'tool_result') {
-      const toolUseId = message.metadata?.toolUseId
-      const toolUse = toolUseId ? toolUseMap.get(toolUseId) : null
-
-      if (toolUse) {
-        // Attach result to the tool use message
-        result[result.indexOf(toolUse)] = {
-          ...toolUse,
-          toolResult: message.toolResult,
-          isError: message.isError,
-          metadata: {
-            ...toolUse.metadata,
-            resultId: message.id,
-            resultTimestamp: message.timestamp,
-          },
-        }
-      } else {
-        // Orphaned tool result, add it anyway
-        result.push(message)
-      }
-    } else {
-      result.push(message)
-    }
-  }
-
-  return result
-}

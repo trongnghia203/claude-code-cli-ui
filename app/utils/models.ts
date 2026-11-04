@@ -90,12 +90,6 @@ export const MODEL_OPTIONS: { value: AgentModel | undefined; label: string; desc
   { value: undefined, label: 'Default', desc: 'Uses whatever model is set in your Claude Code config.' },
 ]
 
-/** Compact options for toggle-button style pickers (no "Default") */
-export const MODEL_OPTIONS_COMPACT: { value: AgentModel; label: string }[] = MODEL_IDS.map((id) => ({
-  value: id,
-  label: MODEL_META[id].label,
-}))
-
 /**
  * Options for chat-style model selectors that include a description field.
  * Matches the shape { value, label, description } expected by ChatV2ModelSelector.

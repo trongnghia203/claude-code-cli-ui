@@ -1,7 +1,7 @@
 import type { AgentFrontmatter } from '~/types'
 import { MODEL } from '~/utils/models'
 
-export interface AgentTemplate {
+interface AgentTemplate {
   id: string
   icon: string
   frontmatter: AgentFrontmatter

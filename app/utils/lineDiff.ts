@@ -1,6 +1,6 @@
-export type DiffLineType = 'same' | 'add' | 'del'
+type DiffLineType = 'same' | 'add' | 'del'
 
-export interface DiffSegment {
+interface DiffSegment {
   text: string
   /** True for the part of a changed line that differs from its counterpart */
   changed: boolean
@@ -17,7 +17,7 @@ export interface DiffLine {
   newNo?: number
 }
 
-export interface DiffRow extends Partial<DiffLine> {
+interface DiffRow extends Partial<DiffLine> {
   /** Set on a collapsed run of unchanged lines */
   collapsed?: number
 }
@@ -84,7 +84,7 @@ export function diffLines(oldText: string, newText: string): DiffLine[] {
 const TOKEN_RE = /\s+|\w+|[^\w\s]/g
 
 /** Word-level diff of two lines. Returns null when the lines share too little to be worth highlighting. */
-export function inlineDiff(oldLine: string, newLine: string): { old: DiffSegment[]; new: DiffSegment[] } | null {
+function inlineDiff(oldLine: string, newLine: string): { old: DiffSegment[]; new: DiffSegment[] } | null {
   const a = oldLine.match(TOKEN_RE) ?? []
   const b = newLine.match(TOKEN_RE) ?? []
   if (a.length * b.length > 250_000) return null

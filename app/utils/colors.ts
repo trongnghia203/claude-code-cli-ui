@@ -23,9 +23,3 @@ export function getAgentColor(color: string | undefined): string {
   return agentColorMap[color] || '#71717a'
 }
 
-export function getAgentColorName(colorValue: string): string | null {
-  for (const [name, value] of Object.entries(agentColorMap)) {
-    if (value.toLowerCase() === colorValue.toLowerCase()) return name
-  }
-  return null
-}

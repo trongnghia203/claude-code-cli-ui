@@ -78,7 +78,7 @@ export function getTimeBounds(range: TimeRange, from?: number, to?: number): { f
   return { from: now - offsets[range], to: now }
 }
 
-export function getTimeKey(timestamp: string, granularity: Granularity): string {
+function getTimeKey(timestamp: string, granularity: Granularity): string {
   const d = new Date(timestamp)
   if (isNaN(d.getTime())) return 'unknown'
   switch (granularity) {

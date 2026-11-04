@@ -26,7 +26,7 @@ export interface IssueProperty {
 }
 export interface WakeupRule { enabled: boolean; instruction: string }
 /** A saved board setup. `filters` and `display` are the shapes in app/composables/useIssueView.ts, stored as given (size capped). */
-export interface IssueView {
+interface IssueView {
   id: string
   name: string
   layout: 'board' | 'list'
@@ -76,7 +76,7 @@ function save(file: string, cfg: IssueConfig) {
 }
 
 /** The issues that read a given config: one project's, or every project that has no file of its own (the default). */
-export function issuesInScope(projectDir?: string | null) {
+function issuesInScope(projectDir?: string | null) {
   const all = listIssues()
   return projectDir
     ? all.filter(i => i.projectDir === projectDir.replace(/\/+$/, ''))

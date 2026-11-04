@@ -37,7 +37,7 @@ export interface ContextReport {
 }
 
 /** "3.8k" -> 3800, "1m" -> 1000000, "~90" -> 90, "< 20" -> 20 */
-export function parseTokenCount(raw: string): number {
+function parseTokenCount(raw: string): number {
   const m = raw.replace(/[~<,\s]/g, '').match(/^([\d.]+)([km]?)$/i)
   if (!m) return 0
   const n = parseFloat(m[1]!)
@@ -72,7 +72,7 @@ function rows(table: string[][] | undefined, kind: 'source' | 'memory' = 'source
   })
 }
 
-export function parseContextMarkdown(md: string, cwd: string): ContextReport {
+function parseContextMarkdown(md: string, cwd: string): ContextReport {
   const model = md.match(/\*\*Model:\*\*\s*(\S+)/)?.[1] ?? 'unknown'
   const tok = md.match(/\*\*Tokens:\*\*\s*([\d.]+[km]?)\s*\/\s*([\d.]+[km]?)\s*\((\d+)%\)/i)
   const tables = parseTables(md)

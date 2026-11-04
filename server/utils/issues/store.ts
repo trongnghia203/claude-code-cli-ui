@@ -61,7 +61,7 @@ export interface IssueWakeup {
 export interface WakeupEvent { id: string; wakeupId: string; at: string; outcome: 'started' | 'skipped'; note: string }
 
 /** An interactive Claude Code session started from the issue (ADR 0008). `id` is the Claude session id. */
-export interface IssueSession { id: string; cwd: string; label?: string; startedAt: string }
+interface IssueSession { id: string; cwd: string; label?: string; startedAt: string }
 
 export interface Issue {
   id: string
@@ -95,7 +95,7 @@ export interface Issue {
 type CommentEntry = Extract<TimelineEntry, { type: 'comment' }>
 
 /** Ids of comments folded into the description by a distill. */
-export function foldedCommentIds(issue: Pick<Issue, 'timeline'>): Set<string> {
+function foldedCommentIds(issue: Pick<Issue, 'timeline'>): Set<string> {
   const out = new Set<string>()
   for (const e of issue.timeline) if (e.type === 'distill') for (const id of e.foldedIds) out.add(id)
   return out
@@ -107,7 +107,7 @@ export function liveComments(issue: Pick<Issue, 'timeline'>): CommentEntry[] {
   return issue.timeline.filter((e): e is CommentEntry => e.type === 'comment' && !folded.has(e.id))
 }
 
-export const ISSUE_PREFIX = 'ISS'
+const ISSUE_PREFIX = 'ISS'
 const KEY_RE = /^ISS-\d+$/
 
 const issuesDir = () => resolveClaudePath('issues')
@@ -132,7 +132,7 @@ export function readTranscript(id: string, runId: string): unknown[] {
   } catch { return [] }
 }
 
-export const isValidKey = (id: string) => KEY_RE.test(id)
+const isValidKey = (id: string) => KEY_RE.test(id)
 // A function declaration, not an arrow with a comma: Nitro's auto-import scanner mis-splits "(0, 8)" in exported consts
 export function newEntryId(): string {
   return randomUUID().slice(0, 8)

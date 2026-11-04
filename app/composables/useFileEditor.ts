@@ -1,4 +1,4 @@
-export interface FileEditorState {
+interface FileEditorState {
   isOpen: boolean
   filePath: string | null
   content: string | null

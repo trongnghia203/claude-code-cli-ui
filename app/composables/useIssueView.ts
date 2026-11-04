@@ -18,7 +18,7 @@ export interface IssueFilters {
   /** property id -> option ids / 'true'|'false' / one text to look for */
   props?: Record<string, string[]>
 }
-export type GroupBy = string // 'status' | 'priority' | 'assignee' | 'label' | 'project' | 'prop:<id>'
+type GroupBy = string // 'status' | 'priority' | 'assignee' | 'label' | 'project' | 'prop:<id>'
 export interface DisplayOptions {
   groupBy: GroupBy
   hiddenColumns: string[]
@@ -29,7 +29,7 @@ export interface DisplayOptions {
 }
 export type Layout = 'board' | 'list'
 
-export const DEFAULT_CARD = ['id', 'priority', 'assignee', 'labels', 'comments', 'wakeup']
+const DEFAULT_CARD = ['id', 'priority', 'assignee', 'labels', 'comments', 'wakeup']
 export const defaultDisplay = (): DisplayOptions => ({
   groupBy: 'status', hiddenColumns: [], orderBy: 'priority', orderDir: 'asc', showSubIssues: true, card: [...DEFAULT_CARD],
 })
@@ -42,7 +42,7 @@ export const DATE_OP_LABEL: Record<DateOp, string> = { today: 'Today', week: 'Th
 const CLOSED = ['done', 'cancelled']
 
 export interface Column { key: string; label: string; color?: string; icon?: string }
-export interface ViewContext {
+interface ViewContext {
   config: IssueConfig
   agents: { slug: string; name: string }[]
   /** id -> issue, for sub-issue progress */
@@ -54,7 +54,7 @@ export const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${p
 const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.getDate() + n); return x }
 
 /** A date field of an issue as YYYY-MM-DD (local time), or '' */
-export function dateOf(i: IssueSummary, field: string): string {
+function dateOf(i: IssueSummary, field: string): string {
   if (field === 'createdAt' || field === 'updatedAt') return ymd(new Date(i[field]))
   const v = i.properties?.[field.replace(/^prop:/, '')]
   return typeof v === 'string' ? v : ''
@@ -101,7 +101,7 @@ export const filterCount = (f: IssueFilters) =>
   (['status', 'priority', 'assignee', 'project', 'label'] as const).filter(k => f[k]?.length).length
   + (f.date ? 1 : 0) + Object.values(f.props ?? {}).filter(v => v.length).length
 
-export interface FilterChip { key: string; text: string; /** the filters with this one removed */ without: IssueFilters }
+interface FilterChip { key: string; text: string; /** the filters with this one removed */ without: IssueFilters }
 
 /** The active filters as readable chips, each knowing how to drop itself. Shared by the page and the Save as view dialog. */
 export function filterChips(f: IssueFilters, config: IssueConfig, agentName: (slug: string) => string): FilterChip[] {

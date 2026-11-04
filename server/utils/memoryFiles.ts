@@ -22,7 +22,7 @@ export interface MemoryFile {
 const IGNORED_TOP_LEVEL = new Set(['README.md', 'CHANGELOG.md', 'LICENSE.md', 'CONTRIBUTING.md', 'CODE_OF_CONDUCT.md', 'SECURITY.md'])
 
 /** Claude Code stores per-project auto-memory under ~/.claude/projects/<path with non-alphanumerics as "-">/memory */
-export function encodeProjectDirName(projectPath: string): string {
+function encodeProjectDirName(projectPath: string): string {
   return projectPath.replace(/[^a-zA-Z0-9]/g, '-')
 }
 
@@ -149,7 +149,7 @@ function gitIgnored(dir: string, names: string[]): Promise<Set<string>> {
   })
 }
 
-export interface MemoryDirListing {
+interface MemoryDirListing {
   /** Sub-folders, relative to the project root with "/" separators */
   dirs: string[]
   /** Markdown files directly in the folder (none for the root itself: those come from listMemoryFiles) */

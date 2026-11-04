@@ -52,7 +52,7 @@ export interface Settings {
   [key: string]: unknown
 }
 
-export type RelationshipType = 'spawns' | 'agent-frontmatter' | 'spawned-by'
+type RelationshipType = 'spawns' | 'agent-frontmatter' | 'spawned-by'
 
 export interface Relationship {
   sourceType: 'agent' | 'command' | 'skill' | 'plugin' | 'mcp'
@@ -137,7 +137,7 @@ export interface SkillPayload {
 
 // ── GitHub Imports ──────────────────────────────────
 
-export interface ScannedSkill {
+interface ScannedSkill {
   slug: string
   name: string
   description: string
@@ -148,7 +148,7 @@ export interface ScannedSkill {
   conflict: boolean
 }
 
-export interface ScannedAgent {
+interface ScannedAgent {
   slug: string
   name: string
   description: string
@@ -226,8 +226,6 @@ export interface SkillInvocation {
   skill: string
   args: string | null
 }
-
-export type WizardStep = 1 | 2 | 3
 
 export interface WorkflowStep {
   id: string
@@ -310,16 +308,6 @@ export interface ToolCallRecord {
   timestamp: number
 }
 
-export interface ConversationSession {
-  id: string
-  agentSlug: string
-  messages: ChatMessage[]
-  toolCalls: ToolCallRecord[]
-  tokenUsage: { input: number; output: number }
-  duration: number
-  createdAt: string
-}
-
 export interface ConversationSummary {
   id: string
   agentSlug: string
@@ -389,15 +377,6 @@ export interface ContextMetrics {
   tools: ToolCall[]
 }
 
-export interface CliSettings {
-  defaultShell: string
-  fontSize: number
-  fontFamily: string
-  cursorStyle: 'block' | 'underline' | 'bar'
-  scrollback: number
-  autoSave: boolean
-}
-
 // WebSocket message types
 export type CliWebSocketMessage =
   | { type: 'execute'; sessionId?: string; agentSlug?: string; workingDir?: string; strictMcp?: boolean; cols?: number; rows?: number }
@@ -417,7 +396,7 @@ export type CliWebSocketEvent =
 
 // ── Claude Code Chat ──────────────────────────────────
 
-export type NormalizedMessageKind =
+type NormalizedMessageKind =
   | 'text'
   | 'tool_use'
   | 'tool_result'
@@ -475,7 +454,7 @@ export interface PendingPermission {
   message?: string
 }
 
-export interface TokenBudget {
+interface TokenBudget {
   maxTokens?: number
   usedTokens?: number
   warningThreshold?: number
@@ -548,16 +527,6 @@ export interface ChatSessionSummary {
   createdAt: string
   status: 'active' | 'completed' | 'error'
 }
-
-// WebSocket message types for Chat
-export type ChatWebSocketMessage =
-  | { type: 'start'; message: string; sessionId?: string; agentSlug?: string; workingDir?: string }
-  | { type: 'abort'; sessionId: string }
-
-export type ChatWebSocketEvent =
-  | NormalizedMessage
-  | { type: 'connected'; sessionId?: string }
-  | { type: 'disconnected' }
 
 // ── Chat v2 WebSocket Types ──────────────────────────────────
 

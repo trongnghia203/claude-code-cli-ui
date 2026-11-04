@@ -13,7 +13,7 @@ function isUnderClaudePath(parent: string, child: string): boolean {
 }
 
 /** Map skill slug -> absolute directory path that should become ~/.claude/skills/<slug> (folder containing the skill markdown). */
-export async function resolveGithubImportSkillDirs(entry: GithubImport): Promise<Map<string, string>> {
+async function resolveGithubImportSkillDirs(entry: GithubImport): Promise<Map<string, string>> {
   const out = new Map<string, string>()
 
   const scanRoot = entry.targetPath
@@ -107,7 +107,7 @@ export async function resolveGithubImportSkillDirs(entry: GithubImport): Promise
 }
 
 /** Map agent slug -> absolute file path that should become ~/.claude/agents/<slug>.md. */
-export async function resolveGithubImportAgentFiles(entry: GithubImport): Promise<Map<string, string>> {
+async function resolveGithubImportAgentFiles(entry: GithubImport): Promise<Map<string, string>> {
   const out = new Map<string, string>()
 
   const scanRoot = entry.targetPath
@@ -159,7 +159,7 @@ export async function resolveGithubImportAgentFiles(entry: GithubImport): Promis
   return out
 }
 
-export type GithubSymlinkSyncResult = {
+type GithubSymlinkSyncResult = {
   linked: string[]
   removed: string[]
   skippedConflicts: string[]

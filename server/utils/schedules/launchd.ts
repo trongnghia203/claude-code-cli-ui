@@ -32,7 +32,7 @@ function runnerPath() {
   return resolve(process.cwd(), 'scripts', 'run-schedule.mjs')
 }
 
-export async function buildPlist(job: ScheduleJob): Promise<string> {
+async function buildPlist(job: ScheduleJob): Promise<string> {
   const core = await scheduleCore()
   const calendar = core.calendarEntries(job.schedule)
   const logFile = join(core.LOGS_DIR, `${job.id}.log`)

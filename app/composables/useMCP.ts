@@ -1,4 +1,4 @@
-export interface McpServer {
+interface McpServer {
   name: string
   transport: 'stdio' | 'sse' | 'http'
   command?: string

@@ -2,7 +2,7 @@ import { createReadStream } from 'node:fs'
 import { createInterface } from 'node:readline'
 import { computeUsageCost } from './models'
 
-export interface SessionUsage {
+interface SessionUsage {
   title: string
   requests: number
   tokens: number

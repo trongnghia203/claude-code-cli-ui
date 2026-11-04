@@ -5,8 +5,8 @@
 
 const STORAGE_KEY = 'claude-ui:project-prefs'
 
-export type ProjectSortKey = 'recent' | 'name' | 'name-desc' | 'sessions'
-export type ProjectViewMode = 'default' | 'compact'
+type ProjectSortKey = 'recent' | 'name' | 'name-desc' | 'sessions'
+type ProjectViewMode = 'default' | 'compact'
 
 interface ProjectPrefs {
   pinned: string[]

@@ -31,7 +31,7 @@ const SEED: { name: string; path: string }[] = [
   { name: 'olda-utils', path: '~/ataccama/paas/olda-utils' },
 ]
 
-export function normalizeProjectPath(p: string): string {
+function normalizeProjectPath(p: string): string {
   const expanded = p.trim().replace(/^~(?=$|\/)/, homedir())
   return expanded.length > 1 ? expanded.replace(/\/+$/, '') : expanded
 }

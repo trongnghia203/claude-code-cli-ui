@@ -95,7 +95,7 @@ export function shouldAutoRun(before: Pick<Issue, 'assignee' | 'status'> | null,
   return !before || before.assignee !== after.assignee || before.status !== after.status
 }
 
-export interface WakeupFields { at?: string; agent?: string | null; instruction?: string; repeat?: WakeRepeat; enabled?: boolean }
+interface WakeupFields { at?: string; agent?: string | null; instruction?: string; repeat?: WakeRepeat; enabled?: boolean }
 
 /** Validate a timed wakeup. A new or moved time must not be in the past (a minute of slack for a slow click). */
 export function parseWakeup(body: any, creating: boolean): WakeupFields {

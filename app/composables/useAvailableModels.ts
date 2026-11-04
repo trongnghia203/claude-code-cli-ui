@@ -1,6 +1,6 @@
 import { MODEL_OPTIONS } from '~/utils/models'
 
-export interface AgentModelOption {
+interface AgentModelOption {
   /** Alias written to the agent's `model` frontmatter, or undefined for "use the default" */
   value: string | undefined
   label: string

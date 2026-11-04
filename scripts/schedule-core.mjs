@@ -6,8 +6,8 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 export const CONFIG_DIR = join(homedir(), '.config', 'claude-ui')
-export const SCHEDULES_FILE = join(CONFIG_DIR, 'schedules.json')
-export const RUNS_DIR = join(CONFIG_DIR, 'runs')
+const SCHEDULES_FILE = join(CONFIG_DIR, 'schedules.json')
+const RUNS_DIR = join(CONFIG_DIR, 'runs')
 export const LOGS_DIR = join(CONFIG_DIR, 'logs')
 
 const MAX_RUNS_KEPT = 50

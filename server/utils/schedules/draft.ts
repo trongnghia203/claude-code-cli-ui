@@ -8,7 +8,7 @@ const TIMEOUT_MS = 120_000
 const DEFAULT_DENIED = ['transitionJiraIssue', 'editJiraIssue', 'addCommentToJiraIssue', 'createJiraIssue', 'addWorklogToJiraIssue', 'createIssueLink']
   .map(t => `mcp__claude_ai_Atlassian_MCP__${t}`)
 
-export interface ScheduleDraft {
+interface ScheduleDraft {
   name: string
   prompt: string
   agent: string | null
@@ -67,7 +67,7 @@ function buildPrompt(request: string, agents: DraftAgent[], skills: string[], wo
 const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
 const list = (v: unknown) => (Array.isArray(v) ? [...new Set(v.map(x => str(x)).filter(Boolean))].slice(0, 40) : [])
 
-export function normalizeScheduleDraft(raw: any, agents: DraftAgent[], request: string): ScheduleDraft {
+function normalizeScheduleDraft(raw: any, agents: DraftAgent[], request: string): ScheduleDraft {
   const slugs = new Set(agents.map(a => a.slug))
   const s = raw?.schedule ?? {}
   const kinds = ['hourly', 'interval', 'daily', 'weekdays', 'weekly']

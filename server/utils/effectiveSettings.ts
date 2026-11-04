@@ -4,16 +4,16 @@ import { join } from 'node:path'
 import { resolveHome } from './path'
 import { resolveClaudePath } from './claudeDir'
 
-export type SettingsLayer = 'user' | 'project' | 'local'
-export type JsonObject = Record<string, any>
+type SettingsLayer = 'user' | 'project' | 'local'
+type JsonObject = Record<string, any>
 
-export interface SettingsLayers {
+interface SettingsLayers {
   user: JsonObject
   project: JsonObject
   local: JsonObject
 }
 
-export interface SettingsFiles {
+interface SettingsFiles {
   user: string
   project: string
   local: string
@@ -32,7 +32,7 @@ async function readJson(path: string): Promise<JsonObject> {
   }
 }
 
-export function settingsFiles(workingDir?: string): SettingsFiles {
+function settingsFiles(workingDir?: string): SettingsFiles {
   const dir = workingDir ? resolveHome(workingDir) : ''
   return {
     user: resolveClaudePath('settings.json'),
@@ -81,7 +81,7 @@ export function mergeLayers(layers: SettingsLayers): JsonObject {
 }
 
 /** Layers that define a top-level key, lowest precedence first. */
-export function layersDefining(layers: SettingsLayers, key: string): SettingsLayer[] {
+function layersDefining(layers: SettingsLayers, key: string): SettingsLayer[] {
   return LAYER_ORDER.filter(layer => key in layers[layer])
 }
 
