@@ -164,9 +164,11 @@ Above the board: **Filter**, **Display**, board or list, and a tab bar of saved 
 - **Display**: grouping (status, priority, assignee, label, project or a select property), hidden columns, ordering with direction,
   show or hide sub-issues (the parent then shows closed/total), and which properties each card shows.
   Drag and drop changes status only when grouped by status. Grouped by label, an issue with two labels appears twice.
-- **Views**: **All** is built in. The layers button next to the tabs has New view and Manage views (rename, move, duplicate, delete).
-  Changing filters on an open view shows `*` with Save and Discard.
-  Views live in the settings file of the project, or the default one, so they follow the same Customize and Reset rules.
+- **Views row**: `All` (issues of every project, the default) and `This project` are the first tabs, then your saved views.
+  The last scope and the last open view per scope are remembered. Design in `docs/adr/0010-issues-cross-project-tabs.md`.
+  Views saved in `All` also show inside a project. A project with its own settings adds its own views.
+  The layers button has New view and Manage views (rename, move, hide, duplicate, delete). Drag a tab to reorder.
+  Changing filters on an open view shows `*` with Save and Discard. The chip bar only shows filters the view does not save.
 - The current filters and display are in the page URL, so a reload or a shared link keeps them.
 
 ## Timed wakeups
