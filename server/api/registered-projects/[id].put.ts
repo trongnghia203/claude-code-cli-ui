@@ -1,4 +1,4 @@
-import { updateRegisteredProject } from '../../utils/registeredProjects'
+import { updateRegisteredProject } from '../../utils/userProjects'
 
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')!

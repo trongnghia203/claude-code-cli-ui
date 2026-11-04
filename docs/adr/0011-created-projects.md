@@ -10,7 +10,7 @@ including hundreds of worktree folders. There was no way to name a project or ke
 
 ## Decision
 
-- A project is a record `{ id, name, path }` in `~/.config/claude-ui/projects.json` (override dir with `CLAUDE_UI_CONFIG_DIR`; the old `~/.claude/registered-projects.json` is copied once) (`server/utils/registeredProjects.ts`).
+- A project is a record `{ id, name, path }` in `~/.config/claude-ui/projects.json` (override dir with `CLAUDE_UI_CONFIG_DIR`; the old `~/.claude/registered-projects.json` is copied once) (`server/utils/userProjects.ts`).
 - The picker lists these records. Create, edit and remove are in the picker (`ProjectDialog.vue`, `useProjects.ts`).
   API: `/api/registered-projects` (GET, POST, PUT `[id]`, DELETE `[id]`).
 - The active project is still the directory in `useWorkingDir`. Chats, schedules and issues stay keyed by that directory,

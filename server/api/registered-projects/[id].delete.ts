@@ -1,4 +1,4 @@
-import { deleteRegisteredProject } from '../../utils/registeredProjects'
+import { deleteRegisteredProject } from '../../utils/userProjects'
 
 export default defineEventHandler((event) => {
   deleteRegisteredProject(getRouterParam(event, 'id')!)
