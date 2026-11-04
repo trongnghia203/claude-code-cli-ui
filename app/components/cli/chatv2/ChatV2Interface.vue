@@ -40,6 +40,7 @@ const {
 
 // Claude Code history
 const history = useClaudeCodeHistory()
+const userProjects = useProjects()
 const {
   messages: claudeCodeMessages,
   isLoadingMessages: isLoadingClaudeCodeMessages,
@@ -54,7 +55,15 @@ const {
 async function handleProjectRenamed(payload: { projectName: string; newName: string }) {
   console.log('[ChatV2] Project renaming:', payload)
   try {
-    await history.renameProject(payload.projectName, payload.newName)
+    const target = history.projects.value.find(x => x.name === payload.projectName)
+    const mine = target ? userProjects.projectForDir(target.path) : undefined
+    // A project the user created is renamed at the source, so every page shows the same name
+    if (mine) {
+      await userProjects.updateProject(mine.id, { name: payload.newName })
+      await history.fetchProjects()
+    } else {
+      await history.renameProject(payload.projectName, payload.newName)
+    }
 
     // Update local state if this is the current project
     if (urlProjectName.value === payload.projectName) {

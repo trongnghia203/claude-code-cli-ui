@@ -134,7 +134,7 @@ const animatedCounts = reactive({
 const chatStats = ref({ chats: 0, projects: 0 });
 async function loadChatCount() {
   try {
-    const projects = await $fetch<{ sessionCount: number }[]>("/api/projects");
+    const projects = await $fetch<{ sessionCount: number }[]>("/api/projects", { query: { registered: 1 } });
     chatStats.value = {
       chats: projects.reduce((n, p) => n + (p.sessionCount || 0), 0),
       projects: projects.filter((p) => p.sessionCount > 0).length,

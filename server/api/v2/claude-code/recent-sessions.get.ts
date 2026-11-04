@@ -1,3 +1,4 @@
+import { listUserProjects } from '../../../utils/userProjects'
 import { getClaudeCodeProjects, getClaudeCodeSessions, type ClaudeCodeSession } from '../../../utils/claudeCodeHistory'
 import { scheduleCore } from '../../../utils/schedules/core'
 
@@ -44,7 +45,9 @@ export default defineEventHandler(async (event) => {
     if (onlyProject) {
       projects = projects.filter(p => p.name === onlyProject)
     } else {
+      const mine = new Set(listUserProjects().map(u => u.path))
       projects = projects
+        .filter(p => mine.has(p.path.replace(/\/+$/, '')))
         .filter(p => p.sessionCount > 0)
         .sort((a, b) => new Date(b.lastActivity || 0).getTime() - new Date(a.lastActivity || 0).getTime())
         .slice(0, MAX_PROJECTS_SCANNED)

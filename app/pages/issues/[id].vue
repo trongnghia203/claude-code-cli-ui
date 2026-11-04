@@ -393,7 +393,7 @@ async function toggleSession() {
   sessOpen.value = !sessOpen.value
   if (!sessOpen.value) return
   sessCwd.value ||= tilde(issue.value?.projectDir ?? '')
-  try { sessProjects.value = (await $fetch<{ path: string; displayName: string }[]>('/api/projects')).map(p => ({ path: p.path, name: p.displayName })) } catch { /* the issue's folder still works */ }
+  try { sessProjects.value = (await $fetch<{ path: string; displayName: string }[]>('/api/projects', { query: { registered: 1 } })).map(p => ({ path: p.path, name: p.displayName })) } catch { /* the issue's folder still works */ }
 }
 async function browseSession() {
   try {

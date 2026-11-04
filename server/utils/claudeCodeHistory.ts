@@ -9,6 +9,7 @@ import { join } from 'path'
 import { homedir } from 'os'
 
 import { getClaudeDir } from './claudeDir'
+import { listUserProjects } from './userProjects'
 
 function stripXmlForSummary(text: string): string {
   return text
@@ -423,6 +424,13 @@ export async function getClaudeCodeProjects(): Promise<ClaudeCodeProject[]> {
     }
 
     await applyCustomProjectNames(projects)
+
+    // Projects the user created that have no chat yet still need a name to be looked up by
+    for (const u of listUserProjects()) {
+      if (!projects.some(p => p.path.replace(/\/+$/, '') === u.path)) {
+        projects.push({ name: encodeProjectPath(u.path), path: u.path, displayName: u.name, sessionCount: 0 })
+      }
+    }
 
     // Sort by last activity (newest first)
     projects.sort((a, b) => {

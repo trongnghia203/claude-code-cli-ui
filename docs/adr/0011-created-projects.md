@@ -23,3 +23,12 @@ including hundreds of worktree folders. There was no way to name a project or ke
 
 - Projects are per machine, stored in the UI's own config dir, not in `~/.claude`.
 - The old browsable "Recent" list is gone from the picker. Directories are chosen in the create dialog.
+
+## Where the list applies
+
+Lists of projects come from the created projects: the sidebar picker, Chat, Artifacts, Settings, the Dashboard counts and
+Recent chats, the new-issue folder picker, the issue session picker, and the label and property sharing dialogs.
+`GET /api/projects?registered=1` returns them with session counts. Without the query it returns every directory Claude Code has used.
+That full list is for lookups by project name only, and it also holds created projects with no chat yet.
+Renaming a created project in Chat renames it at the source, so every page shows the same name.
+Deleting a project's history in Chat still deletes chats only, not the project.
