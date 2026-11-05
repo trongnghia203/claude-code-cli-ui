@@ -526,7 +526,7 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
                   <span v-else class="truncate">{{ b.group.length }} {{ b.group.length === 1 ? 'update' : 'updates' }} &middot; {{ when(b.group[0]!.at) }}</span>
                   <span v-if="b.run" class="text-meta shrink-0">&middot; {{ b.group.length - 1 }} {{ b.group.length - 1 === 1 ? 'update' : 'updates' }}</span>
                 </button>
-                <ol v-if="groupOpen(b)" class="space-y-3 mt-2 ml-3 pl-3" style="border-left: 1px solid var(--border-subtle)">
+                <ol v-if="groupOpen(b)" class="space-y-3 mt-2 ml-[7px] pl-[17px]" style="border-left: 1px solid var(--border-subtle)">
                   <li v-for="e in b.group" :key="e.id">
                   <!-- status -->
                   <div v-if="e.type === 'status'" class="flex items-center gap-2 text-[12px] text-label">
