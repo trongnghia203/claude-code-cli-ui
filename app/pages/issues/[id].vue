@@ -496,7 +496,7 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
                     <UIcon :name="ISSUE_RUN_META[b.run.status].icon" class="size-3.5 shrink-0" :class="{ 'animate-spin': b.run.status === 'running' }" :style="{ color: ISSUE_RUN_META[b.run.status].color }" />
                     <b style="color: var(--text-primary)">Run {{ ISSUE_RUN_META[b.run.status].label.toLowerCase() }}</b>
                     <span class="truncate">{{ agentName(b.run.agent) }} &middot; {{ when(b.run.startedAt) }}</span>
-                    <span class="ml-auto text-meta shrink-0">{{ duration(b.run.durationMs) }}<template v-if="b.run.costUsd != null"> &middot; ${{ b.run.costUsd.toFixed(2) }}</template></span>
+                    <span class="ml-auto text-meta shrink-0">{{ duration(b.run.durationMs) }}<template v-if="b.run.costUsd != null"> &middot; ${{ b.run.costUsd.toFixed(2) }}</template><template v-if="b.run.numTurns"> &middot; {{ b.run.numTurns }} {{ b.run.numTurns === 1 ? 'turn' : 'turns' }}</template></span>
                   </template>
                   <span v-else class="truncate">{{ b.group.length }} {{ b.group.length === 1 ? 'update' : 'updates' }} &middot; {{ when(b.group[0]!.at) }}</span>
                   <span v-if="b.run" class="text-meta shrink-0">&middot; {{ b.group.length - 1 }} {{ b.group.length - 1 === 1 ? 'update' : 'updates' }}</span>
@@ -520,8 +520,8 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
                     <span>{{ e.kind === 'clear' ? 'Cleared' : 'Distilled' }} {{ foldCount(e) }} {{ foldCount(e) === 1 ? 'comment' : 'comments' }}<template v-if="e.kind !== 'clear'"> into the description</template></span><span class="text-meta">{{ when(e.at) }}</span>
                   </div>
                   <!-- run -->
-                  <div v-else-if="e.type === 'run' && runById(e.runId)" class="rounded-xl p-3 text-[12px]" style="border: 1px dashed var(--border-subtle)">
-                    <div class="flex items-center gap-2">
+                  <div v-else-if="e.type === 'run' && runById(e.runId)" class="text-[12px]" :class="b.run?.id !== e.runId ? 'rounded-xl p-3' : ''" :style="b.run?.id !== e.runId ? 'border: 1px dashed var(--border-subtle)' : undefined">
+                    <div v-if="b.run?.id !== e.runId" class="flex items-center gap-2">
                       <UIcon :name="ISSUE_RUN_META[runById(e.runId)!.status].icon" class="size-4" :class="{ 'animate-spin': runById(e.runId)!.status === 'running' }" :style="{ color: ISSUE_RUN_META[runById(e.runId)!.status].color }" />
                       <b>Run {{ ISSUE_RUN_META[runById(e.runId)!.status].label.toLowerCase() }}</b>
                       <span class="text-label">{{ agentName(runById(e.runId)!.agent) }} &middot; {{ when(e.at) }}</span>
@@ -532,8 +532,11 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
                     <p v-if="runById(e.runId)!.error" class="mt-1.5" style="color: #ef4444">{{ runById(e.runId)!.error }}</p>
                     <p v-if="runById(e.runId)!.permissionDenials?.length" class="mt-1.5" style="color: #d97706">Denied tools: {{ [...new Set(runById(e.runId)!.permissionDenials)].join(', ') }}</p>
                     <NuxtLink v-if="sessionLink(runById(e.runId)!.sessionId)" :to="sessionLink(runById(e.runId)!.sessionId)!" class="inline-block mt-1.5 underline text-label">Open chat session</NuxtLink>
-                    <button class="block mt-1.5 underline text-label" @click="toggleTranscript(e.runId)">{{ openTranscripts.has(e.runId) ? 'Hide context' : 'View context' }}</button>
-                    <IssueTranscript v-if="openTranscripts.has(e.runId)" :issue-id="issue.id" :run-id="e.runId" :live="runById(e.runId)!.status === 'running'" />
+                    <div class="flex items-center gap-2 text-label" :class="b.run?.id !== e.runId ? 'mt-1.5' : ''">
+                      <UIcon name="i-lucide-file-text" class="size-3.5" />
+                      <button class="underline" @click="toggleTranscript(e.runId)">{{ openTranscripts.has(e.runId) ? 'Hide context' : 'View context' }}</button>
+                    </div>
+                    <IssueTranscript :issue-id="issue.id" :run-id="e.runId" :live="runById(e.runId)!.status === 'running'" :show-context="openTranscripts.has(e.runId)" />
                   </div>
 
                   </li>

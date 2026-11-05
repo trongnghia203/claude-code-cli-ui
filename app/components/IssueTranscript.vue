@@ -4,7 +4,7 @@ import { linkify } from '~/utils/linkify'
 
 interface Item { kind: 'prompt' | 'text' | 'tool' | 'tool_result' | 'result'; text?: string; id?: string; name?: string; input?: any; isError?: boolean }
 
-const props = defineProps<{ issueId: string; runId: string; live: boolean }>()
+const props = defineProps<{ issueId: string; runId: string; live: boolean; showContext?: boolean }>()
 const items = ref<Item[]>([])
 const loaded = ref(false)
 
@@ -24,14 +24,14 @@ const detail = (i: any) => String(i?.command ?? i?.file_path ?? i?.path ?? i?.ur
 
 <template>
   <div class="mt-2 space-y-2 text-[12px]">
-    <p v-if="loaded && !context" class="text-meta">No context saved for this run.</p>
-    <div v-if="context" class="rounded-lg p-3 max-h-[420px] overflow-y-auto custom-scrollbar" style="background: var(--surface-base); border: 1px solid var(--border-subtle)">
+    <p v-if="showContext && loaded && !context" class="text-meta">No context saved for this run.</p>
+    <div v-if="showContext && context" class="rounded-lg p-3 max-h-[420px] overflow-y-auto custom-scrollbar" style="background: var(--surface-base); border: 1px solid var(--border-subtle)">
       <div class="text-[11px] text-meta mb-1.5">Context the agent received</div>
       <div class="md-prose issue-prose" v-html="renderMarkdown(linkify(context))" />
     </div>
-    <details v-if="tools.length" class="px-1">
-      <summary class="cursor-pointer text-label">{{ tools.length }} tool {{ tools.length === 1 ? 'call' : 'calls' }}</summary>
-      <ul class="mt-1.5 space-y-1 font-mono text-[11px] text-label">
+    <details v-if="tools.length">
+      <summary class="cursor-pointer text-label flex items-center gap-2"><UIcon name="i-lucide-wrench" class="size-3.5" /><span class="underline">{{ tools.length }} tool {{ tools.length === 1 ? 'call' : 'calls' }}</span></summary>
+      <ul class="mt-1.5 ml-[22px] space-y-1 font-mono text-[11px] text-label">
         <li v-for="(t, n) in tools" :key="n" class="flex items-start gap-1.5"><UIcon name="i-lucide-wrench" class="size-3.5 mt-0.5 shrink-0" /><span class="break-all"><b>{{ t.name }}</b> {{ detail(t.input) }}</span></li>
       </ul>
     </details>
