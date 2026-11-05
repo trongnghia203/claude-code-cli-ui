@@ -8,7 +8,8 @@ const run = promisify(execFile)
 
 type ItermLaunchResult = 'focused' | 'opened-tab' | 'opened-window'
 
-// argv: 1 = tty of an existing session ('' if none), 2 = shell command to run in a new tab/window
+// argv: 1 = tty of an existing session ('' if none), 2 = full command line the new tab/window runs as its
+// session command (not typed into a shell, so slow shell init cannot swallow it)
 const ITERM_SCRIPT = `
 on run argv
   set targetTty to item 1 of argv
@@ -32,13 +33,11 @@ on run argv
     end if
     if not wasRunning then delay 1
     if (count of windows) = 0 then
-      set newWindow to create window with default profile
-      tell current session of newWindow to write text shellCmd
+      create window with default profile command shellCmd
       return "opened-window"
     end if
     tell current window
-      set newTab to create tab with default profile
-      tell current session of newTab to write text shellCmd
+      create tab with default profile command shellCmd
     end tell
     return "opened-tab"
   end tell
@@ -95,7 +94,9 @@ export async function listResumeSessionIds(): Promise<string[]> {
 
 // Run a shell command in a new iTerm2 tab (or focus the tab on `tty`)
 export async function openInIterm(shellCmd: string, tty = ''): Promise<ItermLaunchResult> {
-  const { stdout } = await run('osascript', ['-e', ITERM_SCRIPT, tty, shellCmd])
+  // Interactive login zsh keeps PATH and init as in a normal tab; exec leaves a shell open after the command ends
+  const tabCmd = `/bin/zsh -ilc ${shellQuote(`${shellCmd}; exec /bin/zsh -il`)}`
+  const { stdout } = await run('osascript', ['-e', ITERM_SCRIPT, tty, tabCmd])
   return stdout.trim() as ItermLaunchResult
 }
 
