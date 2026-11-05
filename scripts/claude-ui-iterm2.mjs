@@ -122,6 +122,23 @@ if (!resuming) {
   } catch { /* the session still runs, it just is not listed */ }
 }
 
+// Mark this tab as a claude-ui session: badge (ISS-n [label]) and a tinted background. iTerm2 only.
+// Tint color: env CLAUDE_UI_ITERM_BG (6 hex digits). Off: CLAUDE_UI_ITERM_BG=off
+const tintHex = (process.env.CLAUDE_UI_ITERM_BG || '242b27').toLowerCase()
+const markTab = process.stdout.isTTY && process.env.TERM_PROGRAM === 'iTerm.app' && tintHex !== 'off' && /^[0-9a-f]{6}$/.test(tintHex)
+const osc = body => process.stdout.write(`\x1b]${body}\x07`)
+const unmarkTab = () => {
+  if (!markTab) return
+  osc('1337;SetBadgeFormat=')
+  osc('1337;SetColors=bg=default')
+  osc('111') // xterm reset of the default background, in case SetColors ignores "default"
+}
+if (markTab) {
+  osc(`1337;SetBadgeFormat=${Buffer.from(label ? `${key} ${label}` : key).toString('base64')}`)
+  osc(`1337;SetColors=bg=${tintHex}`)
+  process.on('exit', unmarkTab)
+}
+
 const child = spawn('claude', args, {
   cwd,
   stdio: 'inherit',
@@ -129,6 +146,7 @@ const child = spawn('claude', args, {
 })
 child.on('error', e => die(`cannot start claude: ${e.message}`))
 child.on('exit', async (code) => {
+  unmarkTab()
   // Nudge only: tell the user if the issue was left as it was
   try {
     const after = await (await fetch(`${BASE}/api/issues/${key}`)).json()
