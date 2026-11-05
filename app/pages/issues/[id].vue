@@ -496,13 +496,13 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
                 <span class="truncate">{{ foldCount(b.fold) }} {{ foldCount(b.fold) === 1 ? 'comment' : 'comments' }} {{ foldText(b.fold) }}</span>
               </button>
               <!-- comment -->
-              <div v-else-if="b.comment" class="rounded-xl p-3" :style="{ background: b.comment.author === 'agent' ? 'var(--issue-reply-bg)' : 'var(--surface-raised)', border: '1px solid ' + (b.comment.author === 'agent' ? 'var(--issue-reply-border)' : 'var(--border-subtle)') }">
+              <div v-else-if="b.comment" class="group/comment rounded-xl p-3" :style="{ background: b.comment.author === 'agent' ? 'var(--issue-reply-bg)' : 'var(--surface-raised)', border: '1px solid ' + (b.comment.author === 'agent' ? 'var(--issue-reply-border)' : 'var(--border-subtle)') }">
                 <div class="flex items-center gap-2 text-[11px] text-label mb-1">
                   <UIcon :name="b.comment.author === 'agent' ? 'i-lucide-cpu' : 'i-lucide-user'" class="size-3.5" />
                   {{ b.comment.author === 'agent' ? agentName(issue.assignee) : 'You' }} &middot; {{ when(b.comment.at) }}
-                  <span class="ml-auto flex items-center gap-1">
-                    <UButton icon="i-lucide-pencil" size="xs" color="neutral" variant="ghost" aria-label="Edit comment" class="opacity-50 hover:opacity-100 transition-opacity" style="color: var(--text-tertiary)" @click="startCommentEdit(b.comment)" />
-                    <UButton icon="i-lucide-trash-2" size="xs" color="neutral" variant="ghost" aria-label="Delete comment" class="opacity-50 hover:opacity-100 transition-opacity" style="color: var(--text-tertiary)" @click="removeComment(b.comment.id)" />
+                  <span class="ml-auto flex items-center gap-1 opacity-0 group-hover/comment:opacity-50 focus-within:opacity-50 hover:!opacity-80 transition-opacity">
+                    <UButton icon="i-lucide-pencil" size="xs" color="neutral" variant="ghost" aria-label="Edit comment" style="color: var(--text-tertiary)" @click="startCommentEdit(b.comment)" />
+                    <UButton icon="i-lucide-trash-2" size="xs" color="neutral" variant="ghost" aria-label="Delete comment" style="color: var(--text-tertiary)" @click="removeComment(b.comment.id)" />
                   </span>
                 </div>
                 <div v-if="editingId === b.comment.id" class="space-y-2">
