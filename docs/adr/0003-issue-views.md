@@ -53,7 +53,7 @@ and Manage views (rename, reorder, duplicate, delete). Opening a view applies it
 with Save and Discard.
 
 **Storage:** views are a `views` array inside the same settings file as labels and properties (ADR 0002):
-the default `~/.claude/issues/_config.json`, or the project's own `~/.config/claude-ui/issues/<project>/_config.json`.
+`~/.claude/issues/_config.json`, global for every project (superseded: ADR 0012 removed per-project settings).
 
 - A filter holds label and property ids, and those ids only mean something inside one config.
   Keeping the views in that config keeps the ids valid.
@@ -68,8 +68,9 @@ Not built from the reference: pinned or shared views, per-user views (one user),
 
 ### Notes from the build
 
-- Saving a view in a project that still follows the default settings asks first, then gives the project its own settings file.
-  A view cannot live outside a config, and the API refuses to write to a project without a file.
+- Saving a view no longer asks about project settings: settings are global (ADR 0012).
+- Search is not part of a view. It matches title, id, description and label names in the browser. Comment search would need a
+  server route, because the list payload has only `commentCount`. Not built.
 - "No value" sorts last in both directions, so empty due dates never crowd the top.
 - Overdue ignores done and cancelled issues.
 - Label ids that are not in the config of the project are ignored by filters, grouping and cards alike.

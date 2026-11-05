@@ -5,7 +5,7 @@ import { parseFields, shouldAutoRun } from '../../utils/issues/validate'
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event)
-  const f = parseFields(body, String(body?.projectDir ?? '').replace(/\/+$/, ''))
+  const f = parseFields(body)
   if (!f.title) throw createError({ statusCode: 400, message: 'Title is required' })
   if (!f.projectDir) throw createError({ statusCode: 400, message: 'Select a project first' })
   if (!existsSync(f.projectDir)) throw createError({ statusCode: 400, message: `Project folder not found: ${f.projectDir}` })

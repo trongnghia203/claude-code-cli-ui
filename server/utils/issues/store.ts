@@ -37,7 +37,7 @@ export interface IssueRun {
 export type TimelineEntry =
   | { id: string; at: string; type: 'comment'; author: 'user' | 'agent'; body: string }
   | { id: string; at: string; type: 'status'; from: IssueStatus | null; to: IssueStatus; by: 'user' | 'system' }
-  | { id: string; at: string; type: 'assign'; from: string | null; to: string | null }
+  | { id: string; at: string; type: 'assign'; from: string | null; to: string | null; by?: 'user' | 'system' }
   | { id: string; at: string; type: 'run'; runId: string }
   /**
    * A fold. `/distill` (after a successful run): the description now holds what these comments said.
@@ -221,9 +221,20 @@ export function deleteIssue(id: string): boolean {
   return true
 }
 
+/** Assignee to set when an issue enters a status. Key absent: leave it alone. null: unassign. */
+export type StatusAssignees = Partial<Record<IssueStatus, string | null>>
+
 /** Move status and log it on the timeline. No-op when unchanged. */
-export function setStatus(issue: Issue, to: IssueStatus, by: 'user' | 'system') {
+export function setStatus(issue: Issue, to: IssueStatus, by: 'user' | 'system', rules?: StatusAssignees) {
   if (issue.status === to) return
   issue.timeline.push({ id: newEntryId(), at: new Date().toISOString(), type: 'status', from: issue.status, to, by })
   issue.status = to
+  // Settings rule (ADR 0013): a status can set the assignee. Absent key = keep, null = unassigned (the user owns it).
+  if (rules && Object.hasOwn(rules, to)) {
+    const next = rules[to] ?? null
+    if (next !== issue.assignee) {
+      issue.timeline.push({ id: newEntryId(), at: new Date().toISOString(), type: 'assign', from: issue.assignee, to: next, by: 'system' })
+      issue.assignee = next
+    }
+  }
 }

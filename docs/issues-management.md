@@ -142,17 +142,19 @@ Sub-issue stages, custom properties, saved views, Gantt and swimlane, batch edit
 
 ## Settings
 
-Open the gear icon on the Issues page (`/issues/settings`). Tabs: Labels, Properties, Wakeups.
+Open the gear icon on the Issues page (`/issues/settings`). Tabs: Labels, Properties, Workflow, Wakeups.
 
-- **Scope**: the default settings, or one project's own. A project follows the default until you press
-  **Customize for this project**. Then it has its own labels, properties and wakeups, copied from the default.
-  **Reset to default** removes them, and is blocked while issues use labels or properties only the project has.
+- **Global**: labels, properties, views and wakeups are shared by every project. There is no per-project scope.
 - **Labels**: name, color, description. The table shows how many issues use each. A label in use cannot be deleted.
 - **Properties**: custom fields (text, number, select, date, checkbox, URL). Archive instead of delete, only when no issue has a value. 20 active at most.
+- **Workflow**: the built-in statuses by category, and who owns an issue when it enters a status. Per status: *Keep as is*, *Unassigned (me)* or an agent.
+  Applies to every status move, yours and a run's. A rule never starts a run. An assignee you pick in the same edit wins.
+  With `in_review` set to unassigned, "Comment and run" still goes to the agent of the last run. See `docs/adr/0013-status-assignees.md`.
 - **Wakeups**: when every sub-issue is closed, the parent's agent runs again with an instruction. Turn it on or off for all
   issues, or per issue in its Wakeups row.
 
-Files: default `~/.claude/issues/_config.json`, project `~/.config/claude-ui/issues/<project>/_config.json`.
+File: `~/.claude/issues/_config.json`. Older per-project files in `~/.config/claude-ui/issues/<project>/` are merged in once at
+server start (by id, then by name) and renamed to `_config.json.before-global.bak`. See `docs/adr/0012-global-issue-settings.md`.
 
 ## Filter, Display and Views
 
@@ -161,12 +163,14 @@ Above the board: **Filter**, **Display**, board or list, and a tab bar of saved 
 - **Filter**: Status, Priority, Assignee, Label, Project (in "All" scope), Date and your select, checkbox and text properties.
   Several filters combine with AND, values inside one filter with OR. Date rules: Today, This week, Overdue, Next 7 days, No date,
   on created, updated or any date property. Active filters show as chips under the tab bar.
+- **Search**: the box next to the title matches title, id, description and label names (case-insensitive, in the browser).
+  It combines with the filters. Comments are not searched: the list payload only has a comment count.
 - **Display**: grouping (status, priority, assignee, label, project or a select property), hidden columns, ordering with direction,
   show or hide sub-issues (the parent then shows closed/total), and which properties each card shows.
   Drag and drop changes status only when grouped by status. Grouped by label, an issue with two labels appears twice.
 - **Views row**: `All` (issues of every project, the default) and `This project` are the first tabs, then your saved views.
   The last scope and the last open view per scope are remembered. Design in `docs/adr/0010-issues-cross-project-tabs.md`.
-  Views saved in `All` also show inside a project. A project with its own settings adds its own views.
+  Saved views are global and show in both scopes.
   The layers button has New view and Manage views (rename, move, hide, duplicate, delete). Drag a tab to reorder.
   Changing filters on an open view shows `*` with Save and Discard. The chip bar only shows filters the view does not save.
 - The current filters and display are in the page URL, so a reload or a shared link keeps them.

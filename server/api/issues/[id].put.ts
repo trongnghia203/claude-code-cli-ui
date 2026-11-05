@@ -1,13 +1,14 @@
 import { newEntryId, readIssue, setStatus, updateIssue } from '../../utils/issues/store'
 import { startRun } from '../../utils/issues/runner'
 import { onStatusChanged } from '../../utils/issues/wakeups'
+import { readConfig } from '../../utils/issues/config'
 import { parseFields, shouldAutoRun } from '../../utils/issues/validate'
 
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')!
   const before = readIssue(id)
   if (!before) throw createError({ statusCode: 404, message: 'Issue not found' })
-  const f = parseFields(await readBody(event), before.projectDir)
+  const f = parseFields(await readBody(event))
   if (f.parentId) {
     if (f.parentId === id) throw createError({ statusCode: 400, message: 'An issue cannot be its own parent' })
     if (!readIssue(f.parentId)) throw createError({ statusCode: 400, message: `Parent ${f.parentId} not found` })
@@ -28,9 +29,12 @@ export default defineEventHandler(async (event) => {
       i.timeline.push({ id: newEntryId(), at: new Date().toISOString(), type: 'assign', from: i.assignee, to: assignee })
       i.assignee = assignee
     }
-    if (status !== undefined) setStatus(i, status, 'user')
+    // A status rule sets the assignee, unless this edit set one itself
+    if (status !== undefined) setStatus(i, status, 'user', assignee === undefined ? readConfig().statusAssignees : undefined)
   })!
-  if (shouldAutoRun(prev, issue)) startRun(id)
+  // An assignee a status rule set never starts a run: only the user's own edit does (ADR 0013)
+  const ruleMovedAssignee = issue.assignee !== (f.assignee !== undefined ? f.assignee : before.assignee)
+  if (!ruleMovedAssignee && shouldAutoRun(prev, issue)) startRun(id)
   if (f.status !== undefined && f.status !== before.status) onStatusChanged(id, before.status)
   return { issue: readIssue(id) }
 })

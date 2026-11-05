@@ -55,12 +55,6 @@ export function parseProperty(body: any, creating: boolean): { name?: string; ty
   return out
 }
 
-/** Settings scope of a request: ?projectDir=<path> for one project's file, none for the default. */
-export function scopeOf(event: any): string | null {
-  const d = getQuery(event).projectDir
-  return typeof d === 'string' && d ? d.replace(/\/+$/, '') : null
-}
-
 const MAX_VIEW_JSON = 8_000
 const plain = (v: unknown, what: string): Record<string, unknown> => {
   if (!v || typeof v !== 'object' || Array.isArray(v)) bad(`${what} must be an object`)

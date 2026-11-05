@@ -22,7 +22,7 @@ const scope = computed<'project' | 'all'>(() => (scopeCookie.value === 'project'
 function setScope(s: 'project' | 'all') {
   if (s === scope.value) return
   scopeCookie.value = s
-  apply(null) // saved views belong to one scope's settings
+  apply(null)
 }
 const showForm = ref(false)
 const query = ref('')
@@ -35,19 +35,12 @@ const agentName = (slug: string | null) => (slug ? agents.value.find(a => a.slug
 const refresh = () => load({ all: true })
 watch(workingDir, refresh)
 
-// Settings and views of what is on screen: one project's, or the default when several projects are listed
+// Scope key for remembering the open view: the project when scoped, '' for All
 const scopeDir = computed(() => (scope.value === 'project' ? workingDir.value : ''))
-const config = computed(() => ic.configFor(scopeDir.value))
-// Views saved in All also show inside a project. A project with its own settings adds the views saved there.
-// Each view remembers where it is stored, so edits go to the right file.
-type SavedView = IssueViewDef & { owner: string }
-const views = computed<SavedView[]>(() => {
-  const mine = (owner: string) => ic.configFor(owner).views.map(v => ({ ...v, owner }))
-  return scopeDir.value && ic.entry(scopeDir.value).custom ? [...mine(''), ...mine(scopeDir.value)] : mine('')
-})
-const ownerOf = (id: string) => views.value.find(v => v.id === id)?.owner ?? scopeDir.value
-const defaultLoaded = computed(() => !!ic.entries.value[''])
-watch(scopeDir, d => { ic.load(d); if (d) ic.load('') }, { immediate: true })
+// Settings are global, shared by every project
+const config = ic.config
+const views = computed<IssueViewDef[]>(() => config.value.views)
+onMounted(() => { ic.load() })
 
 // Remember the last open view per scope (all, or one project). A reload or a return to the page reopens it.
 // Skipped when the URL names a view. Saved as '' when you pick the plain scope tab.
@@ -55,14 +48,14 @@ const lastViews = useCookie<Record<string, string>>('issues-last-view', { defaul
 const restoring = ref(true)
 watch(scopeDir, () => { restoring.value = true })
 watch(viewId, (id) => { if (!restoring.value) lastViews.value = { ...lastViews.value, [scopeDir.value]: id ?? '' } })
-watch([restoring, views, () => !!ic.entries.value[scopeDir.value] && defaultLoaded.value], ([r, , loaded]) => {
-  if (!r || !loaded) return // wait for this scope's settings: the saved view lives in them
+watch([restoring, views, ic.loaded], ([r, , loaded]) => {
+  if (!r || !loaded) return // wait for the settings: the saved view lives in them
   restoring.value = false
   if (viewId.value) { lastViews.value = { ...lastViews.value, [scopeDir.value]: viewId.value }; return }
   const saved = views.value.find(v => v.id === lastViews.value[scopeDir.value])
   if (saved) apply(saved)
 }, { immediate: true })
-const labelsOf = (i: IssueSummary) => ic.labelsOf(i.labels, i.projectDir)
+const labelsOf = (i: IssueSummary) => ic.labelsOf(i.labels)
 const ctx = computed(() => ({ config: config.value, agents: agentOptions.value, all: issues.value }))
 const projects = computed(() => [...new Set(issues.value.map(i => i.projectDir))])
 
@@ -74,7 +67,7 @@ const inScope = computed(() => (scope.value === 'project' && workingDir.value.re
 const filtered = computed(() => {
   const q = query.value.trim().toLowerCase()
   return inScope.value.filter(i => matchesFilters(i, filters.value, config.value)
-    && (!q || i.title.toLowerCase().includes(q) || i.id.toLowerCase().includes(q) || labelsOf(i).some(l => l.name.toLowerCase().includes(q))))
+    && (!q || i.title.toLowerCase().includes(q) || i.id.toLowerCase().includes(q) || i.description.toLowerCase().includes(q) || labelsOf(i).some(l => l.name.toLowerCase().includes(q))))
 })
 const visible = computed(() => visibleIssues(filtered.value, display.value))
 const allColumns = computed<Column[]>(() => columnsFor(display.value.groupBy, issues.value, ctx.value))
@@ -104,24 +97,9 @@ const dirty = computed(() => {
   const now = snapshot()
   return now.layout !== v.layout || now.filters !== stable(v.filters) || now.display !== stable({ ...defaultDisplay(), ...v.display })
 })
-// A view that no longer exists (deleted, or from another scope) stops being the active tab but keeps its filters
-watch(views, (list) => { if (viewId.value && ic.entries.value[scopeDir.value] && defaultLoaded.value && !list.some(v => v.id === viewId.value)) viewId.value = null })
+// A view that no longer exists (deleted in another tab) stops being the active tab but keeps its filters
+watch(views, (list) => { if (viewId.value && ic.loaded.value && !list.some(v => v.id === viewId.value)) viewId.value = null })
 
-// Saving the first view in a project that follows the default gives the project its own settings
-const needsOwnConfig = computed(() => scope.value === 'project' && !!workingDir.value && !ic.entry(workingDir.value).custom)
-const askOwn = ref(false)
-let pendingSave: (() => Promise<void>) | null = null
-async function withOwnConfig(fn: () => Promise<void>, skipOwn?: string) {
-  // Views stored in All never need the project's own settings
-  if (skipOwn === '' || !needsOwnConfig.value) return fn()
-  pendingSave = fn
-  askOwn.value = true
-}
-async function confirmOwn() {
-  askOwn.value = false
-  if (await ic.customize(scopeDir.value) && pendingSave) await pendingSave()
-  pendingSave = null
-}
 const body = () => ({ layout: view.value, filters: JSON.parse(JSON.stringify(filters.value)), display: JSON.parse(JSON.stringify(display.value)) })
 const uniqueName = (base: string) => {
   const taken = new Set(views.value.map(v => v.name.toLowerCase()))
@@ -129,27 +107,22 @@ const uniqueName = (base: string) => {
   while (taken.has(n.toLowerCase())) n = `${base} ${i++}`
   return n.slice(0, 40)
 }
-const createView = (v: { name: string; layout: 'board' | 'list'; filters: unknown; display: unknown }) => withOwnConfig(async () => {
+const createView = async (v: { name: string; layout: 'board' | 'list'; filters: unknown; display: unknown }) => {
   newViewBusy.value = true
-  const ok = await ic.createView(scopeDir.value, v)
+  const ok = await ic.createView(v)
   newViewBusy.value = false
   if (!ok) return
   showNewView.value = false
   // Open the new view: the page now shows exactly what was saved
   const created = views.value.find(x => x.name === v.name)
   if (created) apply(created)
-})
-const saveView = () => { if (viewId.value) void withOwnConfig(async () => { await ic.updateView(ownerOf(viewId.value!), viewId.value!, body()) }, ownerOf(viewId.value)) }
-const discardView = () => { if (activeView.value) apply(activeView.value) }
-const renameView = (id: string, name: string) => ic.updateView(ownerOf(id), id, { name })
-const duplicateView = (v: IssueViewDef) => { const owner = ownerOf(v.id); return withOwnConfig(async () => { await ic.createView(owner, { name: uniqueName(`${v.name} copy`), layout: v.layout, filters: v.filters, display: v.display }) }, owner) }
-const removeView = async (id: string) => { if (await ic.deleteView(ownerOf(id), id) && viewId.value === id) apply(null) }
-const reorderViews = (ids: string[]) => {
-  for (const owner of new Set(views.value.map(v => v.owner))) {
-    const mine = new Set(views.value.filter(v => v.owner === owner).map(v => v.id))
-    void ic.orderViews(owner, ids.filter(id => mine.has(id)))
-  }
 }
+const saveView = () => { if (viewId.value) void ic.updateView(viewId.value, body()) }
+const discardView = () => { if (activeView.value) apply(activeView.value) }
+const renameView = (id: string, name: string) => ic.updateView(id, { name })
+const duplicateView = (v: IssueViewDef) => ic.createView({ name: uniqueName(`${v.name} copy`), layout: v.layout, filters: v.filters, display: v.display })
+const removeView = async (id: string) => { if (await ic.deleteView(id) && viewId.value === id) apply(null) }
+const reorderViews = (ids: string[]) => { void ic.orderViews(ids) }
 
 // Save on the filter bar: update the open view when it changed, else save the filters as a new view
 const canSave = computed(() => (activeView.value ? dirty.value : true))
@@ -218,7 +191,7 @@ async function copy(text: string, what: string) {
   } catch { toast.add({ title: 'Could not copy', color: 'error', duration: 3000 }) }
 }
 function menuFor(i: IssueSummary): ContextMenuItem[][] {
-  const labels = ic.configFor(i.projectDir).labels
+  const labels = config.value.labels
   return [
     [{ label: 'Open', icon: 'i-lucide-arrow-up-right', onSelect: () => open(i) }],
     [
@@ -275,8 +248,6 @@ const cardStyle = (i: { id: string; updatedAt: string; awaitingApproval?: boolea
   : 'background: var(--surface-base); border: 1px solid var(--border-subtle)')
 onUnmounted(() => { if (timer) clearInterval(timer); if (tickTimer) clearInterval(tickTimer) })
 onMounted(() => { tickTimer = setInterval(() => { tick.value = Date.now() }, 60_000); fetchAgents(); refresh() })
-// Each project may have its own labels: load the settings of every project on the board
-watch(issues, (list) => { for (const d of new Set(list.map(i => i.projectDir))) if (!(d in ic.entries.value)) ic.load(d) })
 
 const open = (i: IssueSummary) => { markSeen(i.id); router.push(`/issues/${i.id}`) }
 const iconBtn = 'p-2 rounded-lg hover-bg'
@@ -287,7 +258,7 @@ useHead({ title: 'Issues | Agent Manager' })
   <div class="h-full flex flex-col min-h-0">
     <div class="shrink-0 flex items-center gap-3 px-6 py-3" style="border-bottom: 1px solid var(--border-subtle)">
       <h1 class="text-page-title">Issues</h1>
-      <input v-model="query" placeholder="Search" class="px-3 py-1.5 rounded-lg text-[12px] w-48" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)" />
+      <input v-model="query" placeholder="Search" title="Matches title, id, description and label names" class="px-3 py-1.5 rounded-lg text-[12px] w-48" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)" />
       <div class="flex-1" />
       <IssueFilterMenu v-model="filters" :config="config" :agents="agentOptions" :projects="projects" :show-project="scope === 'all' || !!viewId" />
       <IssueDisplayMenu v-model="display" :config="config" :columns="allColumns" :show-project="scope === 'all' || !!viewId" />
@@ -394,16 +365,6 @@ useHead({ title: 'Issues | Agent Manager' })
       <template #content>
         <IssueViewDialog :key="newViewKey" :config="config" :agents="agentOptions" :projects="projects" :show-project="scope === 'all' || !!viewId" :busy="newViewBusy"
           :initial="{ filters, display, layout: view }" :existing-names="views.map(v => v.name)" @create="createView" @cancel="showNewView = false" />
-      </template>
-    </UModal>
-
-    <UModal v-model:open="askOwn">
-      <template #content>
-        <div class="p-6 space-y-4 w-[440px] max-w-full" style="background: var(--surface-raised)">
-          <h3 class="text-page-title">Give this project its own settings?</h3>
-          <p class="text-[13px] text-label">Views are saved with the project's labels and properties. This project follows the default settings today. Continuing copies them into a file for this project. Later changes to the default will not reach it.</p>
-          <div class="flex justify-end gap-2"><UButton label="Cancel" variant="ghost" color="neutral" size="sm" @click="() => { askOwn = false }" /><UButton label="Continue" size="sm" @click="confirmOwn" /></div>
-        </div>
       </template>
     </UModal>
 

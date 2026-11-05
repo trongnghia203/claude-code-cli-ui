@@ -1,5 +1,5 @@
 import { liveComments, newEntryId, readIssue, updateIssue } from '../../../utils/issues/store'
-import { buildDistillPrompt, startRun, isRunning } from '../../../utils/issues/runner'
+import { buildDistillPrompt, startRun, isRunning, lastRunAgent } from '../../../utils/issues/runner'
 import { applyDraft } from '../../../utils/issues/applyDraft'
 import { detectSources, draftIssue } from '../../../utils/issues/draft'
 
@@ -13,7 +13,7 @@ export default defineEventHandler(async (event) => {
   if (!text) throw createError({ statusCode: 400, message: 'Comment is empty' })
   // `/clear` (or `/reset`) as first word: hide the old comments from later runs. No run, no agent needed.
   const clear = /^\s*(?:@[\w-]+\s+)*\/(?:clear|reset)(?:\s|$)/i.test(text)
-  if (run && !clear && !issue.assignee && !mention) throw createError({ statusCode: 400, message: 'Assign an agent to run it' })
+  if (run && !clear && !issue.assignee && !mention && !lastRunAgent(issue)) throw createError({ statusCode: 400, message: 'Assign an agent to run it' })
   if (run && !clear && isRunning(id)) throw createError({ statusCode: 409, message: 'A run is already active' })
 
   // `/distill` as first word (after optional @mentions): fold the comments into the description
@@ -63,7 +63,7 @@ export default defineEventHandler(async (event) => {
     updateIssue(id, (i) => { i.drafting = true; delete i.draftNote })
     // Background: the issue page polls while `drafting` is set. Failure keeps the current text.
     draftIssue(redraftText, [], issue.projectDir, { agent: mention ?? /^\s*@([\w-]+)/.exec(text)?.[1], sources: draftSources })
-      .then(draft => { applyDraft(id, draft, issue.projectDir) })
+      .then(draft => { applyDraft(id, draft) })
       .catch((e: any) => {
         updateIssue(id, (i) => {
           delete i.drafting

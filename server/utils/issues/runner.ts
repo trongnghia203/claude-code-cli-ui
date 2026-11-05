@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
+import { readConfig } from './config'
 import { appendTranscript, liveComments, readIssue, updateIssue, setStatus, newEntryId, type Issue, type IssueRun, type RunUsage } from './store'
 
 const TIMEOUT_MS = 30 * 60_000
@@ -35,6 +36,11 @@ export function answerApproval(issueId: string, approvalId: string, decision: 'a
   return true
 }
 
+/** Agent of the newest run. A status rule can unassign an issue (ADR 0013); feedback still goes to the agent that delivered. */
+export const lastRunAgent = (issue: Pick<Issue, 'runs'>): string | null => issue.runs.findLast(r => r.agent)?.agent ?? null
+
+const statusRules = () => readConfig().statusAssignees
+
 export const isRunning = (issueId: string) => active.has(issueId)
 
 /** A run record left as "running" by a server that stopped: nothing in memory owns it any more. */
@@ -48,7 +54,7 @@ export function reapStaleRuns(issue: Issue): Issue {
         r.finishedAt = new Date().toISOString()
       }
     }
-    if (i.status === 'in_progress') setStatus(i, 'todo', 'system')
+    if (i.status === 'in_progress') setStatus(i, 'todo', 'system', statusRules())
   }) ?? issue
 }
 
@@ -183,7 +189,7 @@ export function startRun(issueId: string, trigger?: string, extraInstruction?: s
   const issue = readIssue(issueId)
   if (!issue) return null
 
-  const agentSlug = agentOverride || issue.assignee
+  const agentSlug = agentOverride || issue.assignee || lastRunAgent(issue)
   const runId = newEntryId()
   const startedAt = new Date()
   const run: IssueRun = {
@@ -195,7 +201,7 @@ export function startRun(issueId: string, trigger?: string, extraInstruction?: s
   updateIssue(issueId, (i) => {
     i.runs.push(run)
     i.timeline.push({ id: newEntryId(), at: run.startedAt, type: 'run', runId })
-    if (!opts.keepStatus) setStatus(i, 'in_progress', 'system')
+    if (!opts.keepStatus) setStatus(i, 'in_progress', 'system', statusRules())
   })
 
   const finish = (patch: Partial<IssueRun>, nextStatus: 'in_review' | 'todo', comment?: string) => {
@@ -207,7 +213,7 @@ export function startRun(issueId: string, trigger?: string, extraInstruction?: s
       const r = i.runs.find(x => x.id === runId)
       if (r) Object.assign(r, patch, { finishedAt: finishedAt.toISOString(), durationMs: finishedAt.getTime() - startedAt.getTime() })
       // A user who moved the issue elsewhere during the run keeps their choice
-      if (!opts.keepStatus && i.status === 'in_progress') setStatus(i, entry?.cancelled ? 'todo' : nextStatus, 'system')
+      if (!opts.keepStatus && i.status === 'in_progress') setStatus(i, entry?.cancelled ? 'todo' : nextStatus, 'system', statusRules())
       if (comment) i.timeline.push({ id: commentId!, at: finishedAt.toISOString(), type: 'comment', author: 'agent', body: comment })
     })
     opts.after?.({ ok: patch.status === 'success', commentId })

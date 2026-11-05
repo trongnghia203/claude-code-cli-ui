@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+**Workflow settings (assignee per status)**
+- Add a Workflow tab in Issue settings (status chain, status library by category): per status, keep the assignee, unassign, or assign an agent; applied on every status move
+- Add `PUT /api/issue-config/status-assignees` and the `statusAssignees` key in `~/.claude/issues/_config.json`
+- A rule never starts a run; "Comment and run" and "Run agent" fall back to the agent of the last run when the issue is unassigned
+- Mark rule-made assign entries on the timeline with `by: 'system'`, see `docs/adr/0013-status-assignees.md`
+
+**Issue search**
+- Match the description in the Issues search box, next to title, id and label names
+
+**Global issue settings**
+- Make labels, properties, views and wakeups global in `~/.claude/issues/_config.json`; Issue settings has no scope switch, share picker, Customize or Reset
+- Remove the `projectDir` query and the project and share routes from `/api/issue-config`
+- Merge old per-project settings files into the global file once at start (by id, then name), keep a `.before-global.bak` copy, see `docs/adr/0012-global-issue-settings.md`
+
 **Interactive Claude Code sessions from an issue (`claude-ui iterm2`)**
 - Add `claude-ui iterm2 ISS-n [--cwd DIR] [--label L] [--resume ID] [--prompt TEXT | --prompt-file FILE | --no-prompt]`: starts `claude` with the description and live comments
 - Add the `plugins/claude-ui` plugin: `/claude-ui:issue-wrap`, `issue-distill`, `issue-update`, `issue-comment` write the work back from inside the session

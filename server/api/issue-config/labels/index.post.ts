@@ -1,9 +1,9 @@
 import { LABEL_COLORS, mutateConfig, newLabelId } from '../../../utils/issues/config'
-import { parseLabel, scopeOf } from '../../../utils/issues/configValidate'
+import { parseLabel } from '../../../utils/issues/configValidate'
 
 export default defineEventHandler(async (event) => {
   const body = parseLabel(await readBody(event), true)
-  return mutateConfig(scopeOf(event), (cfg) => {
+  return mutateConfig((cfg) => {
     if (cfg.labels.some(l => l.name.toLowerCase() === body.name!.toLowerCase())) throw createError({ statusCode: 400, message: `Label "${body.name}" already exists` })
     const label = {
       id: newLabelId(), name: body.name!, description: body.description ?? '',

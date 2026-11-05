@@ -1,11 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { resolveClaudePath } from '../claudeDir'
-import { listIssues, updateIssue } from './store'
+import { ISSUE_STATUSES, listIssues, updateIssue, type StatusAssignees } from './store'
 
-/** Issue settings: labels, custom properties, wakeup rules. A default file, plus an optional file per project. */
+/** Issue settings: labels, custom properties, saved views, wakeup rules. One global file, shared by every project. */
 
 export const PROPERTY_TYPES = ['text', 'number', 'select', 'date', 'checkbox', 'url'] as const
 export type PropertyType = typeof PROPERTY_TYPES[number]
@@ -39,6 +39,8 @@ export interface IssueConfig {
   properties: IssueProperty[]
   views: IssueView[]
   wakeups: { subIssuesFinish: WakeupRule }
+  /** Assignee set when an issue enters a status (ADR 0013) */
+  statusAssignees: StatusAssignees
 }
 
 export const LABEL_COLORS = ['#6b7280', '#ec4899', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6'] as const
@@ -51,21 +53,20 @@ export const DEFAULT_SUB_ISSUES_INSTRUCTION =
 const newId = (prefix: string) => `${prefix}_${randomUUID().slice(0, 8)}`
 
 /**
- * Two places hold settings:
- * - default: ~/.claude/issues/_config.json, used by every project without its own file
- * - project: ~/.config/claude-ui/issues/<project>/_config.json, replaces the default as a whole for that project
+ * Settings live in ~/.claude/issues/_config.json. Issues manage work across projects, so nothing here is per project.
+ * Older per-project files in ~/.config/claude-ui/issues/<project>/ are merged in once, see consolidate().
  */
 const defaultFile = () => join(resolveClaudePath('issues'), '_config.json')
 /** Same slug rule as Claude Code session folders and app/utils/projectSlug.ts */
 const slugOf = (dir: string) => dir.replace(/\/+$/, '').replace(/[^a-zA-Z0-9]/g, '-')
-const projectFile = (dir: string) => join(homedir(), '.config', 'claude-ui', 'issues', slugOf(dir), '_config.json')
-export const hasProjectConfig = (dir?: string | null) => !!dir && existsSync(projectFile(dir))
+const legacyRoot = () => join(homedir(), '.config', 'claude-ui', 'issues')
 
 const defaults = (): IssueConfig => ({
   labels: [],
   properties: [],
   views: [],
   wakeups: { subIssuesFinish: { enabled: true, instruction: '' } },
+  statusAssignees: {},
 })
 
 function save(file: string, cfg: IssueConfig) {
@@ -73,14 +74,6 @@ function save(file: string, cfg: IssueConfig) {
   const tmp = `${file}.${process.pid}.tmp`
   writeFileSync(tmp, JSON.stringify(cfg, null, 2))
   renameSync(tmp, file)
-}
-
-/** The issues that read a given config: one project's, or every project that has no file of its own (the default). */
-function issuesInScope(projectDir?: string | null) {
-  const all = listIssues()
-  return projectDir
-    ? all.filter(i => i.projectDir === projectDir.replace(/\/+$/, ''))
-    : all.filter(i => !hasProjectConfig(i.projectDir))
 }
 
 /**
@@ -109,6 +102,17 @@ function migrate(): IssueConfig {
   return cfg
 }
 
+/** Keep only known statuses with a string or null value. */
+export function cleanStatusAssignees(raw: unknown): StatusAssignees {
+  const out: StatusAssignees = {}
+  if (!raw || typeof raw !== 'object') return out
+  for (const st of ISSUE_STATUSES) {
+    const v = (raw as Record<string, unknown>)[st]
+    if (v === null || (typeof v === 'string' && v)) out[st] = v
+  }
+  return out
+}
+
 function readFile(file: string): IssueConfig {
   try {
     const raw = JSON.parse(readFileSync(file, 'utf8'))
@@ -118,58 +122,114 @@ function readFile(file: string): IssueConfig {
       properties: Array.isArray(raw.properties) ? raw.properties : d.properties,
       views: Array.isArray(raw.views) ? raw.views : d.views,
       wakeups: { subIssuesFinish: { ...d.wakeups.subIssuesFinish, ...raw.wakeups?.subIssuesFinish } },
+      statusAssignees: cleanStatusAssignees(raw.statusAssignees),
     }
   } catch {
     return defaults()
   }
 }
 
-/** The config a project sees: its own file when it has one, else the default. */
-export function readConfig(projectDir?: string | null): IssueConfig {
-  if (hasProjectConfig(projectDir)) return readFile(projectFile(projectDir!))
-  if (!existsSync(defaultFile())) return migrate()
+export function readConfig(): IssueConfig {
+  if (!existsSync(defaultFile())) migrate()
+  consolidate()
   return readFile(defaultFile())
 }
 
-/**
- * Synchronous read-modify-write of one scope: the project file (it must exist) or, with no project, the default.
- * Same model as the issue store.
- */
-export function mutateConfig<T>(projectDir: string | null | undefined, fn: (cfg: IssueConfig) => T): T {
-  const scoped = !!projectDir
-  if (scoped && !hasProjectConfig(projectDir)) throw createError({ statusCode: 400, message: 'This project uses the default settings. Customize it first.' })
-  const cfg = scoped ? readFile(projectFile(projectDir!)) : readConfig(null)
+/** Synchronous read-modify-write of the settings file. Same model as the issue store. */
+export function mutateConfig<T>(fn: (cfg: IssueConfig) => T): T {
+  const cfg = readConfig()
   const out = fn(cfg)
-  save(scoped ? projectFile(projectDir!) : defaultFile(), cfg)
+  save(defaultFile(), cfg)
   return out
 }
 
-/** Give a project its own file, starting as a copy of the default. Ids are kept, so issues keep their labels. */
-export function customizeProject(projectDir: string) {
-  if (!hasProjectConfig(projectDir)) save(projectFile(projectDir), readConfig(null))
-}
-
 /**
- * What a reset would lose: labels and properties that only the project file has, and that its issues still use.
- * Empty means a reset is safe.
+ * One-time move from per-project settings files to the global one. Runs once per server start and does nothing when
+ * no legacy file is left. Labels, properties and views merge into the global file by id, then by name; issues and
+ * views that point at a merged-away id are rewritten. A merged view with no project filter gets one for its project,
+ * so it keeps showing only that project's issues. Wakeup rules of project files are dropped. Each legacy file is
+ * renamed to `_config.json.before-global.bak`, so nothing is lost and it is not read again.
  */
-export function resetBlockers(projectDir: string): string[] {
-  if (!hasProjectConfig(projectDir)) return []
-  const base = readConfig(null)
-  const own = readConfig(projectDir)
-  const used = usageCounts(projectDir)
-  return [
-    ...own.labels.filter(l => !base.labels.some(b => b.id === l.id) && used.labels[l.id]).map(l => `label "${l.name}"`),
-    ...own.properties.filter(p => !base.properties.some(b => b.id === p.id) && used.properties[p.id]).map(p => `property "${p.name}"`),
-  ]
-}
+let consolidated = false
+function consolidate() {
+  if (consolidated) return
+  consolidated = true
+  const root = legacyRoot()
+  if (!existsSync(root)) return
+  const legacy = readdirSync(root, { withFileTypes: true })
+    .filter(d => d.isDirectory()).map(d => ({ slug: d.name, file: join(root, d.name, '_config.json') })).filter(x => existsSync(x.file))
+  if (!legacy.length) return
 
-/** Drop the project file: the project follows the default again. Refused while its issues use things only the project has. */
-export function resetProject(projectDir: string) {
-  if (!hasProjectConfig(projectDir)) return
-  const blockers = resetBlockers(projectDir)
-  if (blockers.length) throw createError({ statusCode: 409, message: `Cannot reset: still in use by issues: ${blockers.join(', ')}.` })
-  rmSync(projectFile(projectDir), { force: true })
+  const base = readFile(defaultFile())
+  const issues = listIssues()
+  const labelMap = new Map<string, string>() // merged-away id -> kept id
+  const propMap = new Map<string, string>()
+  const optionMap = new Map<string, Map<string, string>>() // merged-away select property id -> (old option id -> kept option id)
+  const incomingViews: IssueView[] = []
+  for (const { slug, file } of legacy) {
+    const cfg = readFile(file)
+    for (const l of cfg.labels) {
+      if (base.labels.some(b => b.id === l.id)) continue
+      const same = base.labels.find(b => b.name.toLowerCase() === l.name.toLowerCase())
+      if (same) labelMap.set(l.id, same.id)
+      else base.labels.push(l)
+    }
+    for (const p of cfg.properties) {
+      if (base.properties.some(b => b.id === p.id)) continue
+      const same = base.properties.find(b => b.name.toLowerCase() === p.name.toLowerCase())
+      if (!same) { base.properties.push(p); continue }
+      if (same.type !== p.type) { base.properties.push({ ...p, name: `${p.name} (${p.type})` }); continue }
+      propMap.set(p.id, same.id)
+      if (p.type === 'select') {
+        const m = new Map<string, string>()
+        for (const o of p.options) {
+          const hit = same.options.find(x => x.name.toLowerCase() === o.name.toLowerCase())
+          if (hit) m.set(o.id, hit.id)
+          else same.options.push(o)
+        }
+        optionMap.set(p.id, m)
+      }
+    }
+    const dir = issues.find(i => slugOf(i.projectDir) === slug)?.projectDir
+    for (const v of cfg.views) {
+      if (base.views.some(b => b.id === v.id)) continue
+      const filters = { ...v.filters }
+      const hasProject = Array.isArray(filters.project) && filters.project.length > 0
+      incomingViews.push({ ...v, filters: dir && !hasProject ? { ...filters, project: [dir] } : filters })
+    }
+  }
+  for (const v of incomingViews) {
+    let name = v.name
+    for (let n = 2; base.views.some(b => b.name.toLowerCase() === name.toLowerCase()); n++) name = `${v.name} ${n}`
+    base.views.push({ ...v, name })
+  }
+
+  // Views name labels and properties by id (also as `prop:<id>`): swap merged-away ids for the kept ones
+  const swapIds = <T>(v: T): T => {
+    let json = JSON.stringify(v)
+    for (const [from, to] of [...labelMap, ...propMap]) json = json.split(`"${from}"`).join(`"${to}"`).split(`prop:${from}`).join(`prop:${to}`)
+    return JSON.parse(json)
+  }
+  base.views = swapIds(base.views)
+  // Write the global file first: a crash half way leaves legacy files in place, and the next start merges again
+  save(defaultFile(), base)
+
+  if (labelMap.size || propMap.size) {
+    for (const i of issues) {
+      const props = Object.keys(i.properties ?? {})
+      if (!(i.labels ?? []).some(id => labelMap.has(id)) && !props.some(k => propMap.has(k))) continue
+      updateIssue(i.id, (x) => {
+        x.labels = (x.labels ?? []).map(id => labelMap.get(id) ?? id)
+        const next: Record<string, string | number | boolean> = {}
+        for (const [k, v] of Object.entries(x.properties ?? {})) {
+          const om = optionMap.get(k)
+          next[propMap.get(k) ?? k] = om && typeof v === 'string' ? (om.get(v) ?? v) : v
+        }
+        x.properties = next
+      })
+    }
+  }
+  for (const { file } of legacy) renameSync(file, `${file}.before-global.bak`)
 }
 
 export const newLabelId = () => newId('lbl')
@@ -177,66 +237,13 @@ export const newViewId = () => newId('view')
 export const newPropertyId = () => newId('prop')
 export const newOptionId = () => newId('opt')
 
-/** Count how many issues use each label and property id, among the issues that read this scope. */
-export function usageCounts(projectDir?: string | null) {
+/** Count how many issues use each label and property id, across all projects. */
+export function usageCounts() {
   const labels: Record<string, number> = {}
   const properties: Record<string, number> = {}
-  for (const i of issuesInScope(projectDir)) {
+  for (const i of listIssues()) {
     for (const l of i.labels ?? []) labels[l] = (labels[l] ?? 0) + 1
     for (const k of Object.keys(i.properties ?? {})) properties[k] = (properties[k] ?? 0) + 1
   }
   return { labels, properties }
-}
-
-/** Labels and properties can be shared with other projects: the same item (same id) lives in each project's own file. */
-export type ShareKind = 'labels' | 'properties'
-
-/**
- * The projects an item can be shared with: the ones the user created, plus any directory that already has its own
- * settings file (so an existing share never disappears from the list).
- */
-export async function knownProjects(): Promise<{ dir: string; name: string }[]> {
-  const { listUserProjects } = await import('../userProjects')
-  const out = new Map<string, string>()
-  for (const p of listUserProjects()) out.set(p.path.replace(/\/+$/, ''), p.name)
-  for (const i of listIssues()) {
-    if (!out.has(i.projectDir) && hasProjectConfig(i.projectDir)) out.set(i.projectDir, i.projectDir.split('/').filter(Boolean).pop() || i.projectDir)
-  }
-  return [...out].map(([dir, name]) => ({ dir, name })).sort((a, b) => a.name.localeCompare(b.name))
-}
-
-/** Which known projects can see this item now. `custom` = the project has its own settings file. */
-export async function itemProjects(kind: ShareKind, id: string) {
-  return (await knownProjects()).map(p => ({
-    ...p,
-    custom: hasProjectConfig(p.dir),
-    has: (readConfig(p.dir)[kind] as { id: string }[]).some(x => x.id === id),
-  }))
-}
-
-/**
- * Make `dirs` the projects that have this item (among the known ones). Adding gives a project its own file when it has none.
- * Removing is refused while that project's issues still use the item.
- * `source` is the config scope the item is read from (a project dir, or null for the default).
- */
-export async function setItemProjects(kind: ShareKind, id: string, source: string | null, dirs: string[]) {
-  const item = (readConfig(source)[kind] as any[]).find(x => x.id === id)
-  if (!item) throw createError({ statusCode: 404, message: 'Not found' })
-  const want = new Set(dirs.map(d => d.replace(/\/+$/, '')))
-  const errors: string[] = []
-  for (const p of await itemProjects(kind, id)) {
-    if (p.has === want.has(p.dir)) continue
-    if (want.has(p.dir)) {
-      const clash = (readConfig(p.dir)[kind] as any[]).find(x => x.name.toLowerCase() === item.name.toLowerCase())
-      if (clash) { errors.push(`${p.name} already has "${item.name}"`); continue }
-      customizeProject(p.dir)
-      mutateConfig(p.dir, (cfg) => { (cfg[kind] as any[]).push({ ...item }) })
-    } else {
-      const used = usageCounts(p.dir)[kind][id] ?? 0
-      if (used) { errors.push(`${p.name} still uses "${item.name}" on ${used} issue(s)`); continue }
-      customizeProject(p.dir)
-      mutateConfig(p.dir, (cfg) => { (cfg as any)[kind] = (cfg[kind] as any[]).filter(x => x.id !== id) })
-    }
-  }
-  if (errors.length) throw createError({ statusCode: 409, message: errors.join('. ') })
 }

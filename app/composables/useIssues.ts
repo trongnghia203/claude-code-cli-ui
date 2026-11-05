@@ -27,7 +27,7 @@ export interface IssueRun {
 export type TimelineEntry =
   | { id: string; at: string; type: 'comment'; author: 'user' | 'agent'; body: string }
   | { id: string; at: string; type: 'status'; from: IssueStatus | null; to: IssueStatus; by: 'user' | 'system' }
-  | { id: string; at: string; type: 'assign'; from: string | null; to: string | null }
+  | { id: string; at: string; type: 'assign'; from: string | null; to: string | null; by?: 'user' | 'system' }
   | { id: string; at: string; type: 'run'; runId: string }
   | { id: string; at: string; type: 'distill'; kind?: 'distill' | 'clear'; note?: string; foldedIds: string[]; descriptionBefore: string }
 

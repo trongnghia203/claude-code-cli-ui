@@ -1,62 +1,34 @@
 <script setup lang="ts">
 import type { IssueLabel, IssueProperty, PropertyType } from '~/composables/useIssueConfig'
 import { LABEL_COLORS, MAX_ACTIVE_PROPERTIES, PROPERTY_TYPE_META, propertyColor } from '~/composables/useIssueConfig'
+import { ISSUE_STATUSES, ISSUE_STATUS_META, type IssueStatus } from '~/composables/useIssues'
 import { formatRelativeTime } from '~/utils/messageFormatting'
 
 const route = useRoute()
 const router = useRouter()
 const ic = useIssueConfig()
-const { workingDir } = useWorkingDir()
 
-// Scope: the default, or one project's own settings (a project without its own file reads the default)
-// Starts on 'default' so server and client render the same markup. workingDir only exists on the client
-// (localStorage), so switching to the project in onMounted avoids a hydration mismatch that left the DOM stale.
-const scope = ref<'default' | 'project'>('default')
-const dir = computed(() => (scope.value === 'project' ? workingDir.value : ''))
-const projectName = computed(() => workingDir.value.split('/').filter(Boolean).pop() ?? '')
-const view = computed(() => ic.entry(dir.value))
-const config = computed(() => view.value.config)
-const usage = computed(() => view.value.usage)
-// Editing is off while a project still follows the default: customize it first
-const readOnly = computed(() => scope.value === 'project' && !view.value.custom)
-const activeProperties = computed(() => config.value.properties.filter(p => !p.archived))
-const load = () => ic.load(dir.value)
-watch(dir, load)
-const createLabel = (b: { name: string; color: string; description: string }) => ic.createLabel(dir.value, b)
-const updateLabel = (id: string, b: Partial<{ name: string; color: string; description: string }>) => ic.updateLabel(dir.value, id, b)
-const deleteLabel = (id: string) => ic.deleteLabel(dir.value, id)
-const createProperty = (b: { name: string; type: PropertyType; color: string; options: { id?: string; name: string }[] }) => ic.createProperty(dir.value, b)
-const updateProperty = (id: string, b: Partial<{ name: string; color: string; options: { id?: string; name: string }[]; archived: boolean }>) => ic.updateProperty(dir.value, id, b)
-const saveWakeups = (r: { enabled: boolean; instruction: string }) => ic.saveWakeups(dir.value, r)
+// One global config, shared by every project
+const config = ic.config
+const usage = ic.usage
+const activeProperties = ic.activeProperties
+const { createLabel, updateLabel, deleteLabel, createProperty, updateProperty, saveWakeups, saveStatusAssignees } = ic
+const { agents, fetchAll: fetchAgents } = useAgents()
 const labelUsed = (id: string) => usage.value.labels[id] ?? 0
 const propUsed = (id: string) => usage.value.properties[id] ?? 0
-// A reset drops labels and properties that only this project has. Blocked while its issues still use them.
-const resetBlockers = computed(() => {
-  if (scope.value !== 'project' || !view.value.custom) return []
-  const base = ic.entry('').config
-  return [
-    ...config.value.labels.filter(l => !base.labels.some(b => b.id === l.id) && labelUsed(l.id)).map(l => `label "${l.name}"`),
-    ...config.value.properties.filter(p => !base.properties.some(b => b.id === p.id) && propUsed(p.id)).map(p => `property "${p.name}"`),
-  ]
-})
-const resetConfirm = ref(false)
-async function doReset() { if (await ic.reset(dir.value)) resetConfirm.value = false }
 
-type Tab = 'labels' | 'properties' | 'wakeups'
+type Tab = 'labels' | 'properties' | 'workflow' | 'wakeups'
 const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'labels', label: 'Labels', icon: 'i-lucide-tag' },
   { key: 'properties', label: 'Properties', icon: 'i-lucide-list-plus' },
+  { key: 'workflow', label: 'Workflow', icon: 'i-lucide-workflow' },
   { key: 'wakeups', label: 'Wakeups', icon: 'i-lucide-alarm-clock' },
 ]
 const tab = computed<Tab>({
   get: () => (TABS.some(t => t.key === route.query.tab) ? route.query.tab as Tab : 'labels'),
   set: (v) => { router.replace({ query: { tab: v } }) },
 })
-onMounted(() => {
-  if (workingDir.value) scope.value = 'project'
-  ic.load('')
-  load()
-})
+onMounted(() => { ic.load(); fetchAgents() })
 useHead({ title: 'Issue settings | Agent Manager' })
 
 const card = 'background: var(--surface-raised); border: 1px solid var(--border-subtle)'
@@ -72,35 +44,20 @@ const labelDlg = ref(false)
 const labelEditId = ref<string | null>(null)
 const labelForm = reactive({ name: '', color: LABEL_COLORS[0]!, description: '' })
 const labelBusy = ref(false)
-// Project picker: the projects that get this label. Loaded when the dialog opens, applied on save.
-const labelProjects = ref<{ dir: string; name: string; has?: boolean }[]>([])
-const labelPick = ref<string[]>([])
-async function openShare(kind: 'labels' | 'properties', id: string | null, pick: typeof labelPick, list: typeof labelProjects) {
-  list.value = await ic.projectsFor(kind, id ?? undefined)
-  // A new item starts on the current scope's project (when editing the project's own settings), nothing otherwise
-  pick.value = id ? list.value.filter(p => p.has).map(p => p.dir) : (scope.value === 'project' && workingDir.value ? [workingDir.value.replace(/\/+$/, '')] : [])
-}
 function newLabel() {
   Object.assign(labelForm, { name: '', color: LABEL_COLORS[config.value.labels.length % LABEL_COLORS.length]!, description: '' })
   labelEditId.value = null
   labelDlg.value = true
-  openShare('labels', null, labelPick, labelProjects)
 }
 function editLabel(l: IssueLabel) {
   Object.assign(labelForm, { name: l.name, color: l.color, description: l.description })
   labelEditId.value = l.id
   labelDlg.value = true
-  openShare('labels', l.id, labelPick, labelProjects)
 }
 async function submitLabel() {
   if (!labelForm.name.trim()) return
   labelBusy.value = true
-  let ok = labelEditId.value ? await updateLabel(labelEditId.value, { ...labelForm }) : await createLabel({ ...labelForm })
-  if (ok) {
-    const id = labelEditId.value ?? config.value.labels.find(l => l.name.toLowerCase() === labelForm.name.trim().toLowerCase())?.id
-    const changed = !labelEditId.value ? labelPick.value.length > 0 : labelProjects.value.some(p => !!p.has !== labelPick.value.includes(p.dir))
-    if (id && changed) ok = await ic.shareWith('labels', dir.value, id, labelPick.value)
-  }
+  const ok = labelEditId.value ? await updateLabel(labelEditId.value, { ...labelForm }) : await createLabel({ ...labelForm })
   labelBusy.value = false
   if (ok) labelDlg.value = false
 }
@@ -120,38 +77,64 @@ const propDlg = ref(false)
 const propEditId = ref<string | null>(null)
 const propForm = reactive<{ name: string; type: PropertyType; color: string; options: { id?: string; name: string }[] }>({ name: '', type: 'text', color: LABEL_COLORS[0]!, options: [] })
 const propBusy = ref(false)
-const propProjects = ref<{ dir: string; name: string; has?: boolean }[]>([])
-const propPick = ref<string[]>([])
 const atLimit = computed(() => activeProperties.value.length >= MAX_ACTIVE_PROPERTIES)
 function newProperty() {
   Object.assign(propForm, { name: '', type: 'text' as PropertyType, color: LABEL_COLORS[activeProperties.value.length % LABEL_COLORS.length]!, options: [] })
   propEditId.value = null
   propDlg.value = true
-  openShare('properties', null, propPick, propProjects)
 }
 function editProperty(p: IssueProperty) {
   Object.assign(propForm, { name: p.name, type: p.type, color: propertyColor(p), options: p.options.map(o => ({ ...o })) })
   propEditId.value = p.id
   propDlg.value = true
-  openShare('properties', p.id, propPick, propProjects)
 }
 const propValid = computed(() => !!propForm.name.trim() && (propForm.type !== 'select' || propForm.options.some(o => o.name.trim())))
 async function submitProperty() {
   if (!propValid.value) return
   propBusy.value = true
   const options = propForm.options.filter(o => o.name.trim())
-  let ok = propEditId.value
+  const ok = propEditId.value
     ? await updateProperty(propEditId.value, { name: propForm.name, color: propForm.color, ...(propForm.type === 'select' ? { options } : {}) })
     : await createProperty({ name: propForm.name, type: propForm.type, color: propForm.color, options })
-  if (ok) {
-    const id = propEditId.value ?? config.value.properties.find(x => x.name.toLowerCase() === propForm.name.trim().toLowerCase())?.id
-    const changed = !propEditId.value ? propPick.value.length > 0 : propProjects.value.some(x => !!x.has !== propPick.value.includes(x.dir))
-    if (id && changed) ok = await ic.shareWith('properties', dir.value, id, propPick.value)
-  }
   propBusy.value = false
   if (ok) propDlg.value = false
 }
 const optionsSummary = (p: IssueProperty) => (p.type === 'select' ? p.options.map(o => o.name).join(', ') : '-')
+
+// ---- Workflow: statuses and who owns an issue in each ----
+const CHAIN: IssueStatus[] = ['backlog', 'todo', 'in_progress', 'in_review', 'done']
+const STATUS_GROUPS: { title: string; statuses: IssueStatus[] }[] = [
+  { title: 'Unstarted', statuses: ['backlog', 'todo'] },
+  { title: 'Started', statuses: ['in_progress', 'in_review', 'blocked'] },
+  { title: 'Done', statuses: ['done'] },
+  { title: 'Closed', statuses: ['cancelled'] },
+]
+const STATUS_HINT: Record<IssueStatus, string> = {
+  backlog: 'Parked. Assigning an agent here never starts a run.',
+  todo: 'Queued. Moving an issue here with an agent assigned starts it.',
+  in_progress: 'A run is working on it.',
+  in_review: 'Delivered, waiting on human review. Where a successful run ends.',
+  blocked: 'Waiting on something.',
+  done: 'Finished. Only a human sets it.',
+  cancelled: 'Stopped. The record is kept.',
+}
+const agentLabel = (v: string) => (v === KEEP ? '' : v === NONE ? 'Me' : (agents.value.find(a => a.slug === v)?.frontmatter.name || v))
+// '' = keep the assignee, NONE = unassign, otherwise an agent slug
+const KEEP = ''
+const NONE = '__none'
+const rules = reactive<Record<string, string>>({})
+const ruleOf = (st: IssueStatus): string => {
+  const v = config.value.statusAssignees?.[st]
+  return v === undefined ? KEEP : v === null ? NONE : v
+}
+const resetRules = () => { for (const st of ISSUE_STATUSES) rules[st] = ruleOf(st) }
+watch(() => config.value.statusAssignees, resetRules, { immediate: true, deep: true })
+const rulesDirty = computed(() => ISSUE_STATUSES.some(st => rules[st] !== ruleOf(st)))
+const submitRules = () => {
+  const out: Record<string, string | null> = {}
+  for (const st of ISSUE_STATUSES) if (rules[st] !== KEEP) out[st] = rules[st] === NONE ? null : rules[st]!
+  saveStatusAssignees(out)
+}
 
 // ---- Wakeups ----
 const wake = reactive({ enabled: true, instruction: '' })
@@ -165,25 +148,10 @@ const BUILT_IN = 'Every sub-issue of this issue is closed. Review what each one 
     <div class="shrink-0 flex items-center gap-3 px-6 py-3" style="border-bottom: 1px solid var(--border-subtle)">
       <NuxtLink to="/issues" class="p-1.5 rounded-lg hover-bg" title="Back to issues" style="color: var(--text-tertiary)"><UIcon name="i-lucide-arrow-left" class="size-4 block" /></NuxtLink>
       <h1 class="text-page-title">Issue settings</h1>
-      <div class="flex gap-1 p-1 rounded-lg" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)">
-        <button v-for="s in (['project', 'default'] as const)" :key="s" class="px-2.5 py-1 rounded-md text-[12px] font-medium" :disabled="s === 'project' && !workingDir"
-          :style="scope === s ? 'background: var(--accent-muted); color: var(--text-primary)' : 'color: var(--text-secondary)'" @click="scope = s">
-          {{ s === 'project' ? (projectName || 'This project') : 'Default' }}
-        </button>
-      </div>
       <div class="flex-1" />
-      <UButton v-if="scope === 'project' && view.custom" label="Reset to default" icon="i-lucide-rotate-ccw" size="xs" variant="soft" color="neutral" :disabled="resetBlockers.length > 0" :title="resetBlockers.length ? `Still used by issues: ${resetBlockers.join(', ')}` : ''" @click="() => { resetConfirm = true }" />
     </div>
-    <div v-if="readOnly" class="shrink-0 flex items-center gap-3 px-6 py-2 text-[12px]" style="background: var(--surface-raised); border-bottom: 1px solid var(--border-subtle)">
-      <UIcon name="i-lucide-info" class="size-4 shrink-0 text-meta" />
-      <span class="text-label flex-1">{{ projectName }} uses the default settings. Customize it to give this project its own labels, properties and wakeups. They start as a copy of the default.</span>
-      <UButton label="Customize for this project" size="xs" @click="() => { ic.customize(dir) }" />
-    </div>
-    <p v-else-if="scope === 'project'" class="shrink-0 px-6 py-2 text-[12px] text-meta" style="border-bottom: 1px solid var(--border-subtle)">
-      Own settings for {{ projectName }}, stored in ~/.config/claude-ui/issues/. Changes to the default no longer apply here.
-    </p>
-    <p v-else class="shrink-0 px-6 py-2 text-[12px] text-meta" style="border-bottom: 1px solid var(--border-subtle)">
-      Default settings, used by every project that has none of its own. Stored in ~/.claude/issues/_config.json.
+    <p class="shrink-0 px-6 py-2 text-[12px] text-meta" style="border-bottom: 1px solid var(--border-subtle)">
+      Labels, properties, views and wakeups are shared by every project. Stored in ~/.claude/issues/_config.json.
     </p>
 
     <div class="flex-1 min-h-0 flex">
@@ -202,7 +170,7 @@ const BUILT_IN = 'Every sub-issue of this issue is closed. Review what each one 
             <div class="flex items-center gap-3">
               <input v-model="labelQuery" placeholder="Filter by name or description" class="px-3 py-1.5 rounded-lg text-[13px] w-72" :style="card" />
               <div class="flex-1" />
-              <UButton label="New label" icon="i-lucide-plus" size="sm" :disabled="readOnly" @click="newLabel" />
+              <UButton label="New label" icon="i-lucide-plus" size="sm" @click="newLabel" />
             </div>
             <div class="rounded-xl overflow-hidden" :style="card">
               <div class="grid grid-cols-[1.2fr_1.6fr_80px_90px_36px] gap-3 px-4 py-2 text-[11px] text-meta" style="border-bottom: 1px solid var(--border-subtle)">
@@ -210,13 +178,13 @@ const BUILT_IN = 'Every sub-issue of this issue is closed. Review what each one 
               </div>
               <p v-if="!labelRows.length" class="px-4 py-8 text-center text-[13px] text-meta">{{ config.labels.length ? 'No match.' : 'No labels yet. For example Bug or Needs details.' }}</p>
               <div v-for="l in labelRows" :key="l.id" class="grid grid-cols-[1.2fr_1.6fr_80px_90px_36px] gap-3 px-4 py-2.5 items-center text-[13px]" style="border-bottom: 1px solid var(--border-subtle)">
-                <button class="flex items-center gap-2 text-left min-w-0" :disabled="readOnly" @click="editLabel(l)"><span class="size-2.5 rounded-full shrink-0" :style="{ background: l.color }" /><span class="truncate font-medium">{{ l.name }}</span></button>
+                <button class="flex items-center gap-2 text-left min-w-0" @click="editLabel(l)"><span class="size-2.5 rounded-full shrink-0" :style="{ background: l.color }" /><span class="truncate font-medium">{{ l.name }}</span></button>
                 <span class="truncate text-label">{{ l.description || '-' }}</span>
                 <span class="text-label">{{ usage.labels[l.id] ?? 0 }} used</span>
                 <span class="text-meta text-[12px]">{{ formatRelativeTime(l.updatedAt) }}</span>
                 <span class="flex gap-0.5">
-                  <button class="p-1 rounded hover-bg disabled:opacity-30" title="Edit" :disabled="readOnly" @click="editLabel(l)"><UIcon name="i-lucide-pencil" class="size-3.5 block text-meta" /></button>
-                  <button class="p-1 rounded hover-bg disabled:opacity-30" :disabled="readOnly || labelUsed(l.id) > 0" :title="labelUsed(l.id) ? `Used by ${labelUsed(l.id)} issue(s). Remove it from them first.` : 'Delete'" @click="labelDelete = l"><UIcon name="i-lucide-trash-2" class="size-3.5 block text-meta" /></button>
+                  <button class="p-1 rounded hover-bg disabled:opacity-30" title="Edit" @click="editLabel(l)"><UIcon name="i-lucide-pencil" class="size-3.5 block text-meta" /></button>
+                  <button class="p-1 rounded hover-bg disabled:opacity-30" :disabled="labelUsed(l.id) > 0" :title="labelUsed(l.id) ? `Used by ${labelUsed(l.id)} issue(s). Remove it from them first.` : 'Delete'" @click="labelDelete = l"><UIcon name="i-lucide-trash-2" class="size-3.5 block text-meta" /></button>
                 </span>
               </div>
             </div>
@@ -230,7 +198,7 @@ const BUILT_IN = 'Every sub-issue of this issue is closed. Review what each one 
               <div class="flex-1" />
               <label class="flex items-center gap-2 text-[12px] text-label"><USwitch v-model="showArchived" size="sm" /> Show archived</label>
               <span class="text-[12px] text-meta">{{ activeProperties.length }}/{{ MAX_ACTIVE_PROPERTIES }} active</span>
-              <UButton label="New property" icon="i-lucide-plus" size="sm" :disabled="atLimit || readOnly" :title="atLimit ? 'Archive a property first' : ''" @click="newProperty" />
+              <UButton label="New property" icon="i-lucide-plus" size="sm" :disabled="atLimit" :title="atLimit ? 'Archive a property first' : ''" @click="newProperty" />
             </div>
             <div class="rounded-xl overflow-hidden" :style="card">
               <div class="grid grid-cols-[1.2fr_90px_1.6fr_80px_90px_64px] gap-3 px-4 py-2 text-[11px] text-meta" style="border-bottom: 1px solid var(--border-subtle)">
@@ -238,15 +206,68 @@ const BUILT_IN = 'Every sub-issue of this issue is closed. Review what each one 
               </div>
               <p v-if="!propRows.length" class="px-4 py-8 text-center text-[13px] text-meta">{{ config.properties.length ? 'No match.' : 'No properties yet. For example Severity or Environment.' }}</p>
               <div v-for="p in propRows" :key="p.id" class="grid grid-cols-[1.2fr_90px_1.6fr_80px_90px_64px] gap-3 px-4 py-2.5 items-center text-[13px]" :class="{ 'opacity-60': p.archived }" style="border-bottom: 1px solid var(--border-subtle)">
-                <button class="flex items-center gap-2 text-left min-w-0" :disabled="readOnly" @click="editProperty(p)"><span class="size-2.5 rounded-full shrink-0" :style="{ background: propertyColor(p) }" /><span class="truncate font-medium">{{ p.name }}</span><span v-if="p.archived" class="text-[10px] text-meta">archived</span></button>
+                <button class="flex items-center gap-2 text-left min-w-0" @click="editProperty(p)"><span class="size-2.5 rounded-full shrink-0" :style="{ background: propertyColor(p) }" /><span class="truncate font-medium">{{ p.name }}</span><span v-if="p.archived" class="text-[10px] text-meta">archived</span></button>
                 <span class="flex items-center gap-1.5 text-label"><UIcon :name="PROPERTY_TYPE_META[p.type].icon" class="size-3.5" />{{ PROPERTY_TYPE_META[p.type].label }}</span>
                 <span class="truncate text-label">{{ optionsSummary(p) }}</span>
                 <span class="text-label">{{ usage.properties[p.id] ?? 0 }} used</span>
                 <span class="text-meta text-[12px]">{{ formatRelativeTime(p.updatedAt) }}</span>
                 <span class="flex gap-0.5">
-                  <button class="p-1 rounded hover-bg disabled:opacity-30" title="Edit" :disabled="readOnly" @click="editProperty(p)"><UIcon name="i-lucide-pencil" class="size-3.5 block text-meta" /></button>
-                  <button class="p-1 rounded hover-bg disabled:opacity-30" :title="!p.archived && propUsed(p.id) ? `Used by ${propUsed(p.id)} issue(s). Clear it on them first.` : p.archived ? 'Restore' : 'Archive'" :disabled="readOnly || (p.archived && atLimit) || (!p.archived && propUsed(p.id) > 0)" @click="updateProperty(p.id, { archived: !p.archived })"><UIcon :name="p.archived ? 'i-lucide-archive-restore' : 'i-lucide-archive'" class="size-3.5 block text-meta" /></button>
+                  <button class="p-1 rounded hover-bg disabled:opacity-30" title="Edit" @click="editProperty(p)"><UIcon name="i-lucide-pencil" class="size-3.5 block text-meta" /></button>
+                  <button class="p-1 rounded hover-bg disabled:opacity-30" :title="!p.archived && propUsed(p.id) ? `Used by ${propUsed(p.id)} issue(s). Clear it on them first.` : p.archived ? 'Restore' : 'Archive'" :disabled="(p.archived && atLimit) || (!p.archived && propUsed(p.id) > 0)" @click="updateProperty(p.id, { archived: !p.archived })"><UIcon :name="p.archived ? 'i-lucide-archive-restore' : 'i-lucide-archive'" class="size-3.5 block text-meta" /></button>
                 </span>
+              </div>
+            </div>
+          </template>
+
+          <!-- Workflow -->
+          <template v-else-if="tab === 'workflow'">
+            <div>
+              <h2 class="text-section-title">Workflow</h2>
+              <p class="text-[13px] text-label">The statuses an issue moves through, and who owns it in each. Shared by every project.</p>
+            </div>
+            <div class="rounded-xl p-4" :style="card">
+              <div class="text-[14px] font-semibold mb-3">Default</div>
+              <div class="flex flex-wrap items-center gap-1.5">
+                <template v-for="(st, n) in CHAIN" :key="st">
+                  <UIcon v-if="n" name="i-lucide-arrow-right" class="size-3 text-meta" />
+                  <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[12px]" style="border: 1px solid var(--border-subtle)">
+                    <UIcon :name="ISSUE_STATUS_META[st].icon" class="size-3.5" :style="{ color: ISSUE_STATUS_META[st].color }" />{{ ISSUE_STATUS_META[st].label }}
+                    <span v-if="rules[st] !== KEEP" class="text-meta">· {{ agentLabel(rules[st]!) }}</span>
+                  </span>
+                </template>
+              </div>
+            </div>
+            <div>
+              <h3 class="text-[14px] font-semibold">Status library</h3>
+              <p class="text-[12px] text-label mb-2">The built-in statuses. Pick who owns an issue when it enters one.</p>
+              <div class="rounded-xl overflow-hidden" :style="card">
+                <template v-for="g in STATUS_GROUPS" :key="g.title">
+                  <div class="px-4 py-2 text-[12px] font-medium text-label" style="background: var(--surface-base); border-bottom: 1px solid var(--border-subtle)">{{ g.title }}</div>
+                  <div v-for="st in g.statuses" :key="st" class="flex items-center justify-between gap-4 px-4 py-3" style="border-bottom: 1px solid var(--border-subtle)">
+                    <div class="min-w-0">
+                      <div class="flex items-center gap-2 text-[13px] font-medium">
+                        <UIcon :name="ISSUE_STATUS_META[st].icon" class="size-4" :style="{ color: ISSUE_STATUS_META[st].color }" />
+                        {{ ISSUE_STATUS_META[st].label }}
+                        <span class="px-1.5 rounded text-[11px] text-meta" style="background: var(--surface-base)">Built-in</span>
+                        <code class="text-[11px] text-meta">{{ st }}</code>
+                      </div>
+                      <p class="text-[12px] text-label mt-0.5">{{ STATUS_HINT[st] }}</p>
+                    </div>
+                    <select v-model="rules[st]" class="shrink-0 w-56 px-2.5 py-1.5 rounded-lg text-[13px]" :style="field">
+                      <option :value="KEEP">Keep as is</option>
+                      <option :value="NONE">Unassigned (me)</option>
+                      <option v-for="a in agents" :key="a.slug" :value="a.slug">{{ a.frontmatter.name || a.slug }}</option>
+                    </select>
+                  </div>
+                </template>
+              </div>
+              <div class="mt-3 space-y-3">
+                <p class="text-[12px] text-meta">
+                  A rule never starts a run. Runs start only from your own edit or comment.
+                  After a run delivers, "Comment and run" on an unassigned issue goes to the agent of the last run.
+                  Picking an assignee in the same edit overrides the rule.
+                </p>
+                <div class="flex justify-end"><UButton label="Save" size="sm" :disabled="!rulesDirty" @click="submitRules" /></div>
               </div>
             </div>
           </template>
@@ -258,19 +279,19 @@ const BUILT_IN = 'Every sub-issue of this issue is closed. Review what each one 
               <h3 class="text-[14px] font-semibold">When sub-issues finish</h3>
               <p class="text-[12px] text-label mb-2">Starts a run of the parent's agent once every sub-issue is done or cancelled. Needs an agent assignee on the parent.</p>
               <div class="rounded-xl" :style="card">
-                <div class="flex items-center justify-between px-4 py-3" style="border-bottom: 1px solid var(--border-subtle)"><span class="text-[13px] font-medium">On by default</span><USwitch v-model="wake.enabled" :disabled="readOnly" /></div>
+                <div class="flex items-center justify-between px-4 py-3" style="border-bottom: 1px solid var(--border-subtle)"><span class="text-[13px] font-medium">On by default</span><USwitch v-model="wake.enabled" /></div>
                 <div class="p-4 space-y-3">
                   <div>
                     <h4 class="text-[13px] font-semibold">Default instruction</h4>
                     <p class="text-[12px] text-label">Sent to the woken agent. Leave empty to use the built-in instruction below.</p>
                   </div>
-                  <textarea v-model="wake.instruction" rows="3" spellcheck="false" placeholder="Leave empty to use the built-in instruction" :disabled="readOnly" class="w-full px-3 py-2 rounded-lg text-[13px]" :style="field" />
+                  <textarea v-model="wake.instruction" rows="3" spellcheck="false" placeholder="Leave empty to use the built-in instruction" class="w-full px-3 py-2 rounded-lg text-[13px]" :style="field" />
                   <div class="rounded-lg p-3" style="background: var(--surface-base)">
                     <div class="text-[12px] font-semibold mb-1">Built-in instruction</div>
                     <p class="text-[12px] text-label">{{ BUILT_IN }}</p>
                     <p class="text-[12px] text-meta mt-1">The list of sub-issues and their statuses is added after the instruction.</p>
                   </div>
-                  <div class="flex justify-end"><UButton label="Save" size="sm" :disabled="!wakeDirty || readOnly" @click="() => { saveWakeups({ enabled: wake.enabled, instruction: wake.instruction }) }" /></div>
+                  <div class="flex justify-end"><UButton label="Save" size="sm" :disabled="!wakeDirty" @click="() => { saveWakeups({ enabled: wake.enabled, instruction: wake.instruction }) }" /></div>
                 </div>
               </div>
             </div>
@@ -278,16 +299,6 @@ const BUILT_IN = 'Every sub-issue of this issue is closed. Review what each one 
         </div>
       </div>
     </div>
-
-    <UModal v-model:open="resetConfirm">
-      <template #content>
-        <div class="p-6 space-y-4 w-[440px] max-w-full" style="background: var(--surface-raised)">
-          <h3 class="text-page-title">Reset {{ projectName }} to the default?</h3>
-          <p class="text-[13px] text-label">Deletes this project's own labels, properties and wakeup rules. The project then follows the default. Nothing in use is lost: a reset is blocked while issues use a label or property that only this project has.</p>
-          <div class="flex justify-end gap-2"><UButton label="Cancel" variant="ghost" color="neutral" size="sm" @click="() => { resetConfirm = false }" /><UButton label="Reset" color="error" size="sm" @click="doReset" /></div>
-        </div>
-      </template>
-    </UModal>
 
     <!-- Label dialog -->
     <UModal v-model:open="labelDlg">
@@ -302,13 +313,6 @@ const BUILT_IN = 'Every sub-issue of this issue is closed. Review what each one 
             </div></div>
           <label class="block space-y-1"><span class="text-[12px] text-label">Description</span>
             <input v-model="labelForm.description" maxlength="200" class="w-full px-3 py-2 rounded-lg text-[13px]" :style="field" /></label>
-          <div v-if="labelProjects.length" class="space-y-1"><span class="text-[12px] text-label">Projects</span>
-            <div class="max-h-36 overflow-y-auto custom-scrollbar rounded-lg p-1" :style="field">
-              <label v-for="p in labelProjects" :key="p.dir" class="flex items-center gap-2 px-2 py-1 rounded hover-bg text-[13px] cursor-pointer" :title="p.dir">
-                <input v-model="labelPick" type="checkbox" :value="p.dir" /><UIcon name="i-lucide-folder" class="size-3.5 text-meta" /><span class="truncate">{{ p.name }}</span>
-              </label>
-            </div>
-            <p class="text-[11px] text-meta">Projects that can use this label. A project without its own settings gets its own copy of the default first.</p></div>
           <div class="flex justify-end gap-2"><UButton label="Cancel" variant="ghost" color="neutral" size="sm" @click="() => { labelDlg = false }" /><UButton type="submit" :label="labelEditId ? 'Save' : 'Create'" size="sm" :disabled="!labelForm.name.trim() || labelBusy" /></div>
         </form>
       </template>
@@ -346,13 +350,6 @@ const BUILT_IN = 'Every sub-issue of this issue is closed. Review what each one 
             </div>
             <UButton label="Add option" icon="i-lucide-plus" size="xs" variant="soft" color="neutral" type="button" @click="() => { propForm.options.push({ name: '' }) }" />
           </div>
-          <div v-if="propProjects.length" class="space-y-1"><span class="text-[12px] text-label">Projects</span>
-            <div class="max-h-36 overflow-y-auto custom-scrollbar rounded-lg p-1" :style="field">
-              <label v-for="p in propProjects" :key="p.dir" class="flex items-center gap-2 px-2 py-1 rounded hover-bg text-[13px] cursor-pointer" :title="p.dir">
-                <input v-model="propPick" type="checkbox" :value="p.dir" /><UIcon name="i-lucide-folder" class="size-3.5 text-meta" /><span class="truncate">{{ p.name }}</span>
-              </label>
-            </div>
-            <p class="text-[11px] text-meta">Projects that can use this property. A project without its own settings gets its own copy of the default first.</p></div>
           <div class="flex justify-end gap-2"><UButton label="Cancel" variant="ghost" color="neutral" size="sm" @click="() => { propDlg = false }" /><UButton type="submit" :label="propEditId ? 'Save' : 'Create'" size="sm" :disabled="!propValid || propBusy" /></div>
         </form>
       </template>

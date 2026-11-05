@@ -49,7 +49,7 @@ export default defineEventHandler(async (event) => {
   // Background: do not await. The board and issue page poll while `drafting` is set.
   draftIssue(prompt, agents, projectDir, { agent: draftAgent, sources })
     .then((draft) => {
-      const done = applyDraft(created.id, draft, projectDir)
+      const done = applyDraft(created.id, draft)
       if (done && shouldAutoRun(null, done)) startRun(done.id)
     })
     .catch((e: any) => {

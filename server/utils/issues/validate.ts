@@ -9,9 +9,9 @@ function bad(message: string): never {
 }
 
 /** Keep only known property ids with a value that fits the type. Empty values clear the property. */
-function parseProperties(input: unknown, projectDir: string): Record<string, string | number | boolean> {
+function parseProperties(input: unknown): Record<string, string | number | boolean> {
   if (!input || typeof input !== 'object' || Array.isArray(input)) bad('Properties must be an object')
-  const defs = new Map(readConfig(projectDir).properties.map(p => [p.id, p]))
+  const defs = new Map(readConfig().properties.map(p => [p.id, p]))
   const out: Record<string, string | number | boolean> = {}
   for (const [id, raw] of Object.entries(input as Record<string, unknown>)) {
     const def = defs.get(id)
@@ -43,7 +43,7 @@ function parseProperties(input: unknown, projectDir: string): Record<string, str
 }
 
 /** Validate only the fields present. Used by create (with defaults applied after) and update. */
-export function parseFields(body: any, projectDir: string): Partial<Fields> {
+export function parseFields(body: any): Partial<Fields> {
   if (!body || typeof body !== 'object') bad('Body must be an object')
   const out: Partial<Fields> = {}
   if ('title' in body) {
@@ -73,10 +73,10 @@ export function parseFields(body: any, projectDir: string): Partial<Fields> {
   if ('labels' in body) {
     if (!Array.isArray(body.labels)) bad('Labels must be a list')
     // Only ids that exist in the workspace config: a label deleted in another tab is dropped, not kept dangling
-    const known = new Set(readConfig(projectDir).labels.map(l => l.id))
+    const known = new Set(readConfig().labels.map(l => l.id))
     out.labels = [...new Set(body.labels.map((l: unknown) => String(l).trim()).filter((l: string) => known.has(l)))].slice(0, MAX_ISSUE_LABELS) as string[]
   }
-  if ('properties' in body) out.properties = parseProperties(body.properties, projectDir)
+  if ('properties' in body) out.properties = parseProperties(body.properties)
   if ('wakeups' in body) {
     const v = body.wakeups?.subIssuesFinish
     if (v !== undefined && v !== 'default' && v !== 'on' && v !== 'off') bad('Invalid wakeup setting')

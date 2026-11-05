@@ -35,8 +35,8 @@ const projectChoices = computed(() => {
   return list
 })
 const ic = useIssueConfig()
-const config = computed(() => ic.configFor(dir.value))
-const activeProperties = computed(() => ic.activePropertiesFor(dir.value))
+const config = ic.config
+const activeProperties = ic.activeProperties
 const labelIds = ref<string[]>([])
 const props_ = ref<Record<string, string | number | boolean>>({})
 const toggleLabel = (id: string) => { labelIds.value = labelIds.value.includes(id) ? labelIds.value.filter(x => x !== id) : [...labelIds.value, id] }
@@ -46,12 +46,7 @@ const setProp = (id: string, v: string | number | boolean | null) => {
   else next[id] = v
   props_.value = next
 }
-// Labels and properties belong to a project: load them for the chosen one and drop picks made for another
-watch(dir, (d) => {
-  labelIds.value = []
-  props_.value = {}
-  if (d) ic.load(d)
-}, { immediate: true })
+onMounted(() => { ic.load() })
 const another = ref(false)
 
 const willRun = computed(() => !!assignee.value && (status.value === 'todo' || status.value === 'in_progress'))

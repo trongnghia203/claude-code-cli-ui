@@ -15,7 +15,7 @@ export function onStatusChanged(childId: string, before: Issue['status']): boole
   const parent = readIssue(child.parentId)
   if (!parent || isClosed(parent) || !parent.assignee || isRunning(parent.id)) return false
 
-  const rule = readConfig(parent.projectDir).wakeups.subIssuesFinish
+  const rule = readConfig().wakeups.subIssuesFinish
   const override = parent.wakeups?.subIssuesFinish
   if (override ? override === 'off' : !rule.enabled) return false
 

@@ -15,8 +15,8 @@ const { fetchOne, update, remove, comment, run, cancel, answerApproval, addWakeu
 const { agents, fetchAll: fetchAgents } = useAgents()
 import { propertyColor } from '~/composables/useIssueConfig'
 const ic = useIssueConfig()
-const issueConfig = computed(() => ic.configFor(issue.value?.projectDir ?? ''))
-const activeProperties = computed(() => ic.activePropertiesFor(issue.value?.projectDir ?? ''))
+const issueConfig = ic.config
+const activeProperties = ic.activeProperties
 
 const id = computed(() => String(route.params.id))
 // Going back keeps the board's filters and view (they live in its URL). Opened directly, go to the plain list.
@@ -150,7 +150,7 @@ watch(() => running.value || drafting.value, (r) => {
 const { markSeen } = useIssueSeen()
 onUnmounted(() => { if (timer) clearInterval(timer); markSeen(id.value) })
 onMounted(() => { markSeen(id.value); fetchAgents(); load() })
-watch(() => issue.value?.projectDir, (d) => { if (d) ic.load(d) })
+onMounted(() => { ic.load() })
 const toggleLabel = (labelId: string) => {
   if (!issue.value) return
   const cur = issue.value.labels
