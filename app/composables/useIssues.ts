@@ -142,6 +142,12 @@ export function useIssues() {
   async function comment(id: string, body: string, run = false, agent?: string): Promise<IssueDetail | null> {
     try { return (await $fetch<{ issue: IssueDetail }>(`/api/issues/${id}/comments`, { method: 'POST', body: { body, run, agent } })).issue } catch (e) { return fail(e) }
   }
+  async function editComment(id: string, cid: string, body: string): Promise<IssueDetail | null> {
+    try { return (await $fetch<{ issue: IssueDetail }>(`/api/issues/${id}/comments/${cid}`, { method: 'PUT', body: { body } })).issue } catch (e) { return fail(e) }
+  }
+  async function deleteComment(id: string, cid: string): Promise<IssueDetail | null> {
+    try { return (await $fetch<{ issue: IssueDetail }>(`/api/issues/${id}/comments/${cid}`, { method: 'DELETE' })).issue } catch (e) { return fail(e) }
+  }
   async function run(id: string): Promise<boolean> {
     try { await $fetch(`/api/issues/${id}/run`, { method: 'POST' }); return true } catch (e) { fail(e); return false }
   }
@@ -161,5 +167,5 @@ export function useIssues() {
     try { await $fetch(`/api/issues/${id}/cancel`, { method: 'POST' }); return true } catch (e) { fail(e); return false }
   }
 
-  return { issues, loading, load, create, createWithAgent, fetchOne, update, remove, comment, run, cancel, answerApproval, addWakeup, updateWakeup, deleteWakeup }
+  return { issues, loading, load, create, createWithAgent, fetchOne, update, remove, comment, editComment, deleteComment, run, cancel, answerApproval, addWakeup, updateWakeup, deleteWakeup }
 }

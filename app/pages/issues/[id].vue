@@ -11,7 +11,7 @@ import { projectSlug } from '~/utils/projectSlug'
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
-const { fetchOne, update, remove, comment, run, cancel, answerApproval, addWakeup, updateWakeup, deleteWakeup } = useIssues()
+const { fetchOne, update, remove, comment, editComment, deleteComment, run, cancel, answerApproval, addWakeup, updateWakeup, deleteWakeup } = useIssues()
 const { agents, fetchAll: fetchAgents } = useAgents()
 import { propertyColor } from '~/composables/useIssueConfig'
 const ic = useIssueConfig()
@@ -219,6 +219,21 @@ async function send(andRun: boolean) {
   const res = await comment(id.value, body, andRun, andRun ? mentionedAgent.value ?? undefined : undefined)
   busy.value = false
   if (res) { issue.value = res; newComment.value = ''; running.value = res.runs.some(r => r.status === 'running') }
+}
+// Edit or delete a comment in the activity list
+const editingId = ref<string | null>(null)
+const editText = ref('')
+const startCommentEdit = (c: { id: string; body: string }) => { editingId.value = c.id; editText.value = c.body }
+async function saveCommentEdit() {
+  const body = editText.value.trim()
+  if (!editingId.value || !body) return
+  const res = await editComment(id.value, editingId.value, body)
+  if (res) { issue.value = res; editingId.value = null }
+}
+async function removeComment(cid: string) {
+  if (!window.confirm('Delete this comment?')) return
+  const res = await deleteComment(id.value, cid)
+  if (res) { issue.value = res; if (editingId.value === cid) editingId.value = null }
 }
 // @agent mentions in the comment box
 const commentEl = ref<HTMLTextAreaElement | null>(null)
@@ -485,13 +500,23 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
                 <div class="flex items-center gap-2 text-[11px] text-label mb-1">
                   <UIcon :name="b.comment.author === 'agent' ? 'i-lucide-cpu' : 'i-lucide-user'" class="size-3.5" />
                   {{ b.comment.author === 'agent' ? agentName(issue.assignee) : 'You' }} &middot; {{ when(b.comment.at) }}
+                  <span class="ml-auto flex items-center gap-1">
+                    <UButton icon="i-lucide-pencil" size="xs" color="neutral" variant="ghost" aria-label="Edit comment" class="opacity-50 hover:opacity-100 transition-opacity" style="color: var(--text-tertiary)" @click="startCommentEdit(b.comment)" />
+                    <UButton icon="i-lucide-trash-2" size="xs" color="neutral" variant="ghost" aria-label="Delete comment" class="opacity-50 hover:opacity-100 transition-opacity" style="color: var(--text-tertiary)" @click="removeComment(b.comment.id)" />
+                  </span>
                 </div>
-                <div class="md-prose issue-prose" v-html="renderMarkdown(mentionize(withBreaks(linkify(emojify(b.comment.body)), b.comment.author === 'user')))" />
+                <div v-if="editingId === b.comment.id" class="space-y-2">
+                  <UTextarea v-model="editText" :rows="4" autoresize class="w-full" />
+                  <div class="flex gap-2 justify-end">
+                    <UButton label="Cancel" size="xs" color="neutral" variant="soft" @click="() => { editingId = null }" />
+                    <UButton label="Save" size="xs" :disabled="!editText.trim()" @click="saveCommentEdit" />
+                  </div>
+                </div>
+                <div v-else class="md-prose issue-prose" v-html="renderMarkdown(mentionize(withBreaks(linkify(emojify(b.comment.body)), b.comment.author === 'user')))" />
               </div>
               <!-- run and status activity, folded into one line -->
               <div v-else>
                 <button class="w-full flex items-center gap-2 text-[12px] text-label rounded-lg px-0 py-1.5 text-left" @click="toggleGroup(b.key)">
-                  <UIcon name="i-lucide-chevron-right" class="size-3.5 shrink-0 transition-transform" :class="{ 'rotate-90': groupOpen(b) }" />
                   <template v-if="b.run">
                     <UIcon :name="ISSUE_RUN_META[b.run.status].icon" class="size-3.5 shrink-0" :class="{ 'animate-spin': b.run.status === 'running' }" :style="{ color: ISSUE_RUN_META[b.run.status].color }" />
                     <b style="color: var(--text-primary)">Run {{ ISSUE_RUN_META[b.run.status].label.toLowerCase() }}</b>
