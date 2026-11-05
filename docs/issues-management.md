@@ -97,14 +97,18 @@ It talks to the local server (`CLAUDE_UI_URL`, or `CLAUDE_UI_PORT`, default 3030
 ```bash
 claude-ui issue list    [--status S] [--label L] [--limit N] [--json]
 claude-ui issue get     ISS-1 [--comments N] [--live] [--json]
-claude-ui issue create  --title T [--body TEXT | --body-file FILE|-] [--status S] [--priority P] [--label a,b] [--project DIR] [--parent ISS-1]
-claude-ui issue update  ISS-1 [--title T] [--body TEXT | --body-file FILE|-] [--priority P] [--label a,b] [--add-label L] [--remove-label L]
+claude-ui issue create  --title T [--body TEXT | --body-file FILE|-] [--status S] [--priority P] [--label a,b] [--prop NAME=VALUE]... [--project DIR] [--parent ISS-1]
+claude-ui issue update  ISS-1 [--title T] [--body TEXT | --body-file FILE|-] [--priority P] [--label a,b] [--add-label L] [--remove-label L] [--prop NAME=VALUE]...
+claude-ui issue property ISS-1 [set NAME=VALUE... | unset NAME...]
+claude-ui issue label    ISS-1 [add L... | remove L... | set a,b]
 claude-ui issue move    ISS-1 STATUS
 claude-ui issue comment ISS-1 [--body TEXT | --body-file FILE|-]
 claude-ui issue fold    ISS-1 [--ids a,b] [--note T] [--body TEXT | --body-file FILE|-] [--if-hash H]
 ```
 
 - `--body-file -` reads stdin. `update --body` replaces the whole description.
+- `property` and `label` are shortcuts for `update`. With no verb they show the current values. `label set` replaces the list. Labels must exist in settings.
+- `--prop NAME=VALUE` (repeatable) sets a custom property by name or id, for example `--prop "Due date=2026-11-16"`. Empty value clears it. Select takes the option name. Other properties are kept.
 - `create` makes an unassigned issue in `plan` mode, default project is the current directory or `CLAUDE_UI_PROJECT`.
 - There is no run, cancel, assign or delete verb on purpose. An agent can't start runs or hand work to another agent.
 - `move` to `todo` or `in_progress` is refused on an assigned issue, because that status starts a run.

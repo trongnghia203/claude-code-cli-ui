@@ -14,13 +14,17 @@ const USAGE = `claude-ui issue <command>
 
   list    [--status S] [--label L] [--limit N] [--json]
   get     KEY [--comments N] [--live] [--json]   (--live: only comments no distill or clear folded)
-  create  --title T [--body TEXT | --body-file FILE|-] [--status S] [--priority P] [--label a,b] [--project DIR] [--parent KEY]
-  update  KEY [--title T] [--body TEXT | --body-file FILE|-] [--priority P] [--label a,b] [--add-label L] [--remove-label L]
+  create  --title T [--body TEXT | --body-file FILE|-] [--status S] [--priority P] [--label a,b] [--prop NAME=VALUE]... [--project DIR] [--parent KEY]
+  update  KEY [--title T] [--body TEXT | --body-file FILE|-] [--priority P] [--label a,b] [--add-label L] [--remove-label L] [--prop NAME=VALUE]...
+  property KEY set NAME=VALUE...   |  unset NAME...  |  (none: show)     custom properties, other values kept
+  label    KEY add L...  |  remove L...  |  set a,b  |  (none: show)       set replaces the whole list
   move    KEY STATUS            (close = move KEY done)
   comment KEY [--body TEXT | --body-file FILE|-]
   fold    KEY [--ids a,b] [--note T] [--body TEXT | --body-file FILE|-] [--if-hash H]
           (folds live comments like /distill, without a run. --body also replaces the description)
 
+--prop sets a custom property by name or id, repeatable: --prop "Due date=2026-11-16". Empty value clears it (--prop "Due date=").
+  Select properties take the option name. Dates are YYYY-MM-DD. Other properties are kept.
 Statuses: ${STATUSES.join(', ')}
 Priorities: ${PRIORITIES.join(', ')}
 Never assigns agents and never starts runs. --body-file - reads stdin.`
@@ -30,7 +34,7 @@ const die = (msg, code = 1) => { console.error(`error: ${msg}`); process.exit(co
 function parse(argv) {
   const pos = []
   const opt = {}
-  const multi = new Set(['add-label', 'remove-label'])
+  const multi = new Set(['add-label', 'remove-label', 'prop'])
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (!a.startsWith('--')) { pos.push(a); continue }
@@ -70,6 +74,27 @@ const needKey = (k) => { if (!/^ISS-\d+$/.test(k || '')) die('KEY must look like
 const checkStatus = (s) => { if (!STATUSES.includes(s)) die(`invalid status "${s}". Use: ${STATUSES.join(', ')}`, 2); return s }
 const checkPriority = (p) => { if (!PRIORITIES.includes(p)) die(`invalid priority "${p}". Use: ${PRIORITIES.join(', ')}`, 2); return p }
 const line = i => `${i.id} [${i.status}] ${i.priority !== 'none' ? i.priority + ' ' : ''}${i.title}${i.labels?.length ? `  {${i.labels.join(', ')}}` : ''}${i.assignee ? `  @${i.assignee}` : ''}${i.running ? '  (running)' : ''}`
+/** Turn repeated --prop NAME=VALUE into a properties object keyed by property id. null = clear. Dies on unknown names. */
+async function propsFrom(list) {
+  const { config } = await api('/api/issue-config')
+  const defs = config.properties.filter(p => !p.archived)
+  const res = {}
+  for (const kv of list) {
+    const i = kv.indexOf('=')
+    if (i < 1) die(`--prop needs NAME=VALUE, got "${kv}"`, 2)
+    const key = kv.slice(0, i).trim().toLowerCase()
+    const val = kv.slice(i + 1).trim()
+    const def = defs.find(p => p.id.toLowerCase() === key || p.name.toLowerCase() === key)
+    if (!def) die(`unknown property "${kv.slice(0, i)}". Known: ${defs.map(p => p.name).join(', ') || '(none)'}`, 2)
+    if (val === '') { res[def.id] = null; continue }
+    if (def.type === 'select') {
+      const o = def.options.find(o => o.id === val || o.name.toLowerCase() === val.toLowerCase())
+      if (!o) die(`"${val}" is not an option of ${def.name}. Options: ${def.options.map(o => o.name).join(', ')}`, 2)
+      res[def.id] = o.id
+    } else res[def.id] = val
+  }
+  return res
+}
 const out = (o, json, text) => console.log(json ? JSON.stringify(o, null, 2) : text)
 
 /** A status change that would start a run on an assigned issue is refused. */
@@ -79,8 +104,37 @@ function guardRun(issue, status) {
   }
 }
 
-const [cmd, ...rest] = process.argv.slice(2)
+let [cmd, ...rest] = process.argv.slice(2)
 const { pos, opt } = parse(rest)
+
+// property and label verbs are sugar over update, so merge and validation live in one place
+if (cmd === 'property' || cmd === 'label') {
+  const key = needKey(pos[0])
+  const [verb, ...args] = pos.slice(1)
+  const noun = cmd
+  if (verb === undefined) {
+    const { issue } = await api(`/api/issues/${key}`)
+    if (noun === 'label') out(issue.labels ?? [], opt.json, (issue.labels ?? []).join(', ') || '(no labels)')
+    else {
+      const { config } = await api('/api/issue-config')
+      const rows = Object.entries(issue.properties ?? {}).map(([id, v]) => {
+        const d = config.properties.find(p => p.id === id)
+        return [d?.name ?? id, d?.type === 'select' ? d.options.find(o => o.id === v)?.name ?? v : v]
+      })
+      out(Object.fromEntries(rows), opt.json, rows.map(([n, v]) => `${n}: ${v}`).join('\n') || '(no properties)')
+    }
+    process.exit(0)
+  }
+  if (!args.length && !(noun === 'label' && verb === 'set')) die(`${noun} ${verb} needs at least one value`, 2)
+  if (noun === 'property' && verb === 'set') opt.prop = args
+  else if (noun === 'property' && verb === 'unset') opt.prop = args.map(n => `${n}=`)
+  else if (noun === 'label' && verb === 'add') opt['add-label'] = args
+  else if (noun === 'label' && verb === 'remove') opt['remove-label'] = args
+  else if (noun === 'label' && verb === 'set') opt.label = args.join(',')
+  else die(`unknown ${noun} verb "${verb}". Use ${noun === 'property' ? 'set, unset' : 'add, remove, set'}`, 2)
+  pos.length = 1
+  cmd = 'update'
+}
 
 if (!cmd || cmd === 'help' || cmd === '-h' || cmd === '--help') { console.log(USAGE); process.exit(0) }
 
@@ -118,6 +172,10 @@ if (cmd === 'list') {
     assignee: null,
   }
   if (opt.parent) payload.parentId = needKey(opt.parent)
+  if (opt.prop) {
+    const set = await propsFrom(opt.prop)
+    payload.properties = Object.fromEntries(Object.entries(set).filter(([, v]) => v !== null))
+  }
   const { issue } = await api('/api/issues', { method: 'POST', body: JSON.stringify(payload) })
   out(issue, opt.json, `created ${line(issue)}`)
 } else if (cmd === 'update') {
@@ -134,7 +192,16 @@ if (cmd === 'list') {
     for (const l of opt['remove-label'] ?? []) labels = labels.filter(x => x.toLowerCase() !== l.toLowerCase())
     patch.labels = labels
   }
-  if (!Object.keys(patch).length) die('nothing to update. Pass --title, --body, --priority or a label flag', 2)
+  if (opt.prop) {
+    // PUT replaces the whole properties object, so merge into the current values
+    const props = { ...(cur.properties ?? {}) }
+    for (const [id, v] of Object.entries(await propsFrom(opt.prop))) {
+      if (v === null) delete props[id]
+      else props[id] = v
+    }
+    patch.properties = props
+  }
+  if (!Object.keys(patch).length) die('nothing to update. Pass --title, --body, --priority, --prop or a label flag', 2)
   const { issue } = await api(`/api/issues/${key}`, { method: 'PUT', body: JSON.stringify(patch) })
   out(issue, opt.json, `updated ${line(issue)}`)
 } else if (cmd === 'move') {
