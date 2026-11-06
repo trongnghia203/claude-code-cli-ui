@@ -48,6 +48,16 @@ const blocks = computed(() => {
     last.group.push(e)
     if (e.type === 'run') { const r = runById(e.runId); if (r) last.run = r }
   }
+  // The run entry is stamped at run start, so its context and tool calls would sit above the "to In progress" move.
+  // Tool calls happen while In progress: put the run entry right after that move.
+  for (const b of out) {
+    const ri = b.group.findIndex(e => e.type === 'run')
+    if (ri < 0) continue
+    const si = b.group.findIndex((e, i) => i > ri && e.type === 'status' && e.to === 'in_progress')
+    if (si < 0) continue
+    const [run] = b.group.splice(ri, 1)
+    b.group.splice(si, 0, run!)
+  }
   return out
 })
 // Folded by default, running or not: the summary row already shows the live status
