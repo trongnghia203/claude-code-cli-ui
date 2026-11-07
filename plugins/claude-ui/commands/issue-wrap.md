@@ -5,10 +5,12 @@ allowed-tools: Bash(claude-ui issue get:*), Bash(claude-ui issue fold:*), Bash(c
 ---
 
 Wrap up this session on the claude-ui issue in three steps. This records the session's work. It does not distill or clean up the issue.
-Stop after step 1 until the user approves.
+Running this command is the approval. Do not stop to ask between steps.
 
-1. Do what `/claude-ui:issue-distill $ARGUMENTS` does: read the issue with `--live`, draft the new description, show it. Then ask: `Apply? (yes / edit)`.
-2. On approval, do what `/claude-ui:issue-update` does (`fold` with `--ids` and `--if-hash`).
+1. Do what `/claude-ui:issue-distill $ARGUMENTS` does: read the issue with `--live`, draft the new description, show it.
+   Do not ask `Apply?`. Go straight to step 2.
+2. Do what `/claude-ui:issue-update` does (`fold` with `--ids` and `--if-hash`).
+   On `The description changed since you read it`: stop, show the merge diff and ask before retrying. This is the only stop.
 3. Do what `/claude-ui:issue-comment` does: post a 2-4 line result comment.
 
 Finish with one line: issue key, comments folded, comment posted. The user can now exit the session.
