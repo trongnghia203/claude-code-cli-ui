@@ -99,6 +99,13 @@ export const ISSUE_PRIORITY_META: Record<IssuePriority, { label: string; color: 
 }
 export const ISSUE_PRIORITIES = Object.keys(ISSUE_PRIORITY_META) as IssuePriority[]
 
+export const ISSUE_PERMISSION_META: Record<IssuePermissionMode, { label: string; icon: string; color: string }> = {
+  plan: { label: 'Plan only (no edits)', icon: 'i-lucide-map', color: '#14b8a6' },
+  default: { label: 'Default', icon: 'i-lucide-shield', color: '#71717a' },
+  acceptEdits: { label: 'Accept edits', icon: 'i-lucide-file-pen-line', color: '#8b5cf6' },
+}
+export const ISSUE_PERMISSION_MODES = Object.keys(ISSUE_PERMISSION_META) as IssuePermissionMode[]
+
 export const ISSUE_RUN_META: Record<IssueRunStatus, { label: string; color: string; icon: string }> = {
   running: { label: 'Running', color: '#3b82f6', icon: 'i-lucide-loader-2' },
   success: { label: 'Success', color: '#22c55e', icon: 'i-lucide-check-circle-2' },

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { IssueApproval, IssueDetail, IssueRun, IssuePermissionMode, IssuePriority, IssueStatus } from '~/composables/useIssues'
-import { WAKE_REPEAT_LABEL, ISSUE_PRIORITIES, ISSUE_PRIORITY_META, ISSUE_RUN_META, ISSUE_STATUS_META, ISSUE_STATUSES } from '~/composables/useIssues'
+import { WAKE_REPEAT_LABEL, ISSUE_PERMISSION_META, ISSUE_PERMISSION_MODES, ISSUE_PRIORITIES, ISSUE_PRIORITY_META, ISSUE_RUN_META, ISSUE_STATUS_META, ISSUE_STATUSES } from '~/composables/useIssues'
 import type { IssueSessionRow, IssueWakeup, WakeupInput } from '~/composables/useIssues'
 import { formatWakeAt } from '~/utils/wakeupFormat'
 import { renderMarkdown } from '~/utils/markdown'
@@ -666,7 +666,7 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
         <section class="space-y-1">
           <h3 class="font-semibold text-[13px] mb-1.5">Properties</h3>
           <div class="prop-row"><span class="prop-label">Status</span>
-            <span class="flex items-center gap-1.5 flex-1 min-w-0"><UIcon :name="ISSUE_STATUS_META[issue.status].icon" class="size-3.5 shrink-0" :style="{ color: ISSUE_STATUS_META[issue.status].color }" />
+            <span class="flex items-center gap-1.5 flex-1 min-w-0"><span class="prop-icon"><UIcon :name="ISSUE_STATUS_META[issue.status].icon" class="size-3.5" :style="{ color: ISSUE_STATUS_META[issue.status].color }" /></span>
               <select :value="issue.status" class="prop-select" @change="patch({ status: ($event.target as HTMLSelectElement).value as IssueStatus })">
                 <option v-for="s in ISSUE_STATUSES" :key="s" :value="s">{{ ISSUE_STATUS_META[s].label }}</option>
               </select></span></div>
@@ -677,17 +677,17 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
                 <option v-for="a in agents" :key="a.slug" :value="a.slug">{{ a.frontmatter.name || a.slug }}</option>
               </select></span></div>
           <div class="prop-row"><span class="prop-label">Priority</span>
-            <select :value="issue.priority" class="prop-select" @change="patch({ priority: ($event.target as HTMLSelectElement).value as IssuePriority })">
-              <option v-for="p in ISSUE_PRIORITIES" :key="p" :value="p">{{ ISSUE_PRIORITY_META[p].label }}</option>
-            </select></div>
+            <span class="flex items-center gap-1.5 flex-1 min-w-0"><span class="prop-icon"><PriorityIcon :priority="issue.priority" class="size-3.5 text-meta" /></span>
+              <select :value="issue.priority" class="prop-select" @change="patch({ priority: ($event.target as HTMLSelectElement).value as IssuePriority })">
+                <option v-for="p in ISSUE_PRIORITIES" :key="p" :value="p">{{ ISSUE_PRIORITY_META[p].label }}</option>
+              </select></span></div>
           <div class="prop-row"><span class="prop-label">Permissions</span>
-            <select :value="issue.permissionMode" class="prop-select" @change="patch({ permissionMode: ($event.target as HTMLSelectElement).value as IssuePermissionMode })">
-              <option value="plan">Plan only (no edits)</option>
-              <option value="default">Default</option>
-              <option value="acceptEdits">Accept edits</option>
-            </select></div>
+            <span class="flex items-center gap-1.5 flex-1 min-w-0"><span class="prop-icon"><UIcon :name="ISSUE_PERMISSION_META[issue.permissionMode].icon" class="size-3.5" :style="{ color: ISSUE_PERMISSION_META[issue.permissionMode].color }" /></span>
+              <select :value="issue.permissionMode" class="prop-select" @change="patch({ permissionMode: ($event.target as HTMLSelectElement).value as IssuePermissionMode })">
+                <option v-for="m in ISSUE_PERMISSION_MODES" :key="m" :value="m">{{ ISSUE_PERMISSION_META[m].label }}</option>
+              </select></span></div>
           <div class="prop-row"><span class="prop-label">Project</span>
-            <span class="flex items-center gap-1.5 min-w-0" :title="issue.projectDir"><UIcon name="i-lucide-folder" class="size-3.5 shrink-0 text-meta" /><span class="truncate">{{ issue.projectDir.split('/').filter(Boolean).pop() }}</span></span></div>
+            <span class="flex items-center gap-1.5 min-w-0" :title="issue.projectDir"><span class="prop-icon"><UIcon name="i-lucide-folder" class="size-3.5 text-meta" /></span><span class="truncate pl-1">{{ issue.projectDir.split('/').filter(Boolean).pop() }}</span></span></div>
           <div class="prop-row items-start"><span class="prop-label pt-1">Labels</span>
             <span class="flex flex-wrap gap-1">
               <button v-for="l in issueConfig.labels" :key="l.id" type="button" class="flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px]"

@@ -305,13 +305,12 @@ useHead({ title: 'Issues | Agent Manager' })
             :style="cardStyle(i)" :title="i.awaitingApproval ? 'Waiting for your approval' : isFresh(i) ? 'Updated since you last opened it' : undefined"
             @dragstart="dragId = i.id" @dragend="dragId = overKey = null" @click="open(i)">
             <div class="flex items-center gap-3 text-[12px] text-meta font-mono">
-              <template v-if="shows('id')">{{ i.id }}</template>
+              <span v-if="shows('priority') || shows('id')" class="flex items-center gap-1.5"><PriorityIcon v-if="shows('priority')" :priority="i.priority" class="size-3.5" /><template v-if="shows('id')">{{ i.id }}</template></span>
               <span v-if="shows('assignee')" class="flex items-center gap-1.5 min-w-0 font-sans text-[12px] text-label" :title="agentName(i.assignee)"><UIcon name="i-lucide-cpu" class="size-3.5 shrink-0" /><span class="truncate">{{ agentName(i.assignee) }}</span></span>
               <UIcon v-if="i.awaitingApproval" name="i-lucide-shield-question" class="size-3.5" style="color: #ea580c" title="Waiting for your approval" />
               <UIcon v-else-if="i.running || i.drafting" name="i-lucide-loader-2" class="size-3 animate-spin" style="color: #3b82f6" :title="i.drafting ? 'Agent is reading sources' : undefined" />
               <span class="ml-auto flex items-center gap-2 shrink-0">
                 <span v-if="shows('comments') && i.commentCount" class="flex items-center gap-1 font-sans text-[12px] text-label" title="Comments"><UIcon name="i-lucide-message-square" class="size-3.5" />{{ i.commentCount }}</span>
-                <span v-if="shows('priority')" class="size-2.5 rounded-full" :title="ISSUE_PRIORITY_META[i.priority].label" :style="{ background: ISSUE_PRIORITY_META[i.priority].color }" />
               </span>
             </div>
             <div class="text-[14px] leading-snug font-semibold mt-1.5 line-clamp-3" style="color: var(--text-primary)">{{ i.title }}</div>
@@ -346,7 +345,7 @@ useHead({ title: 'Issues | Agent Manager' })
           <div class="rounded-xl overflow-hidden" style="border: 1px solid var(--border-subtle)">
             <UContextMenu v-for="i in cardsIn(c)" :key="i.id" :items="menuFor(i)">
             <button class="w-full flex items-center gap-3 px-3 py-2 text-left hover-bg text-[13px]" :style="{ borderBottom: '1px solid var(--border-subtle)', ...(i.awaitingApproval ? { background: 'color-mix(in srgb, #f97316 16%, var(--surface-base))' } : {}) }" :title="i.awaitingApproval ? 'Waiting for your approval' : undefined" @click="open(i)">
-              <span v-if="shows('priority')" class="size-2 rounded-full shrink-0" :style="{ background: ISSUE_PRIORITY_META[i.priority].color }" />
+              <PriorityIcon v-if="shows('priority')" :priority="i.priority" class="size-3.5" />
               <span v-if="shows('id')" class="font-mono text-[11px] text-meta w-16 shrink-0">{{ i.id }}</span>
               <span class="flex-1 truncate">{{ i.title }}</span>
               <UIcon v-if="i.running || i.drafting" name="i-lucide-loader-2" class="size-3.5 animate-spin" style="color: #3b82f6" :title="i.drafting ? 'Agent is reading sources' : undefined" />

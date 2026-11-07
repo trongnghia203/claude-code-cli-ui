@@ -1698,6 +1698,8 @@ details summary::-webkit-details-marker {
   background: transparent; color: var(--text-primary); cursor: pointer; font-weight: 500;
 }
 .prop-select:hover { background: var(--surface-base); }
+/* Fixed icon slot so every property value starts at the same x */
+.prop-icon { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; flex-shrink: 0; }
 .issue-agent-dot { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 9999px; flex-shrink: 0; background: var(--accent-muted); color: var(--accent); }
 
 /* Agent replies on the issue page: very light blue */
