@@ -20,8 +20,9 @@ const USAGE = `claude-ui issue <command>
   label    KEY add L...  |  remove L...  |  set a,b  |  (none: show)       set replaces the whole list
   move    KEY STATUS            (close = move KEY done)
   comment KEY [--body TEXT | --body-file FILE|-]
-  fold    KEY [--ids a,b] [--note T] [--body TEXT | --body-file FILE|-] [--if-hash H]
-          (folds live comments like /distill, without a run. --body also replaces the description)
+  fold    KEY [--ids a,b | --no-fold] [--note T] [--body TEXT | --body-file FILE|-] [--if-hash H]
+          (folds live comments like /distill, without a run. --body also replaces the description.
+           --no-fold: only replace the description, fold nothing, no distill entry on the timeline)
 
 --prop sets a custom property by name or id, repeatable: --prop "Due date=2026-11-16". Empty value clears it (--prop "Due date=").
   Select properties take the option name. Dates are YYYY-MM-DD. Other properties are kept.
@@ -39,7 +40,7 @@ function parse(argv) {
     const a = argv[i]
     if (!a.startsWith('--')) { pos.push(a); continue }
     const k = a.slice(2)
-    if (k === 'json' || k === 'live') { opt[k] = true; continue }
+    if (k === 'json' || k === 'live' || k === 'no-fold') { opt[k] = true; continue }
     const v = argv[++i]
     if (v === undefined) die(`--${k} needs a value`, 2)
     if (multi.has(k)) (opt[k] ??= []).push(v)
@@ -220,13 +221,19 @@ if (cmd === 'list') {
 } else if (cmd === 'fold') {
   const key = needKey(pos[0])
   const payload = {}
+  if (opt['no-fold'] && opt.ids !== undefined) die('use --ids or --no-fold, not both', 2)
   if (opt.ids !== undefined) payload.commentIds = csv(opt.ids)
+  // An empty id list folds nothing: the server then only replaces the description
+  if (opt['no-fold']) payload.commentIds = []
   if (opt.note !== undefined) payload.note = opt.note
   if (opt['if-hash'] !== undefined) payload.ifDescriptionHash = opt['if-hash']
   const b = body(opt)
+  if (opt['no-fold'] && b === undefined) die('--no-fold needs --body or --body-file', 2)
   if (b !== undefined) payload.description = b
   const { folded } = await api(`/api/issues/${key}/fold`, { method: 'POST', body: JSON.stringify(payload) })
-  console.log(`folded ${folded} comment(s) on ${key}${b !== undefined ? ', description replaced' : ''}`)
+  console.log(opt['no-fold']
+    ? `description replaced on ${key}, comments kept live`
+    : `folded ${folded} comment(s) on ${key}${b !== undefined ? ', description replaced' : ''}`)
 } else {
   die(`unknown command "${cmd}". Run: claude-ui issue help`, 2)
 }

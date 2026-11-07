@@ -85,7 +85,7 @@ ${folded ? `\n${folded} older comment(s) are already folded into the description
 ## Writing back
 
 Env CLAUDE_UI_ISSUE=${key}${label ? `, CLAUDE_UI_SESSION_LABEL=${label}` : ''}. The user wraps up with these commands:
-- /claude-ui:issue-wrap: distill, update the description, post a result comment (writes without asking)
+- /claude-ui:issue-wrap: distill, update the description, post a result comment (writes without asking, folds no comments)
 - /claude-ui:issue-distill: draft the new description only
 - /claude-ui:issue-update: write the approved draft and fold the comments it covers
 - /claude-ui:issue-comment: post a short result comment
