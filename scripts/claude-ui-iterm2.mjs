@@ -124,7 +124,7 @@ if (!resuming) {
 
 // Mark this tab as a claude-ui session: badge (ISS-n [label]) and a tinted background. iTerm2 only.
 // Tint color: env CLAUDE_UI_ITERM_BG (6 hex digits). Off: CLAUDE_UI_ITERM_BG=off
-const tintHex = (process.env.CLAUDE_UI_ITERM_BG || '3d3f41').toLowerCase()
+const tintHex = (process.env.CLAUDE_UI_ITERM_BG || '0b1a12').toLowerCase()
 const markTab = process.stdout.isTTY && process.env.TERM_PROGRAM === 'iTerm.app' && tintHex !== 'off' && /^[0-9a-f]{6}$/.test(tintHex)
 const osc = body => process.stdout.write(`\x1b]${body}\x07`)
 const unmarkTab = () => {
