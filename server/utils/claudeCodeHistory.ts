@@ -358,7 +358,8 @@ async function generateDisplayName(projectName: string, actualProjectDir: string
  * transcripts return fast; metadata-only stubs are small and read in full.
  */
 async function hasConversation(filePath: string): Promise<boolean> {
-  const rl = createInterface({ input: createReadStream(filePath), crlfDelay: Infinity })
+  const stream = createReadStream(filePath)
+  const rl = createInterface({ input: stream, crlfDelay: Infinity })
   try {
     for await (const line of rl) {
       if (!line.includes('"role"')) continue
@@ -370,7 +371,9 @@ async function hasConversation(filePath: string): Promise<boolean> {
     }
     return false
   } finally {
+    // rl.close() leaves the file stream open, so an early return would leak its fd
     rl.close()
+    stream.destroy()
   }
 }
 
