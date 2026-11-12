@@ -301,6 +301,12 @@ const lastRunAgentSlug = computed(() => issue.value?.runs.findLast(r => r.agent)
 function suggestionAgent(text: string): string | null {
   return mentionIn(text) ?? issue.value?.assignee ?? lastRunAgentSlug.value
 }
+/** The chip as shown and sent: a suggestion with no @mention gets the fallback agent in front (older runs gave none) */
+function suggestionText(text: string): string {
+  if (/^\s*@[\w-]+(\s|$)/.test(text)) return text
+  const agent = issue.value?.assignee ?? lastRunAgentSlug.value
+  return agent ? `@${agent} ${text}` : text
+}
 function suggestionTitle(text: string): string {
   if (/^\s*(?:@[\w-]+\s+)*\/(?:redraft|clear|reset)(?:\s|$)/i.test(text)) return `Send: ${text}`
   const agent = suggestionAgent(text)
@@ -625,8 +631,8 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
               </div>
               <div v-if="b.comment.suggestions?.length && editingId !== b.comment.id" class="flex flex-wrap gap-1.5 mt-1.5">
                 <button v-for="s in b.comment.suggestions" :key="s" type="button" :disabled="busy" class="text-left text-[12px] px-2.5 py-1 rounded-full max-w-full truncate transition-colors hover:bg-[var(--surface-base)] disabled:opacity-50 disabled:cursor-wait"
-                  style="border: 1px solid var(--issue-reply-border); color: var(--text-secondary)" :title="suggestionTitle(s)" @click="runSuggestion(s)">
-                  {{ s }}
+                  style="border: 1px solid var(--issue-reply-border); color: var(--text-secondary)" :title="suggestionTitle(suggestionText(s))" @click="runSuggestion(suggestionText(s))">
+                  {{ suggestionText(s) }}
                 </button>
               </div>
               </template>

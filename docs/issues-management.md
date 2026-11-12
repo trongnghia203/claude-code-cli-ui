@@ -85,6 +85,10 @@ You can edit the description between runs. The next run reads your edit.
 
 **Suggested follow-ups.** A normal or adhoc run ends its summary with a fenced `suggestions` block of 2-4 prompts.
 The server cuts the block off the comment and stores the lines as `suggestions` on it (`parseSuggestions()` in `runner.ts`).
+The prompt asks for an `@agent` at the start of every line. A line without one gets `@<run agent>` in front.
+Older suggestions without it show the assignee, else the last run's agent, in front on the page.
+A trailing **Next:** list in the summary is cut off the comment. Without a suggestions block its lines become the chips.
+The full run output stays in the run record and transcript.
 The page shows them as buttons below the agent comment, outside its card. A click sends the text as Comment and run.
 The agent is the one @mentioned in the suggestion, else the assignee, else the agent of the last run. The issue is assigned to it.
 A `/redraft` or `/clear` suggestion posts without a run. While a run is active, or when no agent is known, the click puts

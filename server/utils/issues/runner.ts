@@ -117,23 +117,36 @@ Last, finish with a 2-3 line summary of the answer. That summary is posted as th
 const SUGGEST_INSTRUCTION = `
 After the summary, add 2-4 short follow-up prompts the user is likely to send next, as a fenced block:
 \`\`\`suggestions
-go ahead with the fix
-/adhoc why did the second approach fail
+@{AGENT} go ahead with the fix
+@{AGENT} /adhoc why did the second approach fail
 \`\`\`
 One prompt per line, under 100 characters, written as the user would type it. Each must be a concrete next step for this issue.
-The block is shown as buttons, not as text.`
+Start every line with the @slug of the agent that should do it: @{AGENT} (you) to continue, or another agent if it fits better.
+A click on a button sends the prompt and runs that agent at once, so each line must be safe to run as it is.
+This block replaces any "Next:" list: do not write one in the summary.`
 
 const MAX_SUGGESTIONS = 4
 const SUGGEST_RE = /\n?```suggestions[^\S\n]*\n([\s\S]*?)\n?```[^\S\n]*$/
 
 /** Split a trailing suggestions block off the agent's summary. No block: the text stays as it is. */
-export function parseSuggestions(text: string): { body: string; suggestions: string[] } {
-  const m = text.trimEnd().match(SUGGEST_RE)
-  if (!m) return { body: text, suggestions: [] }
-  const suggestions = [...new Set(m[1]!.split('\n')
+/** A line with no leading @mention gets `@agent` in front, so a click runs a known agent. */
+// A trailing "Next:" heading with a numbered or bulleted list. Global CLAUDE.md rules can make an agent add one.
+const NEXT_RE = /\n[^\S\n]*(?:\*\*Next:?\*\*:?|#{1,4}\s*Next:?|Next:)[^\S\n]*\n((?:[^\S\n]*(?:[-*•]|\d+[.)])\s+.*(?:\n|$))+)\s*$/i
+
+export function parseSuggestions(text: string, agent?: string | null): { body: string; suggestions: string[] } {
+  let rest = text.trimEnd()
+  const m = rest.match(SUGGEST_RE)
+  if (m) rest = rest.slice(0, m.index).trimEnd()
+  // Drop the Next list from the comment. Without a suggestions block, its lines become the suggestions.
+  const n = rest.match(NEXT_RE)
+  if (n) rest = rest.slice(0, n.index).trimEnd()
+  const lines = m?.[1] ?? n?.[1]
+  if (!lines) return { body: rest === text.trimEnd() ? text : rest, suggestions: [] }
+  const suggestions = [...new Set(lines.split('\n')
     .map(l => l.replace(/^\s*(?:[-*•]|\d+[.)])\s+/, '').trim())
+    .map(l => (l && agent && !/^@[\w-]+(\s|$)/.test(l) ? `@${agent} ${l}` : l))
     .filter(l => l && l.length <= 200))].slice(0, MAX_SUGGESTIONS)
-  return { body: text.trimEnd().slice(0, m.index).trimEnd(), suggestions }
+  return { body: rest, suggestions }
 }
 
 /** An adhoc run sees only the issue id, title and the new comment. The agent can fetch more with `claude-ui issue get`. */
@@ -222,7 +235,8 @@ export function startRun(issueId: string, trigger?: string, extraInstruction?: s
     trigger: (trigger?.trim().replace(/\s+/g, ' ').slice(0, 160)) || (issue.runs.length ? 'Run agent' : 'Initial run'),
   }
 
-  const prompt = opts.prompt ?? (adhoc ? buildAdhocPrompt(issue, adhoc.question, adhoc.previous) : buildPrompt(issue, extraInstruction))
+  const prompt = (opts.prompt ?? (adhoc ? buildAdhocPrompt(issue, adhoc.question, adhoc.previous) : buildPrompt(issue, extraInstruction)))
+    .replaceAll('{AGENT}', agentSlug || 'agent-slug')
   updateIssue(issueId, (i) => {
     i.runs.push(run)
     i.timeline.push({ id: newEntryId(), at: run.startedAt, type: 'run', runId })
@@ -240,7 +254,7 @@ export function startRun(issueId: string, trigger?: string, extraInstruction?: s
       // A user who moved the issue elsewhere during the run keeps their choice
       if (!opts.keepStatus && i.status === 'in_progress') setStatus(i, entry?.cancelled ? 'todo' : nextStatus, 'system', statusRules())
       if (comment) {
-        const { body, suggestions } = parseSuggestions(comment)
+        const { body, suggestions } = parseSuggestions(comment, agentSlug)
         i.timeline.push({ id: commentId!, at: finishedAt.toISOString(), type: 'comment', author: 'agent', body: body || comment,
           ...(suggestions.length ? { suggestions } : {}) })
       }
