@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { readConfig } from './config'
-import { appendTranscript, liveComments, readIssue, updateIssue, setStatus, newEntryId, type Issue, type IssueRun, type RunUsage } from './store'
+import { appendTranscript, attachmentsDir, commentText, liveComments, readIssue, updateIssue, setStatus, newEntryId, type Issue, type IssueRun, type RunUsage } from './store'
 
 const TIMEOUT_MS = 30 * 60_000
 const BUDGET_USD = 5
@@ -97,7 +97,8 @@ Keep the original request at the top, unchanged. Below it keep these sections. R
 Put long detail (command output, diffs, step observations) in the project's notes file if there is one, and link it from Steps.
 If the description names a Jira key (CSI-, ICU-, ONE-), that ticket's impl-notes file is the notes file. Keep it current too.
 
-Last, finish with a 2-3 line summary: what changed, what needs review. That summary is posted as the comment. Do not post comments with the CLI.`
+Last, finish with a 2-3 line summary: what changed, what needs review. That summary is posted as the comment. Do not post comments with the CLI.
+{SUGGEST}`
 
 // Adhoc hand-over: a side question must not rewrite the main description, so the run only appends a short note.
 const ADHOC_RELAY_INSTRUCTION = `
@@ -109,7 +110,31 @@ If you found a fact the next run needs, add 1-3 bullets under **Findings** in th
 2. Rewrite it with only that edit: \`claude-ui issue update {ID} --body-file - <<'EOF'\` ... \`EOF\`
 Skip the edit if nothing is worth keeping.
 
-Last, finish with a 2-3 line summary of the answer. That summary is posted as the comment. Do not post comments with the CLI.`
+Last, finish with a 2-3 line summary of the answer. That summary is posted as the comment. Do not post comments with the CLI.
+{SUGGEST}`
+
+// Follow-up prompts the user can click under the summary comment. Parsed out of the result by parseSuggestions().
+const SUGGEST_INSTRUCTION = `
+After the summary, add 2-4 short follow-up prompts the user is likely to send next, as a fenced block:
+\`\`\`suggestions
+go ahead with the fix
+/adhoc why did the second approach fail
+\`\`\`
+One prompt per line, under 100 characters, written as the user would type it. Each must be a concrete next step for this issue.
+The block is shown as buttons, not as text.`
+
+const MAX_SUGGESTIONS = 4
+const SUGGEST_RE = /\n?```suggestions[^\S\n]*\n([\s\S]*?)\n?```[^\S\n]*$/
+
+/** Split a trailing suggestions block off the agent's summary. No block: the text stays as it is. */
+export function parseSuggestions(text: string): { body: string; suggestions: string[] } {
+  const m = text.trimEnd().match(SUGGEST_RE)
+  if (!m) return { body: text, suggestions: [] }
+  const suggestions = [...new Set(m[1]!.split('\n')
+    .map(l => l.replace(/^\s*(?:[-*•]|\d+[.)])\s+/, '').trim())
+    .filter(l => l && l.length <= 200))].slice(0, MAX_SUGGESTIONS)
+  return { body: text.trimEnd().slice(0, m.index).trimEnd(), suggestions }
+}
 
 /** An adhoc run sees only the issue id, title and the new comment. The agent can fetch more with `claude-ui issue get`. */
 function buildAdhocPrompt(issue: Issue, question: string, previous?: { author: string; at: string; body: string }[]): string {
@@ -123,7 +148,7 @@ function buildAdhocPrompt(issue: Issue, question: string, previous?: { author: s
     has ? `\n## Last comments (oldest first)\n${previous!.map(c => `**${c.author}** (${c.at}):\n${c.body}`).join('\n\n')}` : '',
     `\n## ${has ? 'New comment' : 'Question'}\n${question.trim()}`,
     '\nDo the work in the current directory.',
-    ADHOC_RELAY_INSTRUCTION.replaceAll('{ID}', issue.id),
+    ADHOC_RELAY_INSTRUCTION.replaceAll('{ID}', issue.id).replace('{SUGGEST}', SUGGEST_INSTRUCTION),
   ].filter(Boolean).join('\n')
 }
 
@@ -166,11 +191,11 @@ export function buildPrompt(issue: Issue, extra?: string): string {
   const folded = issue.timeline.filter(e => e.type === 'comment').length - comments.length
   if (comments.length) {
     parts.push(folded ? `\n## Discussion\n(${folded} older comments are already in the description above.)` : '\n## Discussion')
-    for (const c of comments) if (c.type === 'comment') parts.push(`**${c.author}** (${c.at}):\n${c.body}`)
+    for (const c of comments) if (c.type === 'comment') parts.push(`**${c.author}** (${c.at}):\n${commentText(issue.id, c)}`)
   }
   if (extra?.trim()) parts.push(`\n## Wakeup\n${extra.trim()}`)
   parts.push('\nDo the work in the current directory.')
-  parts.push(RELAY_INSTRUCTION.replaceAll('{ID}', issue.id))
+  parts.push(RELAY_INSTRUCTION.replaceAll('{ID}', issue.id).replace('{SUGGEST}', SUGGEST_INSTRUCTION))
   return parts.filter(Boolean).join('\n')
 }
 
@@ -214,7 +239,11 @@ export function startRun(issueId: string, trigger?: string, extraInstruction?: s
       if (r) Object.assign(r, patch, { finishedAt: finishedAt.toISOString(), durationMs: finishedAt.getTime() - startedAt.getTime() })
       // A user who moved the issue elsewhere during the run keeps their choice
       if (!opts.keepStatus && i.status === 'in_progress') setStatus(i, entry?.cancelled ? 'todo' : nextStatus, 'system', statusRules())
-      if (comment) i.timeline.push({ id: commentId!, at: finishedAt.toISOString(), type: 'comment', author: 'agent', body: comment })
+      if (comment) {
+        const { body, suggestions } = parseSuggestions(comment)
+        i.timeline.push({ id: commentId!, at: finishedAt.toISOString(), type: 'comment', author: 'agent', body: body || comment,
+          ...(suggestions.length ? { suggestions } : {}) })
+      }
     })
     opts.after?.({ ok: patch.status === 'success', commentId })
   }
@@ -234,6 +263,8 @@ export function startRun(issueId: string, trigger?: string, extraInstruction?: s
     // No saved session: the issue description and comments are the only context a run gets, so every run starts fresh
     '--no-session-persistence']
   if (agentSlug) args.push('--agent', agentSlug)
+  // Comment attachments sit outside the project folder: let the run read them
+  if (existsSync(attachmentsDir(issueId))) args.push('--add-dir', attachmentsDir(issueId))
 
   let buf = ''
   let stderr = ''

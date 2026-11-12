@@ -1,4 +1,4 @@
-import { liveComments, newEntryId, readIssue, updateIssue } from '../../../utils/issues/store'
+import { ATTACH_MAX_BYTES, ATTACH_MAX_FILES, attachmentMime, commentText, liveComments, newEntryId, readIssue, saveAttachments, updateIssue } from '../../../utils/issues/store'
 import { buildDistillPrompt, startRun, isRunning, lastRunAgent } from '../../../utils/issues/runner'
 import { applyDraft } from '../../../utils/issues/applyDraft'
 import { detectSources, draftIssue } from '../../../utils/issues/draft'
@@ -7,10 +7,27 @@ export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')!
   const issue = readIssue(id)
   if (!issue) throw createError({ statusCode: 404, message: 'Issue not found' })
-  const { body, run, agent } = await readBody(event)
+  // JSON for a text-only comment. multipart/form-data when files are attached: fields body, run, agent, plus file parts.
+  let body: unknown, run: unknown, agent: unknown
+  const files: { name: string; mime: string; data: Buffer }[] = []
+  if ((getHeader(event, 'content-type') || '').includes('multipart/form-data')) {
+    const parts = (await readMultipartFormData(event)) || []
+    const field = (n: string) => parts.find(p => p.name === n && !p.filename)?.data.toString('utf8')
+    body = field('body')
+    run = field('run') === 'true'
+    agent = field('agent')
+    for (const p of parts) {
+      if (!p.filename) continue
+      const mime = attachmentMime(p.filename, p.type)
+      if (!mime) throw createError({ statusCode: 400, message: `${p.filename}: only images, PDFs and text files (logs, configs) can be attached` })
+      if (p.data.length > ATTACH_MAX_BYTES) throw createError({ statusCode: 413, message: `${p.filename} is over ${ATTACH_MAX_BYTES / 1024 / 1024} MB` })
+      files.push({ name: p.filename, mime, data: p.data })
+    }
+    if (files.length > ATTACH_MAX_FILES) throw createError({ statusCode: 400, message: `At most ${ATTACH_MAX_FILES} files per comment` })
+  } else ({ body, run, agent } = await readBody(event))
   const mention = typeof agent === 'string' && /^[\w-]+$/.test(agent) ? agent : null
   const text = String(body ?? '').trim()
-  if (!text) throw createError({ statusCode: 400, message: 'Comment is empty' })
+  if (!text && !files.length) throw createError({ statusCode: 400, message: 'Comment is empty' })
   // `/clear` (or `/reset`) as first word: hide the old comments from later runs. No run, no agent needed.
   const clear = /^\s*(?:@[\w-]+\s+)*\/(?:clear|reset)(?:\s|$)/i.test(text)
   if (run && !clear && !issue.assignee && !mention && !lastRunAgent(issue)) throw createError({ statusCode: 400, message: 'Assign an agent to run it' })
@@ -35,15 +52,16 @@ export default defineEventHandler(async (event) => {
         'An earlier draft may have failed to open a source: re-open every link and ignore any "could not open" note.',
         `Title: ${issue.title}`,
         `Description:\n${issue.description}`,
-        ...earlier.flatMap(c => (c.type === 'comment' ? [`Comment by ${c.author}:\n${c.body}`] : [])),
+        ...earlier.flatMap(c => (c.type === 'comment' ? [`Comment by ${c.author}:\n${commentText(id, c)}`] : [])),
         ...(hint ? [`Hint from the user: ${hint}`] : []),
       ].join('\n\n').slice(0, 6000)
     : ''
   const draftSources = redraft ? detectSources(redraftText, { keys: false }) : []
   const commentId = newEntryId()
+  const attachments = saveAttachments(id, commentId, files)
   updateIssue(id, (i) => {
     const at = new Date().toISOString()
-    i.timeline.push({ id: commentId, at, type: 'comment', author: 'user', body: text })
+    i.timeline.push({ id: commentId, at, type: 'comment', author: 'user', body: text, ...(attachments.length ? { attachments } : {}) })
     // An @mention on a run hands the issue to that agent, so the run and the board agree on who owns it
     if (run && mention && mention !== i.assignee) {
       i.timeline.push({ id: newEntryId(), at, type: 'assign', from: i.assignee, to: mention })
@@ -55,9 +73,9 @@ export default defineEventHandler(async (event) => {
   const m = /^\s*(?:@[\w-]+\s+)*\/(adhoc|last)(?:\s+(\d{1,2})(?=\s|$))?(?:\s+|$)/i.exec(text)
   const cmd = m?.[1]?.toLowerCase()
   const count = Math.min(Math.max(Number(m?.[2] ?? 1), 1), 10)
-  const question = m ? text.replace(/\/(adhoc|last)(\s+\d{1,2}(?=\s|$))?/i, '').trim() : ''
+  const question = m ? commentText(id, { id: commentId, body: text.replace(/\/(adhoc|last)(\s+\d{1,2}(?=\s|$))?/i, '').trim(), attachments }) : ''
   const previous = cmd === 'last'
-    ? earlier.slice(-(count + 1)).flatMap(c => (c.type === 'comment' ? [{ author: c.author, at: c.at, body: c.body }] : []))
+    ? earlier.slice(-(count + 1)).flatMap(c => (c.type === 'comment' ? [{ author: c.author, at: c.at, body: commentText(id, c) }] : []))
     : undefined
   if (redraft) {
     updateIssue(id, (i) => { i.drafting = true; delete i.draftNote })
@@ -81,7 +99,7 @@ export default defineEventHandler(async (event) => {
     const foldedIds = [...earlier.map(c => c.id), commentId]
     const descriptionBefore = issue.description
     const hint = text.replace(/^\s*(?:@[\w-]+\s+)*/, '').replace(/^\/distill/i, '').trim()
-    const prompt = buildDistillPrompt(issue, earlier.map(c => ({ author: c.author, at: c.at, body: c.body })), hint)
+    const prompt = buildDistillPrompt(issue, earlier.map(c => ({ author: c.author, at: c.at, body: commentText(id, c) })), hint)
     startRun(id, text, undefined, null, undefined, {
       prompt,
       keepStatus: true,
@@ -92,6 +110,6 @@ export default defineEventHandler(async (event) => {
         })
       },
     })
-  } else if (run) startRun(id, text, undefined, null, cmd ? { question, previous } : undefined)
+  } else if (run) startRun(id, text || `(${attachments.length} attached ${attachments.length === 1 ? 'file' : 'files'})`, undefined, null, cmd ? { question, previous } : undefined)
   return { issue: readIssue(id) }
 })

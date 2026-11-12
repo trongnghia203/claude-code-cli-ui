@@ -221,14 +221,60 @@ async function saveEdit() {
 }
 // /redraft and /clear never start a run, so they post as a plain comment whichever way they are sent
 const noRunCommand = computed(() => /^\s*(?:@[\w-]+\s+)*\/(?:redraft|clear|reset)(?:\s|$)/i.test(newComment.value))
+// Files for the next comment: pasted screenshots, dropped or picked logs, PDFs, images. The server checks type and size too.
+const ATTACH_MAX_MB = 10
+const ATTACH_ACCEPT = 'image/*,application/pdf,text/*,.log,.txt,.out,.err,.json,.yaml,.yml,.md,.csv,.tsv,.xml,.conf,.cfg,.ini,.toml,.sh,.tf,.hcl,.diff,.patch'
+const pending = ref<{ file: File; url: string | null }[]>([])
+const fileInput = ref<HTMLInputElement | null>(null)
+const dragOver = ref(false)
+function addFiles(list: FileList | File[] | null | undefined) {
+  for (const raw of Array.from(list ?? [])) {
+    if (pending.value.length >= 10) { toast.add({ title: 'At most 10 files per comment', color: 'error' }); break }
+    if (raw.size > ATTACH_MAX_MB * 1024 * 1024) { toast.add({ title: `${raw.name} is over ${ATTACH_MAX_MB} MB`, color: 'error' }); continue }
+    // A pasted screenshot comes as "image.png": give it a time stamp so several pastes stay apart
+    const file = raw.type.startsWith('image/') && /^image\.\w+$/.test(raw.name)
+      ? new File([raw], `screenshot-${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.${raw.type.split('/')[1] || 'png'}`, { type: raw.type })
+      : raw
+    pending.value.push({ file, url: file.type.startsWith('image/') ? URL.createObjectURL(file) : null })
+  }
+}
+function removePending(i: number) {
+  const [p] = pending.value.splice(i, 1)
+  if (p?.url) URL.revokeObjectURL(p.url)
+}
+function clearPending() {
+  for (const p of pending.value) if (p.url) URL.revokeObjectURL(p.url)
+  pending.value = []
+}
+// Paste a file or screenshot from the clipboard. Plain text pastes as usual.
+function onCommentPaste(e: ClipboardEvent) {
+  const files = Array.from(e.clipboardData?.files ?? [])
+  if (!files.length) return
+  e.preventDefault()
+  addFiles(files)
+}
+function onCommentDrop(e: DragEvent) {
+  dragOver.value = false
+  if (e.dataTransfer?.files?.length) addFiles(e.dataTransfer.files)
+}
+function onPickFiles(e: Event) {
+  const input = e.target as HTMLInputElement
+  addFiles(input.files)
+  input.value = ''
+}
+const fileSize = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`)
+const attachmentUrl = (cid: string, name: string) => `/api/issues/${id.value}/attachments/${cid}/${encodeURIComponent(name)}`
+const canSend = computed(() => !!newComment.value.trim() || pending.value.length > 0)
+onBeforeUnmount(clearPending)
+
 async function send(andRun: boolean) {
   const body = newComment.value.trim()
-  if (!body) return
+  if (!body && !pending.value.length) return
   if (noRunCommand.value) andRun = false
   busy.value = true
-  const res = await comment(id.value, body, andRun, andRun ? mentionedAgent.value ?? undefined : undefined)
+  const res = await comment(id.value, body, andRun, andRun ? mentionedAgent.value ?? undefined : undefined, pending.value.map(p => p.file))
   busy.value = false
-  if (res) { issue.value = res; newComment.value = ''; running.value = res.runs.some(r => r.status === 'running') }
+  if (res) { issue.value = res; newComment.value = ''; clearPending(); running.value = res.runs.some(r => r.status === 'running') }
 }
 // Edit or delete a comment in the activity list
 const editingId = ref<string | null>(null)
@@ -247,6 +293,41 @@ async function removeComment(cid: string) {
 }
 // @agent mentions in the comment box
 const commentEl = ref<HTMLTextAreaElement | null>(null)
+// A suggested follow-up under an agent comment goes into the box for review. Nothing runs until the user sends it.
+// A suggested follow-up under an agent comment: one click sends it and runs it.
+// Agent: the one @mentioned in it, else the issue's assignee, else the agent of the last run (the server falls back the same way).
+// A /redraft or /clear suggestion posts without a run. While a run is active, or with no agent at all, it goes into the box instead.
+const lastRunAgentSlug = computed(() => issue.value?.runs.findLast(r => r.agent)?.agent ?? null)
+function suggestionAgent(text: string): string | null {
+  return mentionIn(text) ?? issue.value?.assignee ?? lastRunAgentSlug.value
+}
+function suggestionTitle(text: string): string {
+  if (/^\s*(?:@[\w-]+\s+)*\/(?:redraft|clear|reset)(?:\s|$)/i.test(text)) return `Send: ${text}`
+  const agent = suggestionAgent(text)
+  if (running.value || !agent) return `Put in the comment box: ${text}`
+  return `Send and run @${agent}: ${text}`
+}
+async function runSuggestion(text: string) {
+  if (busy.value) return
+  const noRun = /^\s*(?:@[\w-]+\s+)*\/(?:redraft|clear|reset)(?:\s|$)/i.test(text)
+  const agent = suggestionAgent(text)
+  if (!noRun && (running.value || !agent)) return pickSuggestion(text)
+  busy.value = true
+  // Naming the agent makes the server assign the issue to it, so the board shows who runs
+  const res = await comment(id.value, text, !noRun, noRun ? undefined : agent ?? undefined)
+  busy.value = false
+  if (res) { issue.value = res; running.value = res.runs.some(r => r.status === 'running') }
+}
+function pickSuggestion(text: string) {
+  newComment.value = text
+  nextTick(() => {
+    const el = commentEl.value
+    if (!el) return
+    el.focus()
+    el.setSelectionRange(text.length, text.length)
+    el.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  })
+}
 const mentionQuery = ref<string | null>(null)
 const mentionIdx = ref(0)
 const mentionOptions = computed(() => {
@@ -254,12 +335,14 @@ const mentionOptions = computed(() => {
   if (q === null) return []
   return agents.value.filter(a => a.slug.toLowerCase().includes(q) || (a.frontmatter.name || '').toLowerCase().includes(q)).slice(0, 6)
 })
-const mentionedAgent = computed(() => {
-  for (const m of newComment.value.matchAll(/(^|\s)@([\w-]+)/g)) {
-    if (agents.value.some(a => a.slug === m[2])) return m[2]
+/** First @mention in the text that names a known agent */
+function mentionIn(text: string): string | null {
+  for (const m of text.matchAll(/(^|\s)@([\w-]+)/g)) {
+    if (agents.value.some(a => a.slug === m[2])) return m[2]!
   }
   return null
-})
+}
+const mentionedAgent = computed(() => mentionIn(newComment.value))
 // :emoji shortcodes in the comment box (needs 2+ letters so times like 10:30 stay quiet)
 const emojiQuery = ref<string | null>(null)
 const emojiIdx = ref(0)
@@ -338,9 +421,10 @@ function onCommentKey(e: KeyboardEvent) {
     if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); pickMention(opts[mentionIdx.value]!.slug); return }
     if (e.key === 'Escape') { mentionQuery.value = null; return }
   }
-  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && newComment.value.trim() && !busy.value) {
-    if (noRunCommand.value) { e.preventDefault(); send(false) }
-    else if (!running.value && (issue.value?.assignee || mentionedAgent.value)) { e.preventDefault(); send(true) }
+  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && canSend.value && !busy.value) {
+    // Cmd+Enter runs when an agent can take it. No agent, or a run is active: it posts a plain comment.
+    e.preventDefault()
+    send(!noRunCommand.value && !running.value && !!(issue.value?.assignee || mentionedAgent.value))
   }
 }
 
@@ -506,7 +590,8 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
                 <span class="truncate">{{ foldCount(b.fold) }} {{ foldCount(b.fold) === 1 ? 'comment' : 'comments' }} {{ foldText(b.fold) }}</span>
               </button>
               <!-- comment -->
-              <div v-else-if="b.comment" class="group/comment rounded-xl p-3" :style="{ background: b.comment.author === 'agent' ? 'var(--issue-reply-bg)' : 'var(--surface-raised)', border: '1px solid ' + (b.comment.author === 'agent' ? 'var(--issue-reply-border)' : 'var(--border-subtle)') }">
+              <template v-else-if="b.comment">
+              <div class="group/comment rounded-xl p-3" :style="{ background: b.comment.author === 'agent' ? 'var(--issue-reply-bg)' : 'var(--surface-raised)', border: '1px solid ' + (b.comment.author === 'agent' ? 'var(--issue-reply-border)' : 'var(--border-subtle)') }">
                 <div class="flex items-center gap-2 text-[11px] text-label mb-1">
                   <UIcon :name="b.comment.author === 'agent' ? 'i-lucide-cpu' : 'i-lucide-user'" class="size-3.5" />
                   {{ b.comment.author === 'agent' ? agentName(issue.assignee) : 'You' }} &middot; {{ when(b.comment.at) }}
@@ -522,8 +607,29 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
                     <UButton label="Save" size="xs" :disabled="!editText.trim()" @click="saveCommentEdit" />
                   </div>
                 </div>
-                <div v-else class="md-prose issue-prose" v-html="renderMarkdown(mentionize(withBreaks(linkify(emojify(b.comment.body)), b.comment.author === 'user')))" />
+                <div v-else-if="b.comment.body" class="md-prose issue-prose" v-html="renderMarkdown(mentionize(withBreaks(linkify(emojify(b.comment.body)), b.comment.author === 'user')))" />
+                <div v-if="b.comment.attachments?.length" class="flex flex-wrap gap-2" :class="{ 'mt-2': b.comment.body }">
+                  <template v-for="a in b.comment.attachments" :key="a.name">
+                    <a v-if="a.mime.startsWith('image/') && !a.mime.startsWith('image/svg')" :href="attachmentUrl(b.comment.id, a.name)" target="_blank" rel="noopener" :title="`${a.name} (${fileSize(a.size)})`"
+                      class="block rounded-lg overflow-hidden">
+                      <img :src="attachmentUrl(b.comment.id, a.name)" :alt="a.name" loading="lazy" class="block max-h-40 max-w-[260px] object-contain" style="background: var(--surface-base)">
+                    </a>
+                    <a v-else :href="attachmentUrl(b.comment.id, a.name)" target="_blank" rel="noopener" class="flex items-center gap-1.5 text-[12px] px-2 py-1 rounded-lg max-w-[260px]"
+                      style="background: var(--surface-base); color: var(--text-secondary)" :title="a.name">
+                      <UIcon :name="a.mime === 'application/pdf' ? 'i-lucide-file-text' : 'i-lucide-file-code'" class="size-3.5 shrink-0" />
+                      <span class="truncate">{{ a.name }}</span>
+                      <span class="shrink-0 text-meta">{{ fileSize(a.size) }}</span>
+                    </a>
+                  </template>
+                </div>
               </div>
+              <div v-if="b.comment.suggestions?.length && editingId !== b.comment.id" class="flex flex-wrap gap-1.5 mt-1.5">
+                <button v-for="s in b.comment.suggestions" :key="s" type="button" :disabled="busy" class="text-left text-[12px] px-2.5 py-1 rounded-full max-w-full truncate transition-colors hover:bg-[var(--surface-base)] disabled:opacity-50 disabled:cursor-wait"
+                  style="border: 1px solid var(--issue-reply-border); color: var(--text-secondary)" :title="suggestionTitle(s)" @click="runSuggestion(s)">
+                  {{ s }}
+                </button>
+              </div>
+              </template>
               <!-- run and status activity, folded into one line -->
               <div v-else>
                 <button class="w-full flex items-center gap-2 text-[12px] text-label rounded-lg px-0 py-1.5 text-left" @click="toggleGroup(b.key)">
@@ -591,7 +697,8 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
           </div>
 
           <div class="rounded-xl p-3 space-y-2" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)">
-            <div class="relative">
+            <div class="relative rounded-lg" :style="dragOver ? { outline: '2px dashed var(--accent)', outlineOffset: '2px' } : undefined"
+              @dragover.prevent="dragOver = true" @dragleave="dragOver = false" @drop.prevent="onCommentDrop">
               <div v-if="mentionOptions.length" class="absolute bottom-full mb-1 left-0 z-20 w-[420px] max-w-full rounded-lg overflow-hidden shadow-lg" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)">
                 <button v-for="(a, i) in mentionOptions" :key="a.slug" type="button" class="w-full text-left px-3 py-1.5 text-[12px] flex items-center gap-2" :style="{ background: i === mentionIdx ? 'var(--surface-base)' : 'transparent' }" @mousedown.prevent="pickMention(a.slug)">
                   <UIcon name="i-lucide-cpu" class="size-3.5 shrink-0" />
@@ -612,13 +719,31 @@ useHead({ title: computed(() => `${id.value} | Agent Manager`) })
                   <span class="text-meta truncate">:{{ o.name }}:</span>
                 </button>
               </div>
-              <textarea ref="commentEl" spellcheck="false" v-model="newComment" rows="3" placeholder="Leave a comment. Type @ to hand the next run to an agent, / for commands" class="w-full px-2 py-1.5 rounded-lg text-[13px]" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)" @input="updateMention" @click="updateMention" @keydown="onCommentKey" @blur="mentionQuery = null; emojiQuery = null; slashQuery = null" />
+              <div class="flex items-start gap-1.5">
+              <UButton icon="i-lucide-paperclip" size="sm" variant="ghost" color="neutral" class="shrink-0 mt-0.5" aria-label="Attach files" title="Attach files: images, PDFs, logs. You can also paste a screenshot or drop files on the box." @click="fileInput?.click()" />
+              <textarea ref="commentEl" spellcheck="false" v-model="newComment" rows="3" placeholder="Leave a comment. Type @ to hand the next run to an agent, / for commands. Paste or drop files to attach" class="flex-1 min-w-0 px-2 py-1.5 rounded-lg text-[13px]" style="background: var(--surface-raised); border: 1px solid var(--border-subtle)" @input="updateMention" @click="updateMention" @keydown="onCommentKey" @paste="onCommentPaste" @blur="mentionQuery = null; emojiQuery = null; slashQuery = null" />
+              </div>
+              <div v-if="pending.length" class="flex flex-wrap gap-2 mt-1.5 ml-9">
+                <div v-for="(p, i) in pending" :key="p.url || p.file.name + i" class="relative group/att flex items-center gap-1.5 rounded-lg text-[12px] pr-6"
+                  :class="p.url ? 'p-0.5' : 'px-2 py-1'" :style="p.url ? undefined : { background: 'var(--surface-raised)' }" :title="`${p.file.name} (${fileSize(p.file.size)})`">
+                  <img v-if="p.url" :src="p.url" :alt="p.file.name" class="h-14 max-w-[120px] object-contain rounded">
+                  <template v-else>
+                    <UIcon :name="p.file.type === 'application/pdf' ? 'i-lucide-file-text' : 'i-lucide-file-code'" class="size-3.5 shrink-0" />
+                    <span class="truncate max-w-[180px]">{{ p.file.name }}</span>
+                    <span class="text-meta">{{ fileSize(p.file.size) }}</span>
+                  </template>
+                  <button type="button" class="absolute top-0.5 right-0.5 rounded p-0.5 opacity-60 hover:opacity-100" aria-label="Remove file" @click="removePending(i)">
+                    <UIcon name="i-lucide-x" class="size-3.5" />
+                  </button>
+                </div>
+              </div>
+              <input ref="fileInput" type="file" multiple class="hidden" :accept="ATTACH_ACCEPT" @change="onPickFiles">
             </div>
             <p v-if="clearing" class="text-[12px]" style="color: #d97706">Hides {{ liveCount }} {{ liveCount === 1 ? 'comment' : 'comments' }} from later runs. Nothing is deleted. Use /distill to keep what they say in the description.</p>
             <div class="flex justify-end gap-2">
               <UButton v-if="running" label="Stop run" icon="i-lucide-square" color="error" variant="soft" size="sm" title="Stop the agent that is running now" @click="onCancel" />
-              <UButton label="Comment" size="sm" variant="soft" color="neutral" :disabled="!newComment.trim() || busy" @click="send(false)" />
-              <UButton label="Comment and run" size="sm" icon="i-lucide-play" :disabled="!newComment.trim() || busy || (!noRunCommand && (running || (!issue.assignee && !mentionedAgent)))" :title="issue.assignee || mentionedAgent ? (mentionedAgent ? `Run @${mentionedAgent}` : '') : 'Assign an agent or @mention one'" @click="send(true)" />
+              <UButton label="Comment" size="sm" variant="soft" color="neutral" :disabled="!canSend || busy" @click="send(false)" />
+              <UButton label="Comment and run" size="sm" icon="i-lucide-play" :disabled="!canSend || busy || (!noRunCommand && (running || (!issue.assignee && !mentionedAgent)))" :title="issue.assignee || mentionedAgent ? (mentionedAgent ? `Run @${mentionedAgent}` : '') : 'Assign an agent or @mention one'" @click="send(true)" />
             </div>
           </div>
         </section>

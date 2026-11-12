@@ -83,6 +83,25 @@ posted as the comment.
 The agent needs `Bash(claude-ui issue *)` allowed in `~/.claude/settings.json`, or it asks for approval on the issue page.
 You can edit the description between runs. The next run reads your edit.
 
+**Suggested follow-ups.** A normal or adhoc run ends its summary with a fenced `suggestions` block of 2-4 prompts.
+The server cuts the block off the comment and stores the lines as `suggestions` on it (`parseSuggestions()` in `runner.ts`).
+The page shows them as buttons below the agent comment, outside its card. A click sends the text as Comment and run.
+The agent is the one @mentioned in the suggestion, else the assignee, else the agent of the last run. The issue is assigned to it.
+A `/redraft` or `/clear` suggestion posts without a run. While a run is active, or when no agent is known, the click puts
+the text in the comment box instead. The tooltip says which of these a click does.
+Distill runs give no suggestions. Older comments and runs without the block show no buttons.
+
+**Attachments.** A comment can carry files: paste a screenshot, drop files on the box, or use the paperclip.
+Allowed: images, PDFs and text files (logs, configs). At most 10 files of 10 MB each. A comment may be files only.
+With files the page posts multipart form data, otherwise JSON. Files go to `issues/_attachments/<id>/<comment id>/`.
+A second file with the same name gets `-2`. Deleting the comment or the issue deletes its files.
+Runs get that folder with `--add-dir`. Each prompt lists the files as absolute paths under the comment, for the Read tool.
+The page shows images as thumbnails and other files as chips, served by `GET /api/issues/<id>/attachments/<cid>/<name>`.
+Text files are served as `text/plain`, so an attached HTML or SVG never runs as a page.
+
+**Cmd+Enter** in the comment box is Comment and run when an agent can take it (assignee or @mention, no active run).
+Otherwise it posts a plain comment. Enter alone adds a new line.
+
 ## Run settings
 
 Per issue: permission mode (`plan`, `default`, `acceptEdits`). Default `acceptEdits`.

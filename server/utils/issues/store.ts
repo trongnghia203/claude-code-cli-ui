@@ -1,6 +1,6 @@
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
-import { join } from 'node:path'
+import { basename, extname, join } from 'node:path'
 import { resolveClaudePath } from '../claudeDir'
 
 export const ISSUE_STATUSES = ['backlog', 'todo', 'in_progress', 'in_review', 'blocked', 'done', 'cancelled'] as const
@@ -35,7 +35,11 @@ export interface IssueRun {
 }
 
 export type TimelineEntry =
-  | { id: string; at: string; type: 'comment'; author: 'user' | 'agent'; body: string }
+  /**
+   * `suggestions`: follow-up prompts an agent offered at the end of its summary, shown as buttons under the comment.
+   * `attachments`: files the user added (pasted screenshot, log, PDF). Stored under `issues/_attachments/<id>/<comment id>/`.
+   */
+  | { id: string; at: string; type: 'comment'; author: 'user' | 'agent'; body: string; suggestions?: string[]; attachments?: CommentAttachment[] }
   | { id: string; at: string; type: 'status'; from: IssueStatus | null; to: IssueStatus; by: 'user' | 'system' }
   | { id: string; at: string; type: 'assign'; from: string | null; to: string | null; by?: 'user' | 'system' }
   | { id: string; at: string; type: 'run'; runId: string }
@@ -45,6 +49,8 @@ export type TimelineEntry =
    * Comments are kept. Later prompts skip them, and the page folds them. Delete the entry to unfold.
    */
   | { id: string; at: string; type: 'distill'; kind?: 'distill' | 'clear'; note?: string; foldedIds: string[]; descriptionBefore: string }
+
+export interface CommentAttachment { name: string; mime: string; size: number }
 
 export const WAKE_REPEATS = ['once', 'hourly', 'daily', 'weekdays', 'weekly'] as const
 export type WakeRepeat = typeof WAKE_REPEATS[number]
@@ -133,6 +139,61 @@ export function readTranscript(id: string, runId: string): unknown[] {
 }
 
 const isValidKey = (id: string) => KEY_RE.test(id)
+
+// Comment attachments live next to the issues, one folder per comment. Runs get the folder with --add-dir.
+export const ATTACH_MAX_BYTES = 10 * 1024 * 1024
+export const ATTACH_MAX_FILES = 10
+const ATTACH_TEXT_EXT = /^\.(log|txt|out|err|json|ya?ml|md|csv|tsv|xml|html?|ini|conf|cfg|toml|sh|tf|hcl|diff|patch)$/i
+const safeEntryId = (cid: string) => cid.replace(/[^\w-]/g, '')
+export const attachmentsDir = (id: string) => join(issuesDir(), '_attachments', id)
+const commentAttachDir = (id: string, cid: string) => join(attachmentsDir(id), safeEntryId(cid))
+
+/** Absolute path of a stored attachment, or null when the name or keys are not valid. */
+export function attachmentPath(id: string, cid: string, name: string): string | null {
+  if (!isValidKey(id) || !safeEntryId(cid) || name !== basename(name) || name.startsWith('.')) return null
+  return join(commentAttachDir(id, cid), name)
+}
+
+/** Images, PDFs and plain-text files (logs, configs). Returns the mime type to store, or null when not allowed. */
+export function attachmentMime(name: string, type: string | undefined): string | null {
+  const t = (type || '').toLowerCase()
+  if (t.startsWith('image/') || t === 'application/pdf' || t.startsWith('text/') || t === 'application/json') return t
+  const ext = extname(name).toLowerCase()
+  if (ext === '.pdf') return 'application/pdf'
+  if (/^\.(png|jpe?g|gif|webp)$/.test(ext)) return `image/${ext === '.jpg' ? 'jpeg' : ext.slice(1)}`
+  if (ATTACH_TEXT_EXT.test(ext)) return 'text/plain'
+  return null
+}
+
+/** Write a comment's files. Names are made safe and unique inside the comment (a second image.png becomes image-2.png). */
+export function saveAttachments(id: string, cid: string, files: { name: string; mime: string; data: Buffer }[]): CommentAttachment[] {
+  if (!files.length) return []
+  const dir = commentAttachDir(id, cid)
+  mkdirSync(dir, { recursive: true })
+  const used = new Set<string>()
+  return files.map((f) => {
+    const raw = basename(f.name || 'file').replace(/[^\w.-]+/g, '_').replace(/^\.+/, '').slice(-100) || 'file'
+    const ext = extname(raw)
+    const stem = raw.slice(0, raw.length - ext.length) || 'file'
+    let name = raw
+    for (let n = 2; used.has(name); n++) name = `${stem}-${n}${ext}`
+    used.add(name)
+    writeFileSync(join(dir, name), f.data)
+    return { name, mime: f.mime, size: f.data.length }
+  })
+}
+
+export function removeAttachments(id: string, cid: string) {
+  if (isValidKey(id) && safeEntryId(cid)) rmSync(commentAttachDir(id, cid), { recursive: true, force: true })
+}
+
+/** A comment as a run reads it: the text, then the attached files as absolute paths the agent can open. */
+export function commentText(id: string, c: { id: string; body: string; attachments?: CommentAttachment[] }): string {
+  if (!c.attachments?.length) return c.body
+  const kb = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`)
+  const lines = c.attachments.map(a => `- ${attachmentPath(id, c.id, a.name)} (${a.mime}, ${kb(a.size)})`)
+  return [c.body, `Attached files (open each with the Read tool):\n${lines.join('\n')}`].filter(Boolean).join('\n\n')
+}
 // A function declaration, not an arrow with a comma: Nitro's auto-import scanner mis-splits "(0, 8)" in exported consts
 export function newEntryId(): string {
   return randomUUID().slice(0, 8)
@@ -218,6 +279,7 @@ export function deleteIssue(id: string): boolean {
   if (!readIssue(id)) return false
   rmSync(issueFile(id), { force: true })
   rmSync(transcriptDir(id), { recursive: true, force: true })
+  rmSync(attachmentsDir(id), { recursive: true, force: true })
   return true
 }
 

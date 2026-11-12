@@ -24,8 +24,10 @@ export interface IssueRun {
   error?: string
 }
 
+export interface CommentAttachment { name: string; mime: string; size: number }
+
 export type TimelineEntry =
-  | { id: string; at: string; type: 'comment'; author: 'user' | 'agent'; body: string }
+  | { id: string; at: string; type: 'comment'; author: 'user' | 'agent'; body: string; suggestions?: string[]; attachments?: CommentAttachment[] }
   | { id: string; at: string; type: 'status'; from: IssueStatus | null; to: IssueStatus; by: 'user' | 'system' }
   | { id: string; at: string; type: 'assign'; from: string | null; to: string | null; by?: 'user' | 'system' }
   | { id: string; at: string; type: 'run'; runId: string }
@@ -146,8 +148,18 @@ export function useIssues() {
   async function remove(id: string): Promise<boolean> {
     try { await $fetch(`/api/issues/${id}`, { method: 'DELETE' }); return true } catch (e) { fail(e); return false }
   }
-  async function comment(id: string, body: string, run = false, agent?: string): Promise<IssueDetail | null> {
-    try { return (await $fetch<{ issue: IssueDetail }>(`/api/issues/${id}/comments`, { method: 'POST', body: { body, run, agent } })).issue } catch (e) { return fail(e) }
+  /** With files the comment goes as multipart form data (pasted screenshots, logs, PDFs), otherwise as JSON */
+  async function comment(id: string, body: string, run = false, agent?: string, files: File[] = []): Promise<IssueDetail | null> {
+    let payload: Record<string, unknown> | FormData = { body, run, agent }
+    if (files.length) {
+      const form = new FormData()
+      form.append('body', body)
+      form.append('run', String(run))
+      if (agent) form.append('agent', agent)
+      for (const f of files) form.append('files', f, f.name)
+      payload = form
+    }
+    try { return (await $fetch<{ issue: IssueDetail }>(`/api/issues/${id}/comments`, { method: 'POST', body: payload })).issue } catch (e) { return fail(e) }
   }
   async function editComment(id: string, cid: string, body: string): Promise<IssueDetail | null> {
     try { return (await $fetch<{ issue: IssueDetail }>(`/api/issues/${id}/comments/${cid}`, { method: 'PUT', body: { body } })).issue } catch (e) { return fail(e) }

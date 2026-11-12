@@ -305,7 +305,7 @@ useHead({ title: 'Issues | Agent Manager' })
             :style="cardStyle(i)" :title="i.awaitingApproval ? 'Waiting for your approval' : isFresh(i) ? 'Updated since you last opened it' : undefined"
             @dragstart="dragId = i.id" @dragend="dragId = overKey = null" @click="open(i)">
             <div class="flex items-center gap-3 text-[12px] text-meta font-mono">
-              <span v-if="shows('priority') || shows('id')" class="flex items-center gap-1.5"><PriorityIcon v-if="shows('priority')" :priority="i.priority" class="size-3.5" /><template v-if="shows('id')">{{ i.id }}</template></span>
+              <span v-if="shows('priority') || shows('id')" class="flex items-center gap-1.5 shrink-0 whitespace-nowrap"><PriorityIcon v-if="shows('priority')" :priority="i.priority" class="size-3.5" /><template v-if="shows('id')">{{ i.id }}</template></span>
               <span v-if="shows('assignee')" class="flex items-center gap-1.5 min-w-0 font-sans text-[12px] text-label" :title="agentName(i.assignee)"><UIcon name="i-lucide-cpu" class="size-3.5 shrink-0" /><span class="truncate">{{ agentName(i.assignee) }}</span></span>
               <UIcon v-if="i.awaitingApproval" name="i-lucide-shield-question" class="size-3.5" style="color: #ea580c" title="Waiting for your approval" />
               <UIcon v-else-if="i.running || i.drafting" name="i-lucide-loader-2" class="size-3 animate-spin" style="color: #3b82f6" :title="i.drafting ? 'Agent is reading sources' : undefined" />
